@@ -1,0 +1,118 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {spawn} from 'node:child_process';
+const chrome = process.env.LAVISH_MB_TEST_CHROME;
+async function until(fn) {
+  let error;
+  for (let i = 0; i < 120; i++) {
+    try {const value = await fn();if (value) return value;} catch (e) {error = e;}
+    await new Promise(r => setTimeout(r, 50));
+  }
+  throw error || Error('Timed out');
+}
+const fixture = `
+window.calls = [];
+window.libraryPreferences = {layout:'list',transparent:false,artifactBackground:true,artifacts:{}};
+window.lavishApp = {
+  catalog: async () => [
+    {key:'1',name:'Intervista',file:'/tmp/intervista.html',status:'active',available:true},
+    {key:'2',name:'Concluso',file:'/tmp/concluso.html',status:'ended',available:true},
+    {key:'3',name:'<img src=x onerror=alert(1)>',file:'/tmp/missing.html',status:'active',available:false}
+  ],
+  snapshot: async () => ({preferences:libraryPreferences,tabs:[{id:'tab1',title:'Scheda esistente'}],active:null}),
+  openReview: async key => calls.push(['open',key]),
+  home: async () => calls.push(['home']),
+  select: async id => calls.push(['select',id]),
+  close: async id => calls.push(['close',id]),
+  chooseFile: async () => calls.push(['choose']),
+  preferences: async settings => Object.assign(libraryPreferences,settings),
+  mark: async request => {
+    calls.push(['mark',request]);
+    const file = {'1':'/tmp/intervista.html','2':'/tmp/concluso.html','3':'/tmp/missing.html'}[request.key];
+    libraryPreferences.artifacts[file] = {...libraryPreferences.artifacts[file],[request.field]:request.value};
+    return libraryPreferences;
+  },
+  fileAction: async request => calls.push(['file',request]),
+  onChange: fn => window.changed = fn
+};`;
+
+test('catalog searches, switches square grid, manages favorites/pins, and routes file actions safely', {timeout: 30000, skip: !chrome && 'set LAVISH_MB_TEST_CHROME to a Chrome for Testing executable'}, async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'lavish-home-ui-'));
+  let browser, ws, chromeErrors = '';
+  try {
+    browser = spawn(chrome, ['--headless=new','--remote-debugging-port=0','--user-data-dir='+dir,'--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','about:blank'], {stdio: ['ignore','ignore','pipe']});
+    browser.stderr.on('data', data => chromeErrors += data);
+    browser.on('error', error => chromeErrors += error.message);
+    let port;
+    try {port = await until(async () => Number((await fs.readFile(path.join(dir,'DevToolsActivePort'),'utf8')).split('\n')[0]));}
+    catch (error) {throw Error(`Chrome test startup failed (${browser.exitCode ?? browser.signalCode}): ${chromeErrors || error.message}`);}
+    const pages = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+    ws = new WebSocket(pages.find(p => p.type === 'page').webSocketDebuggerUrl);
+    await new Promise((r,j) => {ws.onopen=r;ws.onerror=j;});
+    let id = 0;
+    const pending = new Map();
+    ws.onmessage = event => {
+      const m = JSON.parse(event.data), p = pending.get(m.id);
+      if (p) {pending.delete(m.id);m.error ? p.reject(m.error) : p.resolve(m.result);}
+    };
+    const call = (method, params = {}) => new Promise((resolve,reject) => {
+      const n = ++id;pending.set(n,{resolve,reject});ws.send(JSON.stringify({id:n,method,params}));
+    });
+    const evaluate = async expression => {
+      const result = await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});
+      if (result.exceptionDetails) throw Error(JSON.stringify(result.exceptionDetails));
+      return result.result.value;
+    };
+    await call('Page.enable');
+    await call('Emulation.setDeviceMetricsOverride',{width:1240,height:920,deviceScaleFactor:1,mobile:false});
+    await call('Page.addScriptToEvaluateOnNewDocument',{source:fixture});
+    await call('Page.navigate',{url:new URL('../ui/index.html',import.meta.url).href});
+    await until(() => evaluate('document.querySelectorAll(".review").length===3'));
+    assert.equal(await evaluate('document.querySelectorAll(".review img").length'),0);
+    assert.equal(await evaluate('document.querySelector(".missing .open-review").disabled'),true);
+    assert.equal(await evaluate('document.querySelector(".missing .reveal").disabled'),true);
+    assert.equal(await evaluate('document.querySelector(".missing .copy-path").disabled'),false);
+    await evaluate('document.querySelector(".ended .open-review").click()');
+    assert.deepEqual(await evaluate('calls'),[['open','2']]);
+    await evaluate('document.getElementById("search").value="intervista";document.getElementById("search").dispatchEvent(new Event("input"))');
+    assert.equal(await evaluate('document.querySelectorAll(".review").length'),1);
+    await evaluate('document.querySelector(".tab .title").click();document.querySelector(".tab .close").click();document.getElementById("choose").click()');
+    assert.deepEqual(await evaluate('calls.slice(1)'),[['select','tab1'],['close','tab1'],['choose']]);
+    await evaluate('changed({tabs:[],active:null});document.getElementById("search").value="";document.getElementById("search").dispatchEvent(new Event("input"))');
+    assert.equal(await evaluate('document.querySelectorAll(".tab").length'),0);
+    await evaluate('document.getElementById("layout").click()');
+    await until(() => evaluate('document.getElementById("reviews").classList.contains("grid")'));
+    const boxes = await evaluate('Array.from(document.querySelectorAll(".review")).map(n=>({x:n.getBoundingClientRect().x,y:n.getBoundingClientRect().y,w:n.getBoundingClientRect().width,h:n.getBoundingClientRect().height}))');
+    assert.equal(boxes[0].y,boxes[1].y);assert.notEqual(boxes[0].x,boxes[1].x);
+    assert(Math.abs(boxes[0].w-boxes[0].h)<2,'grid cards are square');
+    // Pin the second item: it moves before the first, retaining its identity.
+    await evaluate('document.querySelectorAll(".review .pin")[1].click()');
+    await until(() => evaluate('document.querySelector(".review h2").textContent==="Concluso"'));
+    await evaluate('document.querySelector(".review .favorite").click()');
+    await until(() => evaluate('document.querySelector(".favorite").getAttribute("aria-pressed")==="true"'));
+    await evaluate('document.querySelector(".review .copy-path").click();document.querySelector(".review .reveal").click()');
+    await until(() => evaluate('calls.filter(c=>c[0]==="file").length===2'));
+    assert.deepEqual(await evaluate('calls.filter(c=>c[0]==="file")'),[['file',{key:'2',action:'copy'}],['file',{key:'2',action:'reveal'}]]);
+    await evaluate('document.getElementById("collection").value="favorites";document.getElementById("collection").dispatchEvent(new Event("change"))');
+    assert.equal(await evaluate('document.querySelectorAll(".review").length'),1);
+    await evaluate('document.getElementById("transparent").click()');
+    await until(() => evaluate('document.body.classList.contains("transparent")'));
+    assert.equal(await evaluate('getComputedStyle(document.documentElement).backgroundColor'),'rgba(0, 0, 0, 0)');
+    if (process.env.LAVISH_MB_TEST_EVIDENCE_DIR) {
+      await fs.mkdir(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});
+      const shot = await call('Page.captureScreenshot',{format:'png'});
+      await fs.writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'app-catalog-grid.png'),Buffer.from(shot.data,'base64'));
+    }
+    await evaluate('document.getElementById("layout").click()');
+    await until(() => evaluate('!document.getElementById("reviews").classList.contains("grid")'));
+    await evaluate('document.querySelector(".review .favorite").click()');
+    await until(() => evaluate('document.querySelectorAll(".review").length===0'));
+  } finally {
+    ws?.close();
+    if (browser && browser.exitCode===null && browser.signalCode===null) {browser.kill('SIGTERM');await new Promise(r=>browser.once('exit',r));}
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+});

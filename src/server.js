@@ -58,6 +58,7 @@ import { hostRejectedShareWrite, publishedDespiteError, publishToHtmlApp } from 
 import { serializeChat, serializeChatAckIds, serializeChatSync } from "./chat-messages.js";
 import { formatServerLogLine, serverStdioIsTimestamped } from "./server-log.js";
 import { injectLavishSdk } from "./html-transform.js";
+import { injectBruvishArtifactScript, registerBruvishRoutes } from "../bruvish/lib/server.mjs"; // BRUVISH:hook server-import
 import {
   bindHost,
   extraAllowedHosts,
@@ -762,6 +763,7 @@ export async function serve({
     return defaultJsonParser(req, res, next);
   });
 
+  registerBruvishRoutes(app, { stateFile, version }); // BRUVISH:hook server-routes
   app.get("/", (_req, res) => {
     res.type("html").send(createLandingHtml());
   });
@@ -1584,7 +1586,14 @@ export async function serve({
           );
         return;
       }
-      res.type("html").send(injectLavishSdk(html, key, verified.artifact_revision, verified.artifact_load_token));
+      // BRUVISH:hook artifact-script
+      res
+        .type("html")
+        .send(
+          injectBruvishArtifactScript(
+            injectLavishSdk(html, key, verified.artifact_revision, verified.artifact_load_token),
+          ),
+        );
     } catch (error) {
       next(error);
     }

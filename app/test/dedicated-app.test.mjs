@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {mkdtempSync,rmSync} from 'node:fs';import os from 'node:os';import path from 'node:path';
+const adapter=new URL('../open.mjs',import.meta.url).pathname;
+test('dedicated opener rejects foreign URLs before touching app state',()=>{const root=mkdtempSync(path.join(os.tmpdir(),'lavish-app-invalid-'));try{const r=spawnSync(process.execPath,[adapter,'https://example.com/','/tmp/dummy.html'],{env:{...process.env,LAVISH_APP_STATE_DIR:path.join(root,'not-created')},encoding:'utf8'});assert.equal(r.status,78,r.stderr);assert.match(r.stderr,/loopback/);}finally{rmSync(root,{recursive:true,force:true});}});

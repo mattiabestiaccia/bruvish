@@ -16,6 +16,8 @@ on:
 
 jobs:
   build-and-test:
+    # BRUVISH:hook workflow-ci - the official CI matrix runs only in the official repository.
+    if: github.repository == 'kunchenguid/lavish-axi'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

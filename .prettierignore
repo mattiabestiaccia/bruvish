@@ -11,3 +11,14 @@ plugin.json
 .claude/settings.local.json
 # Canonical two-line @AGENTS.md pointer; prettier would add a blank line.
 CLAUDE.md
+# BRUVISH:hook prettier - code and assets ported verbatim from the former overlay keep their bytes:
+# the interface addon must equal the overlay's derived chrome-client.js/chrome.css, and fonts.css is 750 KB.
+bruvish/assets/
+bruvish/lib/catalog-page.mjs
+bruvish/lib/document.mjs
+bruvish/lib/remote.mjs
+bruvish/lib/surface.mjs
+bruvish/test/
+bruvish/test-helpers/
+bruvish/DESIGN.md
+app/

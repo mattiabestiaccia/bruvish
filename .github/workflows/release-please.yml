@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   release-please:
+    # BRUVISH:hook workflow-release - the fork never releases or publishes to npm.
+    if: github.repository == 'kunchenguid/lavish-axi'
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v4

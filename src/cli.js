@@ -63,6 +63,7 @@ import { isHtmlPath } from "./artifact-path.js";
 import { canonicalFile, sessionKey, SessionStore } from "./session-store.js";
 import { generateSharePassword } from "./share-password.js";
 import { initDefaultTelemetry } from "./telemetry.js";
+import { presentBruvishOpen } from "../bruvish/lib/open.mjs"; // BRUVISH:hook open-import
 import { excalidrawLibrariesDir, loadExcalidrawLibraries } from "./whiteboard-library-store.js";
 
 const SHARE_VALUE_FLAGS = ["--password", "--token", "--site", "--update-key"];
@@ -400,7 +401,7 @@ async function openCommand(args) {
       response.status = "ready";
     }
   }
-  return createOpenOutput({
+  const output = createOpenOutput({
     file: absolute,
     url: response.url,
     status: response.status || "opened",
@@ -408,6 +409,7 @@ async function openCommand(args) {
     selfPaintWarning,
     networkWarning: response.network_warning,
   });
+  return presentBruvishOpen(output, { args }); // BRUVISH:hook open-present
 }
 
 // A read failure here must not break the open - the server reports unreadable artifacts
