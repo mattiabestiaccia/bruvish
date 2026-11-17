@@ -61,7 +61,9 @@ async function serve(entry, directory, name, { bruvish = true } = {}) {
     const env = bruvish ? runtimeEnvironment(plain) : plain;
     const child = spawn(process.execPath, [entry, 'server', '--port', String(port)], { env, stdio: 'ignore' });
     await until(async () => (await fetch(base + '/health')).ok, name + ' server starts');
-    return { base, async stop() { if (child.exitCode === null) { child.kill('SIGTERM'); await new Promise(resolve => child.once('exit', resolve)); } } };
+    // A child killed by a signal keeps exitCode null and sets signalCode: check both, or a second
+    // stop() waits forever for an 'exit' that already fired.
+    return { base, async stop() { if (child.exitCode === null && child.signalCode === null) { child.kill('SIGTERM'); await new Promise(resolve => child.once('exit', resolve)); } } };
 }
 
 const HEADERS = ['content-type', 'cache-control', 'content-security-policy', 'x-lavish-catalog', 'x-frame-options'];
