@@ -122,10 +122,10 @@ test('the CLI compares with the page it overwrites', async () => {
 });
 
 function runArtifactJs({ userAgent, storage, preset }) {
-  const attributes = {}, listeners = {}, events = [], buttons = ['dark', 'transparent'].map(mode => ({ dataset: { mbModeButton: mode }, attributes: {}, setAttribute(name, value) { this.attributes[name] = value; }, addEventListener(type, fn) { this.click = fn; } }));
+  const attributes = {}, listeners = {}, events = [], buttons = [{ attributes: {}, setAttribute(name, value) { this.attributes[name] = value; }, addEventListener(type, fn) { this.click = fn; } }];
   let observer = null;
   const root = { dataset: preset ? { mbMode: preset } : {} };
-  const document = { documentElement: root, readyState: 'complete', querySelectorAll: selector => selector === '[data-mb-mode-button]' ? buttons : [], addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }, dispatchEvent: event => events.push(event) };
+  const document = { documentElement: root, readyState: 'complete', querySelectorAll: selector => selector === '[data-mb-mode-switch]' ? buttons : [], addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }, dispatchEvent: event => events.push(event) };
   const localStorage = storage === 'blocked' ? undefined : { data: { ...storage }, getItem(key) { return this.data[key] ?? null; }, setItem(key, value) { this.data[key] = value; } };
   const context = { document, navigator: { userAgent }, CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } }, MutationObserver: class { constructor(fn) { observer = fn; } observe() { } } };
   // A sandboxed iframe throws on localStorage access.
@@ -148,15 +148,18 @@ test('mode defaults: dark in browsers and on the phone, transparent in the Lavis
 
 test('the visible switch toggles the mode, remembers it where storage works and tells the runtime bridge', () => {
   const run = runArtifactJs({ userAgent: pixel, storage: {} });
-  assert.deepEqual(run.buttons.map(b => b.attributes['aria-pressed']), ['true', 'false']);
-  run.buttons[1].click();
+  assert.deepEqual(run.buttons.map(b => b.attributes['aria-checked']), ['false']);
+  run.buttons[0].click();
   assert.equal(run.root.dataset.mbMode, 'transparent');
   assert.equal(run.localStorage.data['lavish-mb:mode'], 'transparent');
   assert.deepEqual(run.events.map(e => [e.type, e.detail.mode]), [['lavish-mb:mode-change', 'transparent']]);
   run.observer();
-  assert.deepEqual(run.buttons.map(b => b.attributes['aria-pressed']), ['false', 'true']);
+  assert.deepEqual(run.buttons.map(b => b.attributes['aria-checked']), ['true']);
+  run.buttons[0].click();
+  assert.equal(run.root.dataset.mbMode, 'dark', 'the same switch turns it back off');
+  assert.equal(run.localStorage.data['lavish-mb:mode'], 'dark');
   const sandboxed = runArtifactJs({ userAgent: pixel, storage: 'blocked' });
-  sandboxed.buttons[1].click();
+  sandboxed.buttons[0].click();
   assert.equal(sandboxed.root.dataset.mbMode, 'transparent', 'works without storage; the host page remembers it');
   assert.equal(sandboxed.events.length, 1);
 });
@@ -166,7 +169,10 @@ test('rendered pages carry the family, the switch and the mode script in the hea
   assert.match(html, /<html lang="it" data-mb-theme="dark" data-mb-family="(B|F|E2|G2|D3)"/);
   assert.doesNotMatch(html, /<html[^>]*data-mb-mode=/, 'the mode is decided on the device, not at render time');
   assert(html.indexOf("lavish-mb:mode") < html.indexOf('<body>'), 'mode resolved before the body paints');
-  assert.match(html, /<div class="mb-mode" role="group" aria-label="Fondo della pagina">Fondo <button type="button" data-mb-mode-button="dark" aria-pressed="false">Scuro<\/button><button type="button" data-mb-mode-button="transparent" aria-pressed="false">Trasparente<\/button><\/div>/);
+  assert.match(html, /<div class="mb-mode"><button type="button" class="mb-switch" role="switch" aria-checked="false" data-mb-mode-switch>[\s\S]*Trasparenza<\/button><\/div>/);
+  assert.doesNotMatch(html, /data-mb-mode-button|Fondo della pagina|>Scuro</, 'one switch replaces the two-button group');
+  const css = await readFile(new URL('../assets/artifact.css', import.meta.url), 'utf8');
+  assert.match(css, /\.mb-mode\{display:none[^}]*\}@media \(pointer:fine\)\{\.mb-mode\{display:flex\}\}/, 'the switch is shown only where a fine pointer exists, never on the phone');
   assert.doesNotMatch(html, /mb-theme-standalone|data-mb-theme-button/);
 });
 

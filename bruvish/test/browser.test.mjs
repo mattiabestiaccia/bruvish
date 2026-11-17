@@ -112,8 +112,8 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
             }
             await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR, 'layout-issues.json'), JSON.stringify(issues,null,2)+'\n');
         }
-        await client.evaluate('document.querySelectorAll(".mb-tools button")[3].click()');
-        await until(() => client.evaluate('document.documentElement.style.zoom==="1.1"', true), 'button zoom');
+        assert.equal(await client.evaluate('document.querySelector(".mb-tools").hidden'), true, 'the floating panel stays hidden while it has nothing to say');
+        assert.equal(await client.evaluate('document.querySelectorAll(".mb-tools button").length'), 1, 'theme and zoom buttons are gone');
         assert.deepEqual(await client.evaluate('[document.querySelector(".bar").getBoundingClientRect().height,document.querySelector(".panel").getBoundingClientRect().width]'), [30, 245]);
         for (const frame of [false, true]) {
             const before = await client.evaluate('Number(document.documentElement.style.zoom)', true);
@@ -123,9 +123,9 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
             await until(() => client.evaluate('document.documentElement.style.zoom==="1"', true), 'shortcut reset');
         }
         // The mode switch lives in the sandboxed artifact; the host page remembers the choice on the device.
-        await client.evaluate('document.querySelector("[data-mb-mode-button=transparent]").click()', true);
+        await client.evaluate('document.querySelector("[data-mb-mode-switch]").click()', true);
         await until(() => client.evaluate('localStorage.getItem("lavish-mb:mode")==="transparent"'), 'mode remembered by the host page');
-        assert.deepEqual(await client.evaluate('[getComputedStyle(document.documentElement).backgroundColor,getComputedStyle(document.body).backgroundColor,document.querySelector("[data-mb-mode-button=transparent]").getAttribute("aria-pressed")]', true), ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'true']);
+        assert.deepEqual(await client.evaluate('[getComputedStyle(document.documentElement).backgroundColor,getComputedStyle(document.body).backgroundColor,document.querySelector("[data-mb-mode-switch]").getAttribute("aria-checked")]', true), ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'true']);
         await until(async()=>{try{await matchingCardColors();return true;}catch{return false;}},'card colors in minimap after mode change');
         await client.evaluate('const choice=document.querySelector("[data-mb-question=q0] input[value=yes]");choice.checked=true;choice.dispatchEvent(new Event("input",{bubbles:true}))', true);
         await client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]").value="Bozza personale";document.querySelector("[data-mb-field=\\"q0:note\\"]").dispatchEvent(new Event("input",{bubbles:true}))', true);
@@ -139,8 +139,8 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(() => client.evaluate('document.documentElement.dataset.mbStateVersion==="2"', true), 'live reload');
         await until(() => client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")?.value==="Decisione canonica nuova"', true), 'canonical preserved');
         assert.equal(await client.evaluate('document.querySelector("[data-mb-question=q0] input[value=no]").checked', true), true, 'a conflicting radio draft must not replace a new canonical choice');
-        await until(() => client.evaluate('!document.querySelectorAll(".mb-tools button")[5].hidden'), 'conflict visible');
-        await client.evaluate('document.querySelectorAll(".mb-tools button")[5].click()');
+        await until(() => client.evaluate('!document.querySelectorAll(".mb-tools button")[0].hidden'), 'conflict visible');
+        await client.evaluate('document.querySelectorAll(".mb-tools button")[0].click()');
         assert((await client.evaluate('document.querySelector(".mb-conflict-dialog").textContent')).includes('Bozza personale'));
         await client.evaluate('Array.from(document.querySelectorAll(".mb-conflict-dialog [data-field]")).find(row=>row.dataset.field==="q0:note").querySelector("button").click()');
         await until(() => client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")?.value==="Bozza personale"', true), 'explicit draft restoration');

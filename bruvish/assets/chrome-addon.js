@@ -27,13 +27,12 @@
     const send = (type, data = {}) => { if (token)
         iframe.contentWindow?.postMessage({ type: 'lavish-mb:' + type, version: 1, token, ...data }, '*'); };
     function button(label, fn) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); tools.append(b); return b; }
-    const light = button('Chiaro', () => setTheme('light')), dark = button('Scuro', () => setTheme('dark'));
-    button('A−', () => setZoom(contentZoom - .1));
-    button('A+', () => setZoom(contentZoom + .1));
-    button('100%', () => setZoom(1));
+    // The panel only appears while it has something to say: a draft notice or conflicting drafts.
     const conflictButton = button('Bozze in conflitto', showConflicts);
     conflictButton.hidden = true;
     tools.append(note);
+    tools.hidden = true;
+    function refreshTools() { tools.hidden = conflictButton.hidden && !note.textContent; }
     function persist() { if (!storageAvailable)
         return; try {
         localStorage.setItem(storageKey, JSON.stringify({ theme, zoom: contentZoom, ...record }));
@@ -41,8 +40,9 @@
     catch {
         storageAvailable = false;
         note.textContent = 'Bozze non persistenti in questo browser';
+        refreshTools();
     } }
-    function setTheme(value) { theme = value; light.setAttribute('aria-pressed', theme === 'light'); dark.setAttribute('aria-pressed', theme === 'dark'); send('theme', { theme }); persist(); }
+    function setTheme(value) { theme = value; send('theme', { theme }); persist(); }
     function setZoom(value) { contentZoom = Math.max(.6, Math.min(2.5, Math.round(value * 10) / 10)); send('zoom', { zoom: contentZoom }); persist(); }
     function hello() { token = crypto.randomUUID(); send('hello'); }
     function renderOutline() { rail.replaceChildren(); for (const item of outlineItems) {
@@ -113,6 +113,7 @@
             note.textContent = storageAvailable ? (n ? 'Bozza salvata su questo browser' : '') : 'Bozze non persistenti in questo browser';
             conflictButton.hidden = !record.conflicts.length;
             conflictButton.textContent = 'Bozze in conflitto (' + record.conflicts.length + ')';
+            refreshTools();
         }
         if (m.type === 'lavish-mb:zoom-request')
             setZoom(m.reset ? 1 : contentZoom + (Number(m.delta) || 0));
@@ -141,5 +142,5 @@
     }
     catch {
         storageAvailable = false;
-    } setTheme(theme); hello(); }).catch(() => { note.textContent = 'Identità server non verificata: bozze solo in memoria'; storageKey = 'memory'; setTheme('dark'); hello(); });
+    } setTheme(theme); hello(); }).catch(() => { note.textContent = 'Identità server non verificata: bozze solo in memoria'; storageKey = 'memory'; setTheme('dark'); hello(); refreshTools(); });
 })();

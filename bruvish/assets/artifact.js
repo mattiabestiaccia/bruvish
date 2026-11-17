@@ -20,9 +20,10 @@
     }
     catch { } document.dispatchEvent(new CustomEvent('lavish-mb:mode-change', { detail: { mode } })); };
     const init = () => {
-        const buttons = [...document.querySelectorAll('[data-mb-mode-button]')];
-        const sync = () => buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mbModeButton === root.dataset.mbMode)));
-        buttons.forEach(button => button.addEventListener('click', () => setMode(button.dataset.mbModeButton)));
+        // One switch, shown on pointer-fine devices only: on = transparent, off = dark.
+        const switches = [...document.querySelectorAll('[data-mb-mode-switch]')];
+        const sync = () => switches.forEach(item => item.setAttribute('aria-checked', String(root.dataset.mbMode === 'transparent')));
+        switches.forEach(item => item.addEventListener('click', () => setMode(root.dataset.mbMode === 'transparent' ? 'dark' : 'transparent')));
         new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-mb-mode'] });
         sync();
         document.querySelectorAll('[data-mb-voice]').forEach(button => button.addEventListener('click', () => { if (!('speechSynthesis' in window))
