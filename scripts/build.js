@@ -83,3 +83,5 @@ for (const family of fontFamilies) {
     recursive: true,
   });
 }
+
+await import("./bruvish-build.js"); // BRUVISH:hook build

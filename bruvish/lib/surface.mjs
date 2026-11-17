@@ -1,0 +1,3 @@
+import fs from 'node:fs';import path from 'node:path';import os from 'node:os';
+export function configPath(env=process.env){return env.LAVISH_MB_OPENING_CONFIG||path.join(os.homedir(),'.config/lavish-mb/opening.json');}
+export function openingSurface(env=process.env){let value=env.LAVISH_MB_SURFACE;if(!value){try{value=JSON.parse(fs.readFileSync(configPath(env),'utf8')).surface;}catch(error){if(error.code==='ENOENT')return 'chrome';throw Error('Invalid Lavish opening surface configuration');}}if(!['chrome','app'].includes(value))throw Error('Expected Lavish surface app or chrome');return value;}

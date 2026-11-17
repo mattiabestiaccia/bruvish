@@ -1,0 +1,22 @@
+{
+  "name": "lavish-private",
+  "version": "0.3.0",
+  "main": "main.cjs",
+  "private": true,
+  "lavishFiles": [
+    "package.json",
+    "main.cjs",
+    "protocol.cjs",
+    "core.cjs",
+    "catalog.cjs",
+    "workspace.cjs",
+    "ipc.cjs",
+    "preload.cjs",
+    "preferences.cjs",
+    "appearance.cjs",
+    "ui/index.html",
+    "ui/app.js",
+    "ui/app.css",
+    "ui/fonts.css"
+  ]
+}

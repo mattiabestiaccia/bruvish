@@ -1,0 +1,74 @@
+{
+  "title": "Lavish · Registro estetico",
+  "intro": ["Un esempio del registro condiviso: contenuto leggibile, domande esplicite, cornice discreta."],
+  "guide": [
+    "Leggi le schede. Una scelta resta una bozza finché premi Aggiungi risposte. Per consegnare la coda usa Send to Agent nel pannello Lavish."
+  ],
+  "state": {
+    "revision": 1,
+    "answers": { "decisione": { "choice": "keep", "note": "Decisione già raccolta" } },
+    "comments": [
+      {
+        "id": "c1",
+        "card": "decisione",
+        "text": "Manteniamo il seguito visibile.",
+        "response": "Conservato insieme alla decisione."
+      }
+    ]
+  },
+  "sections": [
+    {
+      "id": "registro",
+      "title": "Il registro comune",
+      "cards": [
+        {
+          "id": "lettura",
+          "title": "Una scelta da discutere",
+          "status": "waiting",
+          "metadata": "Fonte: intervista Lavish · Stato: in attesa",
+          "clarification": "Le informazioni dell’agente vivono nello stesso blocco dei metadati.",
+          "paragraphs": [
+            [
+              "Il testo usa Atkinson e lascia respirare ogni frase.",
+              "I titoli hanno un carattere distinto, con smallcaps reali."
+            ],
+            ["Le domande restano riconoscibili e non inviano nulla quando cambi semplicemente un’opzione."]
+          ],
+          "question": {
+            "label": "Quale variante preferisci?",
+            "options": [
+              { "value": "keep", "label": "Conserva questo registro" },
+              { "value": "change", "label": "Propongo una modifica" }
+            ]
+          }
+        },
+        {
+          "id": "decisione",
+          "title": "Una decisione trattata",
+          "status": "answered",
+          "paragraphs": [["Una risposta acquisita sopravvive alle successive revisioni del documento."]],
+          "question": {
+            "options": [
+              { "value": "keep", "label": "Conserva" },
+              { "value": "change", "label": "Modifica" }
+            ]
+          }
+        },
+        {
+          "id": "informazione",
+          "title": "Un’informazione utile",
+          "status": "info",
+          "paragraphs": [
+            ["L’indice, i controlli del tema e lo zoom appartengono al runtime: non vengono ricreati da ogni agente."]
+          ]
+        },
+        {
+          "id": "vincolo",
+          "title": "Un punto bloccante",
+          "status": "blocked",
+          "paragraphs": [["Una decisione che impedisce di procedere usa il rosso e una spiegazione breve."]]
+        }
+      ]
+    }
+  ]
+}
