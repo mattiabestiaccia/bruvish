@@ -32,6 +32,16 @@ const REMOTE_USAGE =
 // Commands that reach the server on the Bruvish port. They run only against a server of this build.
 const SERVER_COMMANDS = new Set(["open", "poll", "reply", "end", "stop"]);
 
+// `stop` acts on its --port when given (upstream stopCommand, same parsing as upstream flagValue).
+function portFlag(args) {
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === "--") return null;
+    if (args[i] === "--port") return args[i + 1] || null;
+    if (args[i].startsWith("--port=")) return args[i].slice("--port=".length) || null;
+  }
+  return null;
+}
+
 function isVersion(argv) {
   return argv.length === 1 && ["--version", "-v", "-V"].includes(argv[0]);
 }
@@ -69,8 +79,11 @@ export async function runBruvish(argv, { run, normalizeArgv, env = process.env }
       return;
     }
     if (argv.length === 1 && argv[0] === "--help") process.stdout.write(`${HELP}\n`);
-    const command = normalizeArgv(argv)[0];
-    if (!command || SERVER_COMMANDS.has(command)) await assertCompatibleServer(env, runtimeIdentity());
+    const [command, ...args] = normalizeArgv(argv);
+    if (!command || SERVER_COMMANDS.has(command)) {
+      const port = command === "stop" ? portFlag(args) : null;
+      await assertCompatibleServer(port ? { ...env, LAVISH_AXI_PORT: port } : env, runtimeIdentity());
+    }
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

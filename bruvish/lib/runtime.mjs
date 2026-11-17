@@ -31,7 +31,7 @@ export async function assertCompatibleServer(env, identity, { fetchImpl = fetch,
     const info = await response.json();
     if (info.identity !== identity) {
       throw new Error(
-        "A Lavish server from another Bruvish build or the old overlay is running. Stop it explicitly after checking listeners and preserving state.",
+        "A Lavish server from another Bruvish build or the old overlay is running. This build does not drive or stop it: stop it with the build or service that started it, after checking listeners and preserving state.",
       );
     }
   } finally {

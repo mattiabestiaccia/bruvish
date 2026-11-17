@@ -23,13 +23,22 @@ async function foreignBuild(stateDir) {
     return { port, requests, close: () => new Promise(resolve => server.close(resolve)) };
 }
 
-for (const [layout, cli] of [['source', sourceCli], ['built', builtCli]]) {
-    test(`stop refuses a server of another build and sends it nothing (${layout} CLI)`, { skip: layout === 'built' && buildSkip, timeout: 30000 }, async () => {
+// The foreign server is reached through the environment port, or only through stop's own --port
+// while the environment names a free port.
+const TARGETS = {
+    environment: async (port) => ({ envPort: port, args: [] }),
+    '--port': async (port) => ({ envPort: await freePort(), args: ['--port', String(port)] }),
+    '--port=': async (port) => ({ envPort: await freePort(), args: ['--port=' + port] }),
+};
+
+for (const [layout, cli] of [['source', sourceCli], ['built', builtCli]]) for (const [target, choose] of Object.entries(TARGETS)) {
+    test(`stop refuses a server of another build and sends it nothing (${layout} CLI, port from ${target})`, { skip: layout === 'built' && buildSkip, timeout: 30000 }, async () => {
         const directory = await mkdtemp(path.join(os.tmpdir(), 'bruvish-stop-'));
         const state = path.join(directory, 'state');
         const foreign = await foreignBuild(state);
         try {
-            const child = spawn(process.execPath, [cli, 'stop'], { env: { ...process.env, ...isolatedEnvironment(directory), LAVISH_AXI_PORT: String(foreign.port), LAVISH_AXI_STATE_DIR: state }, stdio: ['ignore', 'pipe', 'pipe'] });
+            const { envPort, args } = await choose(foreign.port);
+            const child = spawn(process.execPath, [cli, 'stop', ...args], { env: { ...process.env, ...isolatedEnvironment(directory), LAVISH_AXI_PORT: String(envPort), LAVISH_AXI_STATE_DIR: state }, stdio: ['ignore', 'pipe', 'pipe'] });
             let stderr = '';
             child.stderr.on('data', data => stderr += data);
             const code = await new Promise(resolve => child.once('exit', resolve));
