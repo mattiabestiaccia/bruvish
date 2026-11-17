@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "parse5";
 import { renderCatalog } from "./catalog-page.mjs";
 import { assetUrl, readAsset } from "./assets.mjs";
+import { registerControlRoutes } from "./control.mjs";
 import { isBruvishRuntime } from "./env.mjs";
 import { runtimeIdentity } from "./identity.mjs";
 
@@ -35,9 +36,15 @@ function loadCatalog() {
 // Registered in src/server.js before the upstream landing route, after the Host and Origin guards,
 // so the catalog replaces the landing page and stays behind the same host allowlist. It also comes
 // before the upstream chrome routes: `chromeAssets` names the upstream files this server serves.
-export function registerBruvishRoutes(app, { stateFile, version, chromeAssets, env = process.env }) {
+// `store` is the upstream session store, read by the server-side opening routes (control.mjs);
+// `control` lets tests replace the opening and the remote check.
+export function registerBruvishRoutes(
+  app,
+  { stateFile, version, chromeAssets, store, env = process.env, control = {} },
+) {
   if (!isBruvishRuntime(env)) return;
   const identity = runtimeIdentity();
+  registerControlRoutes(app, { store, identity, env, ...control });
   for (const [name, type, addon] of CHROME_ADDONS) {
     app.get(`/${name}`, async (_req, res, next) => {
       try {

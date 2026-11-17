@@ -2,13 +2,14 @@ import { readFile } from "node:fs/promises";
 import { assetUrl } from "./assets.mjs";
 import { runtimeEnvironment } from "./env.mjs";
 import { runtimeIdentity } from "./identity.mjs";
-import { printRemoteStatus, verifyRemoteUrl } from "./remote.mjs";
+import { requestRemote, sessionFromUrl } from "./control-client.mjs";
+import { printRemoteStatus } from "./remote.mjs";
 import { assertCompatibleServer } from "./runtime.mjs";
 
 export const HELP = `Bruvish: Lavish (upstream lavish-axi) with a personal delta; the command stays lavish-axi.
-Opening follows the shared app/Chrome configuration (~/.config/lavish-mb/opening.json); without it, Chrome. LAVISH_MB_SURFACE=chrome overrides one call. --no-open only creates the session.
+The Bruvish server opens the review and verifies the phone link: the command sends it only the session key, so open and remote also work inside an agent sandbox, provided the server runs outside it (started by the LaunchAgent service or from a normal terminal). The server picks the surface from its own configuration (~/.config/lavish-mb/opening.json: app or Chrome; without it, Chrome); a call cannot override it. If no server is running, a sandboxed open starts one inside the sandbox: the opening then fails with a clear error and that caller's environment pins the surface until the server stops. --no-open only creates the session.
 Presenting a review includes its verified remote.url for the phone and an immediate tracked poll. remote.catalog_url is the separately verified fixed catalog bookmark.
-Existing session: lavish-axi remote <local-session-url> (read-only check).
+Existing session: lavish-axi remote <local-session-url> (read-only check by the server).
 Artifact style: lavish-axi design (upstream reference: lavish-axi design --upstream). Only native Send to Agent sends feedback.
 `;
 
@@ -27,7 +28,7 @@ async function readDesign(env) {
 }
 
 const REMOTE_USAGE =
-  "Usage: lavish-axi remote <local-session-url>\nVerify the private Tailscale review URL and fixed catalog URL without creating, reopening or opening a review.";
+  "Usage: lavish-axi remote <local-session-url>\nAsk the Bruvish server to verify the private Tailscale review URL and fixed catalog URL of a registered session, without creating, reopening or opening a review.";
 
 // Commands that reach the server on the Bruvish port. They run only against a server of this build.
 const SERVER_COMMANDS = new Set(["open", "poll", "reply", "end", "stop"]);
@@ -71,9 +72,10 @@ export async function runBruvish(argv, { run, normalizeArgv, env = process.env }
         process.exitCode = argv[1] === "--help" ? 0 : 1;
         return;
       }
-      const identity = runtimeIdentity();
-      await assertCompatibleServer(env, identity);
-      const result = await verifyRemoteUrl(argv[1], env, identity);
+      const session = sessionFromUrl(argv[1], env);
+      if (!session) throw new Error(`Expected a session URL of the configured Bruvish service.\n${REMOTE_USAGE}`);
+      await assertCompatibleServer(env, runtimeIdentity());
+      const result = await requestRemote(session.key, env, { noGate: session.noGate });
       printRemoteStatus(result);
       process.exitCode = result.status === "ready" ? 0 : 1;
       return;

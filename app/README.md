@@ -34,7 +34,7 @@ node app/adopt.mjs apply app
 
 `deploy` verifica sorgente, receipt e firma, rifiuta un'istanza in esecuzione, copia in staging, conserva bundle e receipt precedenti con suffisso `.backup-UUID` e li ripristina se la verifica finale fallisce. Destinazione `~/Applications/Bruvish.app` (oppure `LAVISH_APP_BUNDLE`).
 
-`adopt` scrive `~/.config/lavish-mb/opening.json`, unico punto per tutti gli agenti; conserva la configurazione precedente. Senza configurazione si usa Chrome. Ritorno a Chrome: `node app/adopt.mjs apply chrome`; per una sola apertura `LAVISH_MB_SURFACE=chrome lavish-axi FILE.html`. `LAVISH_MB_OPEN_ADAPTER` ha la precedenza. Se l'app non conferma entro 15 s, l'opener la lascia viva e segnala il possibile consenso macOS pendente; un'app mancante o divergente fallisce in modo esplicito, senza cambiare browser.
+`adopt` scrive `~/.config/lavish-mb/opening.json`, unico punto per tutti gli agenti; conserva la configurazione precedente. Senza configurazione si usa Chrome. Ritorno a Chrome: `node app/adopt.mjs apply chrome`. Apre il server di Lavish, che legge il file a ogni richiesta: chi lancia `lavish-axi` non può cambiare la superficie, né per una sola apertura né con un adattatore (vedi «Apertura dal server» in `BRUVISH.md`). Dalla sandbox degli agenti funziona solo se il server gira fuori da essa (avviato dal servizio o da un terminale normale): un server avviato dentro la sandbox fa fallire l'apertura con un errore chiaro e prende la superficie dall'ambiente di chi l'ha avviato. Se l'app non conferma entro 15 s, l'opener la lascia viva e segnala il possibile consenso macOS pendente; un'app mancante o divergente fallisce in modo esplicito, senza cambiare browser.
 
 ## Verifiche
 

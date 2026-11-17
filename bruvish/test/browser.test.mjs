@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, chmod, realpath } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
@@ -48,7 +48,9 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         const port = await freePort();
         const env = runtimeEnvironment({ ...process.env, ...isolatedEnvironment(dir), LAVISH_AXI_PORT: String(port), LAVISH_AXI_STATE_DIR: path.join(dir, 'state'), LAVISH_AXI_IDLE_TIMEOUT_MS: '60000', LAVISH_AXI_TELEMETRY: 'off' }), driver = path.join(root, 'dist/cli.mjs');
         let serverErrors = '';
-        server = spawn(process.execPath, [builtServer, 'server', '--port', String(port)], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+        // The server opens reviews itself; the fake opener records the launch instead of opening Chrome.
+        const opened = path.join(dir, 'opened.jsonl');
+        server = spawn(process.execPath, [builtServer, 'server', '--port', String(port)], { env: { ...env, NODE_OPTIONS: '--import=' + new URL('../test-helpers/fake-opener.mjs', import.meta.url).pathname, TEST_OPENED: opened }, stdio: ['ignore', 'pipe', 'pipe'] });
         server.stderr.on('data', d => serverErrors += d);
         await until(async () => { const r = await fetch('http://127.0.0.1:' + port + '/health'); return r.ok; }, 'server start ' + serverErrors);
         const input = { title: 'Intervista dummy', guide: 'Accoda una risposta; inviala dal pannello.', state: { revision: 1, answers: {}, comments: [] }, sections: [{ id: 'scelte', title: 'Le scelte', cards: Array.from({ length: 8 }, (_, i) => ({ id: 'q' + i, title: 'Scelta ' + i, status: ['waiting','answered','info','blocked'][i % 4], metadata: 'Fonte: intervista', clarification: 'Chiarimento agente', paragraphs: [['Prima frase.', 'Seconda frase.'], ['Altro paragrafo.']], question: { options: [{ value: 'yes', label: 'Sì' }, { value: 'no', label: 'No' }] } })) }] };
@@ -92,14 +94,12 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         assert.deepEqual(await client.evaluate('Array.from(document.querySelectorAll(".mb-rail .mb-new")).map(el=>{const css=getComputedStyle(el.querySelector("i"));return [el.dataset.target,css.animationName,css.animationDuration]})'),[['q3','mb-rail-novelty','2s'],['q7','mb-rail-novelty','2s']]);
         const accent = await client.evaluate('getComputedStyle(document.documentElement).getPropertyValue("--title").trim()',true);
         assert.equal(await client.evaluate('getComputedStyle(document.querySelector(".mb-rail")).getPropertyValue("--mb-accent").trim()'),accent,'focus ring in the theme accent');
-        const adapter = path.join(dir, 'open-adapter.mjs'), opened = path.join(dir, 'opened.json');
-        await writeFile(adapter, '#!' + process.execPath + '\nimport{writeFileSync}from"node:fs";writeFileSync(process.env.TEST_OPENED,JSON.stringify(process.argv.slice(2)));');
-        await chmod(adapter, 0o755);
-                const opener = spawn(process.execPath, [builtCli, 'open', file, '--no-gate'], { env: { ...env, LAVISH_MB_OPEN_ADAPTER: adapter, TEST_OPENED: opened }, stdio: ['ignore', 'pipe', 'pipe'] });
+        await writeFile(path.join(dir, 'opening.json'), JSON.stringify({ surface: 'app' }));
+        const opener = spawn(process.execPath, [builtCli, 'open', file, '--no-gate'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
         let openError = '';
         opener.stderr.on('data', d => openError += d);
         assert.equal(await new Promise(r => opener.on('exit', r)), 0, openError);
-        assert.deepEqual(JSON.parse(await readFile(opened, 'utf8')), [session.url, await realpath(file)]);
+        assert.deepEqual(JSON.parse(await readFile(opened, 'utf8')).args.slice(1), [session.url, await realpath(file)]);
         assert.deepEqual(await client.evaluate('[document.querySelector(".bar").getBoundingClientRect().height,document.querySelector(".panel").getBoundingClientRect().width]'), [30, 245]);
         assert.equal(await client.evaluate('document.documentElement.dataset.mbTheme', true), 'dark');
         assert.equal(await client.evaluate('document.querySelector("#q0 .context p").getClientRects().length', true), 0, 'collapsed context must not create a false layout overlap');

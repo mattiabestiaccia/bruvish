@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, chmod, realpath } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
@@ -21,7 +21,10 @@ async function until(fn) {
     throw new Error('Fixture server did not start');
 }
 
-test('public CLI emits a verified remote URL but opens Chrome adapter on localhost; remote command is read-only', { timeout: 90000 }, async () => {
+const fakeOpener = new URL('../test-helpers/fake-opener.mjs', import.meta.url).pathname;
+const sandbox = new URL('../test-helpers/sandbox.mjs', import.meta.url).pathname;
+
+test('public CLI emits a remote URL verified by the server, which opens the localhost review; remote command is read-only', { timeout: 90000 }, async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'lavish-remote-cli-'));
     let server, websocket;
     try {
@@ -30,17 +33,21 @@ test('public CLI emits a verified remote URL but opens Chrome adapter on localho
         await writeFile(config, JSON.stringify({origin: remote, localPort: port, stateDirectory: state}));
         const env = runtimeEnvironment({...process.env, ...isolatedEnvironment(dir), LAVISH_MB_REMOTE_CONFIG: config,
             LAVISH_AXI_PORT: String(port), LAVISH_AXI_STATE_DIR: state, LAVISH_AXI_TELEMETRY: 'off'});
-        server = spawn(process.execPath, [sourceServer, 'server', '--port', String(port)], {env, stdio: ['ignore', 'ignore', 'pipe']});
-        await until(async () => (await fetch(local + '/health')).ok);
-        // Replace only the remote transport boundary. Real upstream HTTP routes,
-        // Host/Origin validation and CLI output run unchanged; TLS is a live rollout check.
-        const transport = path.join(dir, 'proxy-transport.mjs');
-        await writeFile(transport, `const original = globalThis.fetch; globalThis.fetch = (url, options={}) => {
-            if (String(url).startsWith(${JSON.stringify(remote)})) return original(${JSON.stringify(local)} + String(url).slice(${remote.length}), {
+        // Replace only the remote transport boundary of the server, which verifies the phone link now.
+        // Real upstream HTTP routes, Host/Origin validation and CLI output run unchanged; TLS is a live
+        // rollout check. While the `offline` file exists, the proxy is unreachable.
+        const transport = path.join(dir, 'proxy-transport.mjs'), offline = path.join(dir, 'offline');
+        await writeFile(transport, `import {existsSync} from 'node:fs'; const original = globalThis.fetch; globalThis.fetch = (url, options={}) => {
+            if (String(url).startsWith(${JSON.stringify(remote)})) return existsSync(${JSON.stringify(offline)}) ? Promise.reject(new Error('Fixture proxy offline')) : original(${JSON.stringify(local)} + String(url).slice(${remote.length}), {
                 ...options, headers: {...options.headers, host: 'fixture.test.ts.net:8443', 'x-forwarded-host': 'fixture.test.ts.net:8443', 'x-forwarded-proto': 'https'}
             }); return original(url, options);
         };`);
-        const childEnv = {...env, NODE_OPTIONS: '--import=' + transport};
+        const opened = path.join(dir, 'opened.jsonl');
+        server = spawn(process.execPath, [sourceServer, 'server', '--port', String(port)], {env: {...env, NODE_OPTIONS: `--import=${transport} --import=${fakeOpener}`, TEST_OPENED: opened}, stdio: ['ignore', 'ignore', 'pipe']});
+        await until(async () => (await fetch(local + '/health')).ok);
+        // The CLI runs as in an agent sandbox: loopback only, no program launches.
+        const sandboxLog = path.join(dir, 'sandbox.jsonl');
+        const childEnv = {...env, NODE_OPTIONS: '--import=' + sandbox, TEST_SANDBOX_LOG: sandboxLog};
         const file = path.join(dir, 'dummy.html');
         await writeFile(file, '<!doctype html><html><head><title>Remote fixture</title></head><body style="background:#222;color:#fff">Remote fixture</body></html>');
         const created = await run(process.execPath, [cli, file, '--no-open', '--no-gate'], {env: childEnv});
@@ -63,13 +70,12 @@ test('public CLI emits a verified remote URL but opens Chrome adapter on localho
         const viewed = await run(process.execPath, [cli, 'remote', localUrl], {env: childEnv});
         assert(viewed.stdout.includes(remoteUrl), viewed.stdout);
         assert.deepEqual(await readFile(path.join(state, 'state.json')), before, 'remote lookup must not recreate or reopen the session');
-        const adapter = path.join(dir, 'adapter.mjs'), opened = path.join(dir, 'opened.json');
-        await writeFile(adapter, '#!' + process.execPath + '\nimport{writeFileSync}from"node:fs";writeFileSync(process.env.TEST_OPENED,JSON.stringify(process.argv.slice(2)));');
-        await chmod(adapter, 0o755);
-        const openedResult = await run(process.execPath, [cli, file, '--no-gate'], {env: {...childEnv, LAVISH_MB_OPEN_ADAPTER: adapter, TEST_OPENED: opened}});
+        await writeFile(path.join(dir, 'opening.json'), JSON.stringify({surface: 'app'}));
+        const openedResult = await run(process.execPath, [cli, file, '--no-gate'], {env: childEnv});
         assert(openedResult.stdout.includes(remoteUrl));
-        // The adapter receives the canonical path that upstream registered for the session.
-        assert.deepEqual(JSON.parse(await readFile(opened, 'utf8')), [localUrl, await realpath(file)]);
+        // The app opener receives the local URL and the canonical path that upstream registered.
+        const [launch] = (await readFile(opened, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+        assert.deepEqual(launch.args.slice(1), [localUrl, await realpath(file)]);
 
         const key = new URL(localUrl).pathname.split('/').pop();
         const headers = {host: 'fixture.test.ts.net:8443', 'x-forwarded-host': 'fixture.test.ts.net:8443',
@@ -99,9 +105,9 @@ test('public CLI emits a verified remote URL but opens Chrome adapter on localho
         assert(JSON.stringify(await pushedReply).includes('Fixture agent receipt'));
 
         // An unavailable proxy does not turn local session creation into a failure.
-        const offline = path.join(dir, 'offline.mjs');
-        await writeFile(offline, `const original=globalThis.fetch;globalThis.fetch=(url,options)=>String(url).startsWith(${JSON.stringify(remote)})?Promise.reject(new Error('Fixture proxy offline')):original(url,options);`);
-        const unavailable = await run(process.execPath, [cli, file, '--no-open', '--no-gate'], {env: {...env, NODE_OPTIONS: '--import=' + offline}});
+        await writeFile(offline, '');
+        const unavailable = await run(process.execPath, [cli, file, '--no-open', '--no-gate'], {env: childEnv});
+        await rm(offline);
         assert(unavailable.stdout.includes(localUrl));
         assert.match(unavailable.stdout, /remote:\s+status: unavailable/);
         assert(!unavailable.stdout.includes(remoteUrl), 'offline remote link must not be advertised');
@@ -122,6 +128,7 @@ test('public CLI emits a verified remote URL but opens Chrome adapter on localho
         assert.match(refusedOpen.stdout, /status: user-ended/);
         assert(!refusedOpen.stdout.includes('remote:'), 'creation refusal must not advertise a new remote opening');
         assert(!refusedOpen.stdout.includes('Bruvish presentation'), 'user-ended output must not start a new review loop');
+        assert.equal(await readFile(sandboxLog, 'utf8').catch(() => ''), '', 'the CLI reached only loopback and launched nothing');
     } finally {
         websocket?.terminate();
         if (server && server.exitCode === null) { server.kill('SIGTERM'); await new Promise(r => server.once('exit', r)); }
