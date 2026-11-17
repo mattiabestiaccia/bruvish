@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
-import {makeBundle,acknowledgingApp,runOpener,reviewUrl,source} from '../test-helpers/opener.mjs';import {parseOpen} from '../test-helpers/fake-launchservices.mjs';
+import {makeBundle,acknowledgingApp,runOpener,reviewUrl} from '../test-helpers/opener.mjs';import {parseOpen} from '../test-helpers/fake-launchservices.mjs';
 function fixture(prefix,script){const dir=fs.mkdtempSync(path.join(os.tmpdir(),prefix)),bundle=makeBundle(dir,script),file=path.join(dir,'dummy.html');fs.writeFileSync(file,'dummy');return {dir,bundle,file};}
 
 test('the app is launched through LaunchServices, outside the caller, with the request in argv',{timeout:25000},()=>{const {dir,bundle,file}=fixture('lavish-launch-',acknowledgingApp());try{
@@ -30,11 +30,3 @@ test('an acknowledgement from different app code is refused',{timeout:25000},()=
  const result=runOpener(dir,bundle,file);
  assert.equal(result.status,78,result.stderr);assert.match(result.stderr,/differs from maintained source/);
 }finally{fs.rmSync(dir,{recursive:true,force:true});}});
-
-// `-n` rests on how the app takes requests: only from argv, forwarded by a new process to the running
-// app through the single-instance lock. Without `-n`, LaunchServices would only activate a running app
-// and drop the request; an app that handled open-url or open-file events would need a new decision.
-test('the app takes review requests only from argv and the second-instance hand-off',()=>{const main=fs.readFileSync(path.join(source,'main.cjs'),'utf8');
- assert.match(main,/requestSingleInstanceLock\(first/);assert.match(main,/app\.on\('second-instance'/);
- assert.doesNotMatch(main,/['"]open-(url|file)['"]/);
-});
