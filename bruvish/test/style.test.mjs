@@ -121,13 +121,13 @@ test('the CLI compares with the page it overwrites', async () => {
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-function runArtifactJs({ userAgent, storage, preset }) {
+function runArtifactJs({ userAgent, storage, preset, pointer = 'fine' }) {
   const attributes = {}, listeners = {}, events = [], buttons = [{ attributes: {}, setAttribute(name, value) { this.attributes[name] = value; }, addEventListener(type, fn) { this.click = fn; } }];
   let observer = null;
   const root = { dataset: preset ? { mbMode: preset } : {} };
   const document = { documentElement: root, readyState: 'complete', querySelectorAll: selector => selector === '[data-mb-mode-switch]' ? buttons : [], addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }, dispatchEvent: event => events.push(event) };
   const localStorage = storage === 'blocked' ? undefined : { data: { ...storage }, getItem(key) { return this.data[key] ?? null; }, setItem(key, value) { this.data[key] = value; } };
-  const context = { document, navigator: { userAgent }, CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } }, MutationObserver: class { constructor(fn) { observer = fn; } observe() { } } };
+  const context = { document, navigator: { userAgent }, matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')' }), CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } }, MutationObserver: class { constructor(fn) { observer = fn; } observe() { } } };
   // A sandboxed iframe throws on localStorage access.
   Object.defineProperty(context, 'localStorage', { get() { if (!localStorage) throw new Error('SecurityError'); return localStorage; } });
   vm.runInNewContext(artifactJs, context);
@@ -142,8 +142,9 @@ test('mode defaults: dark in browsers and on the phone, transparent in the Lavis
   assert.equal(runArtifactJs({ userAgent: pixel, storage: {} }).root.dataset.mbMode, 'dark');
   assert.equal(runArtifactJs({ userAgent: electronMac, storage: 'blocked' }).root.dataset.mbMode, 'transparent');
   assert.equal(runArtifactJs({ userAgent: electronMac, storage: { 'lavish-mb:mode': 'dark' } }).root.dataset.mbMode, 'dark');
-  assert.equal(runArtifactJs({ userAgent: pixel, storage: { 'lavish-mb:mode': 'transparent' } }).root.dataset.mbMode, 'transparent');
-  assert.equal(runArtifactJs({ userAgent: pixel, storage: { 'lavish-mb:mode': 'bogus' } }).root.dataset.mbMode, 'dark');
+  assert.equal(runArtifactJs({ userAgent: chromeMac, storage: { 'lavish-mb:mode': 'transparent' } }).root.dataset.mbMode, 'transparent');
+  assert.equal(runArtifactJs({ userAgent: chromeMac, storage: { 'lavish-mb:mode': 'bogus' } }).root.dataset.mbMode, 'dark');
+  assert.equal(runArtifactJs({ userAgent: pixel, pointer: 'coarse', storage: { 'lavish-mb:mode': 'transparent' } }).root.dataset.mbMode, 'dark', 'the phone has no switch, so a saved mode never applies there');
 });
 
 test('the visible switch toggles the mode, remembers it where storage works and tells the runtime bridge', () => {

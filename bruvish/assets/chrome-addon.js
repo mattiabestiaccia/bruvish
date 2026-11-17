@@ -8,7 +8,7 @@
     let mode = null;
     try {
         const saved = localStorage.getItem(MODE_KEY);
-        if (MODES.includes(saved))
+        if (MODES.includes(saved) && matchMedia('(pointer: fine)').matches)
             mode = saved;
     }
     catch { }

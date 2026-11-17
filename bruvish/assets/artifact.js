@@ -4,7 +4,7 @@
     // Lavish runtime bridge, which forwards it to the host page (the artifact iframe is sandboxed).
     const KEY = 'lavish-mb:mode', MODES = ['dark', 'transparent'], root = document.documentElement;
     const stored = () => { try {
-        return localStorage.getItem(KEY);
+        return matchMedia('(pointer: fine)').matches ? localStorage.getItem(KEY) : null;
     }
     catch {
         return null;
