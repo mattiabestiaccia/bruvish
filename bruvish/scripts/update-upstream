@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+// Merge an upstream release into update/vX.Y.Z and run the checks. See BRUVISH.md and --help.
+import("../lib/update.mjs").then(({ main }) => {
+  process.exitCode = main(process.argv.slice(2));
+});

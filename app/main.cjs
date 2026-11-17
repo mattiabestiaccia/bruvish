@@ -1,9 +1,8 @@
 const {app, BrowserWindow, WebContentsView, Menu, dialog, ipcMain, session, shell, clipboard} = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
-const os = require('node:os');
 const {pathToFileURL} = require('node:url');
-const {validate, stateRoot, codeIdentity} = require('./protocol.cjs');
+const {validate, stateRoot, codeIdentity, coreRoot} = require('./protocol.cjs');
 const {createCore} = require('./core.cjs');
 const {Workspace} = require('./workspace.cjs');
 const {authorizeUi} = require('./ipc.cjs');
@@ -19,8 +18,7 @@ app.setName('Lavish');
 app.setPath('userData', path.join(root, 'profile'));
 app.setPath('sessionData', path.join(root, 'profile'));
 const uiFile = path.join(__dirname, 'ui/index.html'), uiUrl = pathToFileURL(uiFile).href;
-// The installed Bruvish build: a stable link that the installer moves between versions.
-const coreDirectory = process.env.LAVISH_APP_CORE_ROOT || path.join(os.homedir(), 'personal/tools/bruvish/current');
+const coreDirectory = coreRoot();
 let win, workspace, core, preferences, initialized, queue = Promise.resolve();
 const enqueue = fn => {const current = queue.then(fn);queue = current.catch(() => {});return current;};
 function parse(argv) {

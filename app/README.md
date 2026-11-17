@@ -2,7 +2,7 @@
 
 App macOS personale per le review Lavish: una finestra con la home (catalogo degli artefatti registrati) e una scheda `WebContentsView` per ogni review. Non esiste un'app Lavish ufficiale: questa cartella è tutta del delta di Bruvish.
 
-L'app usa la build installata di Bruvish (`~/personal/tools/bruvish/current`, oppure `LAVISH_APP_CORE_ROOT`) e lo stato delle review del servizio (`~/.local/state/lavish-axi-compact`). Non crea una seconda installazione: aprire una review lancia `dist/bruvish.mjs <file> --no-open`, che avvia il servizio quando è spento. Le review concluse dall'utente chiedono una conferma nativa prima di `--reopen`.
+L'app usa la build installata di Bruvish (`~/tools/bruvish/current`, il link che sposta `bruvish/scripts/install`, oppure `LAVISH_APP_CORE_ROOT`) e lo stato delle review del servizio (`~/.local/state/lavish-axi-compact`). Non crea una seconda installazione: aprire una review lancia `dist/bruvish.mjs <file> --no-open`, che avvia il servizio quando è spento. Le review concluse dall'utente chiedono una conferma nativa prima di `--reopen`.
 
 La stessa identità canonica del file riusa la scheda senza navigare: bozze e posizione restano. Chiudere una scheda non conclude la review. Il preload esiste solo nella home locale con CSP; negli artefatti niente preload privilegiato, niente Node nei renderer, sandbox e context isolation, IPC limitato al frame principale fidato. Permessi e nuove finestre sono negati.
 
@@ -10,7 +10,7 @@ Nome visibile **Bruvish** (bundle, menu, finestra). Restano invariati, per non p
 
 ## Motore e firma
 
-Il motore è l'Electron 44.2.0 ufficiale, scaricato a mano dalla pagina dei rilasci di Electron e messo in `~/personal/tools/electron/44.2.0/Electron.app` (oppure `--electron` / `BRUVISH_ELECTRON_APP`). `build.py` controlla id e versione dell'app ufficiale e la sua firma, accetta un pin facoltativo dell'eseguibile (`--electron-sha256` / `BRUVISH_ELECTRON_SHA256`) e registra l'impronta nel receipt. Non scarica nulla.
+Il motore è l'Electron 44.2.0 ufficiale, scaricato a mano dalla pagina dei rilasci di Electron e messo in `~/tools/electron/44.2.0/Electron.app` (oppure `--electron` / `BRUVISH_ELECTRON_APP`). La radice `~/tools` è definita una volta sola, in `protocol.cjs` (`toolsRoot`), e `BRUVISH_TOOLS_ROOT` la sostituisce per le prove. `build.py` controlla id e versione dell'app ufficiale e la sua firma, accetta un pin facoltativo dell'eseguibile (`--electron-sha256` / `BRUVISH_ELECTRON_SHA256`) e registra l'impronta nel receipt. Non scarica nulla.
 
 La firma usa un'identità stabile del Portachiavi, passata con `--identity` o `BRUVISH_SIGN_IDENTITY`; non c'è ripiego ad hoc. Il Portachiavi non è raggiungibile dalla sandbox degli agenti: la build firmata si lancia dal terminale.
 

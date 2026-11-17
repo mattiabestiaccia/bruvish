@@ -10,17 +10,9 @@ import { spawn } from 'node:child_process';
 import { injectLavishSdk } from '../../src/html-transform.js';
 import { ARTIFACT_SCRIPT, injectBruvishArtifactScript } from '../lib/server.mjs';
 import { RUNTIME_FLAG, runtimeEnvironment } from '../lib/env.mjs';
+import { HOOKS } from '../lib/hooks.mjs';
 import { freePort, isolatedEnvironment, loadArtifact, root, sourceServer, until } from '../test-helpers/runtime.mjs';
 
-// The full list of hooks. Keep it in step with BRUVISH.md.
-export const HOOKS = {
-    'src/server.js': ['server-import', 'server-routes', 'artifact-script'],
-    'src/cli.js': ['open-import', 'open-present'],
-    'scripts/build.js': ['build'],
-    '.prettierignore': ['prettier'],
-    '.github/workflows/ci.yml': ['workflow-ci'],
-    '.github/workflows/release-please.yml': ['workflow-release'],
-};
 const MARKER = /BRUVISH:hook ([a-z0-9-]+)/g;
 // Bruvish's own files may mention the marker; only upstream files carry hooks.
 const OWN = new Set(['bruvish', 'app', 'node_modules', 'dist', '.git', 'BRUVISH.md', 'bruvish-build.js']);
@@ -52,7 +44,7 @@ test('no upstream file carries an unlisted hook', async () => {
         const source = await readFile(path.join(root, file), 'utf8').catch(() => '');
         for (const match of source.matchAll(MARKER)) (found[file] ||= []).push(match[1]);
     }
-    assert.deepEqual(found, HOOKS);
+    assert.deepEqual(found, { ...HOOKS });
 });
 
 test('the artifact bridge follows the SDK tag exactly where upstream put it', () => {
