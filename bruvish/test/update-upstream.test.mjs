@@ -210,6 +210,8 @@ test('a release that changes agent configuration stops before merging and shows 
         }
         assert.equal(branch(ws), 'carry');
 
+        // merge.log would append a shortlog after the trailer paragraph; the trailer must stay last.
+        git(ws.fork, ws.env, 'config', 'merge.log', 'true');
         result = update(ws, '--no-fetch', '--allow-agent-config', 'reviewed by Mattia: new upstream instruction is fine');
         assert.equal(result.status, 0, result.output);
         assert.equal(branch(ws), 'update/v0.1.9');
@@ -228,6 +230,7 @@ test('the agent-configuration trailer survives a conflict resolved with --contin
             write(path.join(repo, 'AGENTS.md'), '# Agents\nNew upstream instruction.\n');
             editLine('src/cli.js', 10, 'upstream rewrote line 10')(repo);
         });
+        git(ws.fork, ws.env, 'config', 'merge.log', 'true');
         let result = update(ws, '--allow-agent-config', 'reviewed');
         assert.equal(result.status, 3, result.output);
         const resolved = original('src/cli.js');

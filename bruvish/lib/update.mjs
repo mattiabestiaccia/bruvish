@@ -286,7 +286,7 @@ function start(root, options, log) {
   git(root, ["config", "rerere.autoUpdate", "true"]);
   git(root, ["switch", "--quiet", "-c", branch, base]);
   log(`Merging ${tag} into ${branch} (from ${base}).`);
-  const merged = gitVisible(root, ["merge", "--no-ff", "--no-edit", "-m", message, tag]);
+  const merged = gitVisible(root, ["merge", "--no-ff", "--no-log", "--no-edit", "-m", message, tag]);
   if (merged !== 0) {
     if (!hasRef(root, "MERGE_HEAD")) throw new Stop(EXIT.error, `git merge ${tag} failed without starting a merge.`);
     const unmerged = gitLines(root, ["diff", "--name-only", "--diff-filter=U"]);
