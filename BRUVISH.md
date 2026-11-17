@@ -28,17 +28,17 @@ Passo d'installazione per L5: la guida di stile non viene dal repository. L'inst
 
 Ogni punto toccato del codice ufficiale porta `BRUVISH:hook <id>`; `bruvish/test/hooks.test.mjs` controlla che ognuno ci sia una volta sola e che non ce ne siano altri. Durante un merge, un conflitto in uno di questi punti si risolve rimettendo l'aggancio, non riscrivendo l'innesto.
 
-| id                 | File                                   | Cosa fa                                                                                |
-| ------------------ | -------------------------------------- | -------------------------------------------------------------------------------------- |
-| `server-import`    | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                       |
-| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js` e addon prima delle route ufficiali   |
-| `artifact-script`  | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                     |
-| `open-import`      | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                         |
-| `open-present`     | `src/cli.js`                           | link remoto, prefisso del `next_step`, apertura della superficie                       |
-| `build`            | `scripts/build.js`                     | lancia `scripts/bruvish-build.js`                                                      |
-| `prettier`         | `.prettierignore`                      | esclude i file portati byte per byte dallo strato precedente                           |
-| `workflow-ci`      | `.github/workflows/ci.yml`             | la CI ufficiale gira solo nel repository ufficiale                                     |
-| `workflow-release` | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                                |
+| id                 | File                                   | Cosa fa                                                                              |
+| ------------------ | -------------------------------------- | ------------------------------------------------------------------------------------ |
+| `server-import`    | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                     |
+| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js` e addon prima delle route ufficiali |
+| `artifact-script`  | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                   |
+| `open-import`      | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                       |
+| `open-present`     | `src/cli.js`                           | link remoto, prefisso del `next_step`, apertura della superficie                     |
+| `build`            | `scripts/build.js`                     | lancia `scripts/bruvish-build.js`                                                    |
+| `prettier`         | `.prettierignore`                      | esclude i file portati byte per byte dallo strato precedente                         |
+| `workflow-ci`      | `.github/workflows/ci.yml`             | la CI ufficiale gira solo nel repository ufficiale                                   |
+| `workflow-release` | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                              |
 
 I workflow girano dal ramo dell'evento: `main` del fork è lo specchio ufficiale senza questi agganci, quindi il vero interruttore su GitHub resta Actions disattivato nelle impostazioni del fork.
 
