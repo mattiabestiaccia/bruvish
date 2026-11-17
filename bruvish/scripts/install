@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+// Build this checkout and install it under <tools root>/bruvish. See BRUVISH.md and --help.
+import("../lib/install.mjs").then(({ installMain }) => {
+  process.exitCode = installMain(process.argv.slice(2));
+});

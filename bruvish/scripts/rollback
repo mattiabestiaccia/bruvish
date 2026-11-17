@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+// Point <tools root>/bruvish/current back at previous. See BRUVISH.md and --help.
+import("../lib/install.mjs").then(({ rollbackMain }) => {
+  process.exitCode = rollbackMain(process.argv.slice(2));
+});
