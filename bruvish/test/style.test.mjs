@@ -171,8 +171,6 @@ test('rendered pages carry the family, the switch and the mode script in the hea
   assert(html.indexOf("lavish-mb:mode") < html.indexOf('<body>'), 'mode resolved before the body paints');
   assert.match(html, /<div class="mb-mode"><button type="button" class="mb-switch" role="switch" aria-checked="false" data-mb-mode-switch>[\s\S]*Trasparenza<\/button><\/div>/);
   assert.doesNotMatch(html, /data-mb-mode-button|Fondo della pagina|>Scuro</, 'one switch replaces the two-button group');
-  const css = await readFile(new URL('../assets/artifact.css', import.meta.url), 'utf8');
-  assert.match(css, /\.mb-mode\{display:none[^}]*\}@media \(pointer:fine\)\{\.mb-mode\{display:flex\}\}/, 'the switch is shown only where a fine pointer exists, never on the phone');
   assert.doesNotMatch(html, /mb-theme-standalone|data-mb-theme-button/);
 });
 

@@ -122,6 +122,12 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
             await client.evaluate('document.dispatchEvent(new KeyboardEvent("keydown",{key:"0",metaKey:true,bubbles:true,cancelable:true}))', frame);
             await until(() => client.evaluate('document.documentElement.style.zoom==="1"', true), 'shortcut reset');
         }
+        const switchDisplay = () => client.evaluate('getComputedStyle(document.querySelector(".mb-mode")).display', true);
+        assert.notEqual(await switchDisplay(), 'none', 'the mode switch is shown on the computer');
+        await client.call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+        await until(async () => await client.evaluate('matchMedia("(pointer: coarse)").matches', true) && await switchDisplay() === 'none', 'switch hidden with a phone pointer');
+        await client.call('Emulation.setTouchEmulationEnabled', { enabled: false });
+        await until(async () => await switchDisplay() !== 'none', 'switch shown again on the computer');
         // The mode switch lives in the sandboxed artifact; the host page remembers the choice on the device.
         await client.evaluate('document.querySelector("[data-mb-mode-switch]").click()', true);
         await until(() => client.evaluate('localStorage.getItem("lavish-mb:mode")==="transparent"'), 'mode remembered by the host page');
