@@ -10,5 +10,5 @@ export function verifyBundle(bundle,{sourceDirectory=source}={}){
  if(hash(fs.readFileSync(executable))!==manifest.executableSha256)throw Error('Electron engine integrity failed');
  return {executable,development:false,bundle,appCode:protocol.codeIdentity(sourceDirectory),manifest};
 }
-export const defaultBundle=path.join(os.homedir(),'Applications/Bruvish.app');
-export function resolveEngine(env=process.env){return verifyBundle(env.LAVISH_APP_BUNDLE||defaultBundle);}
+export function installedBundle(env=process.env){return env.LAVISH_APP_BUNDLE||path.join(os.homedir(),'Applications/Bruvish.app');}
+export function resolveEngine(env=process.env){return verifyBundle(installedBundle(env));}
