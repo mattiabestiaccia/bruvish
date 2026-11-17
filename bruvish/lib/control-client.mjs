@@ -1,4 +1,4 @@
-import { OPEN_ROUTE, REMOTE_ROUTE, SESSION_KEY } from "./control.mjs";
+import { CONTROL_HEADER, OPEN_ROUTE, REMOTE_ROUTE, SESSION_KEY } from "./control.mjs";
 import { OPENING_TIMEOUT_MS } from "./opening.mjs";
 
 // The CLI side of server-side opening (control.mjs). Both calls go to the loopback Bruvish server and
@@ -20,7 +20,7 @@ async function call(env, method, route, { body = undefined, query = undefined, t
   try {
     response = await fetchImpl(url, {
       method,
-      headers: body ? { "content-type": "application/json" } : {},
+      headers: { [CONTROL_HEADER]: "1", ...(body ? { "content-type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
       redirect: "error",
       signal: AbortSignal.timeout(timeoutMs),

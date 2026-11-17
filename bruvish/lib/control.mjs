@@ -9,6 +9,7 @@ import { verifyRemoteUrl } from "./remote.mjs";
 export const SESSION_KEY = /^[a-f0-9]{16}$/;
 export const OPEN_ROUTE = "/mb/open";
 export const REMOTE_ROUTE = "/mb/remote";
+export const CONTROL_HEADER = "x-bruvish-control";
 export const DEFAULT_LIMITS = Object.freeze({
   open: { limit: 12, windowMs: 60_000 },
   remote: { limit: 30, windowMs: 60_000 },
@@ -45,12 +46,13 @@ function loopbackHost(value) {
 
 // Only the local CLI calls these routes. The upstream Host allowlist and Origin guard already ran;
 // on top of them a control call must name a loopback host, carry no proxy header (the phone reaches
-// this server through a Tailscale proxy) and come from no web page at all (no Origin or Referer).
+// this server through a Tailscale proxy) and come from no web page at all: no Origin or Referer, and
+// the CLI's control header, which a browser cannot send cross-origin without a CORS preflight.
 function refusedCaller(req) {
   if (!loopbackHost(req.headers.host || "")) return "Server-side opening accepts only the local loopback host.";
   if (Object.keys(req.headers).some((name) => PROXY_HEADER.test(name)))
     return "Server-side opening does not accept proxied requests.";
-  if (req.headers.origin !== undefined || req.headers.referer !== undefined)
+  if (req.headers.origin !== undefined || req.headers.referer !== undefined || req.headers[CONTROL_HEADER] !== "1")
     return "Server-side opening does not accept requests from web pages.";
   return null;
 }

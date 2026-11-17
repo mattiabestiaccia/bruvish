@@ -40,10 +40,12 @@ async function routes({ limits, now } = {}) {
     return { base, env, opened, verified, close: () => new Promise(resolve => server.close(resolve)) };
 }
 
-// fetch() always sends its own Host; raw requests choose every header.
+// fetch() always sends its own Host; raw requests choose every header. By default they send the
+// CLI's control header; an undefined value leaves a header out.
 function raw(base, method, route, { headers = {}, body } = {}) {
+    const sent = Object.fromEntries(Object.entries({ host: new URL(base).host, 'x-bruvish-control': '1', ...headers }).filter(([, value]) => value !== undefined));
     return new Promise((resolve, reject) => {
-        const request = http.request(base + route, { method, headers: { host: new URL(base).host, ...headers } }, response => {
+        const request = http.request(base + route, { method, headers: sent }, response => {
             let text = '';
             response.on('data', data => text += data);
             response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, json: (() => { try { return JSON.parse(text); } catch { return text; } })() }));
@@ -101,6 +103,8 @@ test('the control routes refuse web pages, proxied requests and other hosts', as
             { origin: 'https://evil.test' }, { origin: r.base }, { origin: 'null' }, { referer: r.base + '/session/' + KEY },
             { 'x-forwarded-host': 'box.example.ts.net' }, { 'x-forwarded-for': '100.64.0.2' }, { forwarded: 'for=100.64.0.2' },
             { 'tailscale-user-login': 'someone@example.com' }, { host: 'box.example.ts.net' }, { host: 'evil.test:' + port },
+            // What an <img> or a form on a web page sends with referrerpolicy=no-referrer: no control header.
+            { 'x-bruvish-control': undefined }, { 'x-bruvish-control': '0' },
         ]) {
             const open = await postOpen(r.base, { session: KEY }, headers);
             assert.equal(open.status, 403, JSON.stringify(headers));
@@ -256,7 +260,7 @@ test('open, the bare form and remote work from a sandboxed CLI; the server alone
         const refused = await run(process.execPath, [sourceCli, file], { env: cliEnv });
         assert.match(refused.stdout, /status: user-ended/);
         assert.doesNotMatch(refused.stdout, /opening:/);
-        const direct = await fetch(base + '/mb/open', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: key }) });
+        const direct = await fetch(base + '/mb/open', { method: 'POST', headers: { 'content-type': 'application/json', 'x-bruvish-control': '1' }, body: JSON.stringify({ session: key }) });
         assert.equal(direct.status, 409, 'the route itself never opens an ended session');
         assert.equal((await launches()).length, 3);
         const reopened = await run(process.execPath, [sourceCli, file, '--reopen'], { env: cliEnv });
