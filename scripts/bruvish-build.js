@@ -1,13 +1,14 @@
 // Bruvish build step, run at the end of scripts/build.js (`BRUVISH:hook build`), after the upstream
-// outputs exist in dist/. It adds the Bruvish delta to the build without changing upstream sources:
-// - appends the interface addon to dist/chrome-client.js and dist/chrome.css;
+// outputs exist in dist/. It adds the Bruvish delta to the build without changing upstream sources
+// or upstream outputs (dist/chrome-client.js and dist/chrome.css stay upstream's; the Bruvish server
+// serves them with the interface addon only in the Bruvish runtime, bruvish/lib/server.mjs):
 // - copies the runtime assets the server and CLI read (bruvish/lib/assets.mjs);
 // - bundles the Bruvish entry point into dist/bruvish.mjs;
 // - writes dist/bruvish-manifest.json with the upstream base, the carry commit and output hashes.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { appendFile, chmod, copyFile, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, readFile, rm, writeFile } from "node:fs/promises";
 
 import * as esbuild from "esbuild";
 
@@ -22,18 +23,11 @@ const runtimeAssets = {
   "mb-catalog.js": "bruvish/assets/catalog.js",
   "mb-catalog-fonts.css": "bruvish/assets/fonts.css",
   "mb-catalog.cjs": "app/catalog.cjs",
+  "chrome-addon.js": "bruvish/assets/chrome-addon.js",
+  "chrome-addon.css": "bruvish/assets/chrome-addon.css",
 };
 // The style guide is personal and untracked (bruvish/.gitignore): copied only when present locally.
 const optionalAssets = { "bruvish-design.md": "bruvish/DESIGN.md" };
-
-// The addon is appended after a newline, exactly as the former overlay did, so the result can be
-// compared byte for byte with the overlay's derived files.
-for (const [output, addon] of [
-  ["chrome-client.js", "bruvish/assets/chrome-addon.js"],
-  ["chrome.css", "bruvish/assets/chrome-addon.css"],
-]) {
-  await appendFile(new URL(output, dist), `\n${await readFile(new URL(addon, root), "utf8")}`);
-}
 
 for (const [output, source] of Object.entries(runtimeAssets)) {
   await copyFile(new URL(source, root), new URL(output, dist));

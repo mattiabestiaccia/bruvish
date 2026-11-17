@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { packageUrl } from "./assets.mjs";
 import { openingSurface } from "./surface.mjs";
 import { isBruvishRuntime } from "./env.mjs";
 import { runtimeIdentity } from "./identity.mjs";
@@ -28,7 +29,7 @@ export function openingTarget(url, file, adapter, env = process.env) {
   if (openingSurface(env) === "app") {
     return {
       command: process.execPath,
-      args: [fileURLToPath(new URL("../../app/open.mjs", import.meta.url)), url, file],
+      args: [fileURLToPath(packageUrl("app/open.mjs")), url, file],
     };
   }
   return { command: "/usr/bin/open", args: ["-a", "Google Chrome", url] };

@@ -16,7 +16,7 @@ La configurazione personale resta fuori dal repository: `~/.config/lavish-mb/rem
 
 Il runtime Bruvish è attivo quando `LAVISH_BRUVISH=1`. Lo impostano il punto d'ingresso, il daemon e l'app (`bruvish/lib/env.mjs`), insieme ai valori del servizio: porta 4388, stato `~/.local/state/lavish-axi-compact`, ascolto solo su `127.0.0.1`, nessuna apertura del browser ufficiale. Senza quella variabile ogni punto d'aggancio è inerte: `bin/lavish-axi.js` e la suite di test ufficiale si comportano come l'originale.
 
-Nel runtime: `/` è il catalogo per il telefono, `/mb-info` dichiara la build, ogni artefatto carica `/mb-artifact.js` subito dopo lo script dell'SDK (eccezione voluta all'invariante «un solo script iniettato»), l'interfaccia ha l'addon in coda a `chrome-client.js` e `chrome.css`, e `open` aggiunge il link remoto verificato, un prefisso al `next_step` ufficiale e l'apertura della superficie configurata. Il CLI rifiuta un server di un'altra build sulla stessa porta e stato.
+Nel runtime: `/` è il catalogo per il telefono, `/mb-info` dichiara la build, ogni artefatto carica `/mb-artifact.js` subito dopo lo script dell'SDK (eccezione voluta all'invariante «un solo script iniettato»), il server serve `/chrome-client.js` e `/chrome.css` con l'addon dell'interfaccia in coda al file ufficiale (i file in `dist/` restano quelli ufficiali), e `open` aggiunge il link remoto verificato, un prefisso al `next_step` ufficiale e l'apertura della superficie configurata. Il CLI rifiuta un server di un'altra build sulla stessa porta e stato.
 
 ## Build
 
@@ -31,7 +31,7 @@ Ogni punto toccato del codice ufficiale porta `BRUVISH:hook <id>`; `bruvish/test
 | id                 | File                                   | Cosa fa                                                                                |
 | ------------------ | -------------------------------------- | -------------------------------------------------------------------------------------- |
 | `server-import`    | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                       |
-| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js` prima della pagina iniziale ufficiale |
+| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js` e addon prima delle route ufficiali   |
 | `artifact-script`  | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                     |
 | `open-import`      | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                         |
 | `open-present`     | `src/cli.js`                           | link remoto, prefisso del `next_step`, apertura della superficie                       |

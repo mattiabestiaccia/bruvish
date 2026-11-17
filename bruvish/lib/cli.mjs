@@ -30,7 +30,7 @@ const REMOTE_USAGE =
   "Usage: lavish-axi remote <local-session-url>\nVerify the private Tailscale review URL and fixed catalog URL without creating, reopening or opening a review.";
 
 // Commands that reach the server on the Bruvish port. They run only against a server of this build.
-const SERVER_COMMANDS = new Set(["open", "poll", "reply", "end"]);
+const SERVER_COMMANDS = new Set(["open", "poll", "reply", "end", "stop"]);
 
 function isVersion(argv) {
   return argv.length === 1 && ["--version", "-v", "-V"].includes(argv[0]);

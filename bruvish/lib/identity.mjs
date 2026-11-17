@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { packageUrl } from "./assets.mjs";
 
 // `scripts/bruvish-build.js` writes dist/bruvish-manifest.json next to the bundles. Code bundled
 // into dist/*.mjs finds it beside itself. Code run from a checkout's source reads the checkout's
@@ -8,10 +9,7 @@ import { readFileSync } from "node:fs";
 export const SOURCE_IDENTITY = "source";
 export const MANIFEST_NAME = "bruvish-manifest.json";
 
-const CANDIDATES = [
-  new URL(`./${MANIFEST_NAME}`, import.meta.url),
-  new URL(`../../dist/${MANIFEST_NAME}`, import.meta.url),
-];
+const CANDIDATES = [packageUrl(`dist/${MANIFEST_NAME}`)];
 
 export function readManifest(urls = CANDIDATES) {
   for (const url of [urls].flat()) {

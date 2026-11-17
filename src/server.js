@@ -763,7 +763,8 @@ export async function serve({
     return defaultJsonParser(req, res, next);
   });
 
-  registerBruvishRoutes(app, { stateFile, version }); // BRUVISH:hook server-routes
+  const chromeAssets = { "chrome-client.js": chromeClientUrl, "chrome.css": chromeCssUrl };
+  registerBruvishRoutes(app, { stateFile, version, chromeAssets }); // BRUVISH:hook server-routes
   app.get("/", (_req, res) => {
     res.type("html").send(createLandingHtml());
   });

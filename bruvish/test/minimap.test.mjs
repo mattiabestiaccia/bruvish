@@ -9,7 +9,7 @@ const [bridge, addon, css] = await Promise.all(['bridge.js', 'chrome-addon.js', 
 const tick = () => new Promise(r => setImmediate(r));
 
 function runBridge(cards, { pointer = 'fine' } = {}) {
-  const posted = [], listeners = {};
+  const posted = [], listeners = {}, documentListeners = {};
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
   const nodes = cards.map((c, i) => ({
@@ -20,7 +20,7 @@ function runBridge(cards, { pointer = 'fine' } = {}) {
   const document = {
     documentElement: root, body: {},
     querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : [],
-    addEventListener() { }
+    addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
   const getComputedStyle = el => ({
     getPropertyValue: name => el === root ? (name === '--title' ? ' #49cbbd ' : '') : name === '--mb-state-color' ? el.color : '',
@@ -37,7 +37,8 @@ function runBridge(cards, { pointer = 'fine' } = {}) {
   const deliver = data => listeners.message.forEach(fn => fn({ source: parent, data }));
   deliver({ type: 'lavish-mb:hello', token: 't' });
   deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
-  return { posted, observed: context.observed, root };
+  const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
+  return { posted, observed: context.observed, root, dispatch };
 }
 
 function element(tag) {
@@ -55,7 +56,7 @@ function element(tag) {
   return el;
 }
 
-async function runAddon() {
+async function runAddon(storage = new Map()) {
   const listeners = {}, posted = [];
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
@@ -66,7 +67,7 @@ async function runAddon() {
   };
   const context = {
     document, posted,
-    localStorage: { getItem: () => null, setItem() { } },
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
     crypto: { randomUUID: () => 'token-1' },
     CSS: { supports: (property, value) => property === 'color' && /^(#[0-9a-f]{3,8}|rgb\([\d, ]+\))$/i.test(value) },
     fetch: () => Promise.reject(new Error('offline')),
@@ -118,6 +119,27 @@ test('addon: no separate scroll cursor, new and changed lines are marked, focus 
   // An accent that is not a colour never reaches the style.
   deliver({ type: 'lavish-mb:outline', accent: 'url(x)', items: [{ id: 'a', title: 'Carta a', state: 'info' }] });
   assert.equal(rail.style.props['--mb-accent'], '#49cbbd');
+});
+
+test('backdrop mode: the sandboxed artifact relays a choice, the host page keeps it on the device and replays it on ready', async () => {
+  const { posted, dispatch } = runBridge([]);
+  dispatch('lavish-mb:mode-change', { detail: { mode: 'transparent' } });
+  dispatch('lavish-mb:mode-change', { detail: { mode: 'neon' } });
+  assert.deepEqual(posted.filter(m => m.type === 'lavish-mb:mode').map(m => [m.mode, m.token]), [['transparent', 't']], 'only a known mode reaches the host page');
+
+  const storage = new Map();
+  const first = await runAddon(storage);
+  first.deliver({ type: 'lavish-mb:mode', mode: 'transparent' });
+  assert.equal(storage.get('lavish-mb:mode'), 'transparent');
+  first.deliver({ type: 'lavish-mb:mode', mode: 'neon' });
+  assert.equal(storage.get('lavish-mb:mode'), 'transparent', 'an unknown mode is not remembered');
+
+  const next = await runAddon(storage);
+  next.deliver({ type: 'lavish-mb:ready' });
+  assert.deepEqual(next.posted.filter(m => m.type === 'lavish-mb:mode').map(m => m.mode), ['transparent'], 'the next artifact gets the remembered mode');
+  const fresh = await runAddon();
+  fresh.deliver({ type: 'lavish-mb:ready' });
+  assert.equal(fresh.posted.some(m => m.type === 'lavish-mb:mode'), false, 'no choice yet: the artifact keeps its own default');
 });
 
 test('minimap shape and colours follow the approved mock-up; the new lines pulse in opacity unless motion is reduced', () => {

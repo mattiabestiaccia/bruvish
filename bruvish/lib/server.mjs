@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,12 @@ const CATALOG_CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self' data:; base-uri 'none'; frame-ancestors 'none'";
 const CATALOG_UNAVAILABLE =
   '<!doctype html><html lang="it"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lavish</title><h1>Catalogo non disponibile</h1><p>Non è stato possibile leggere il catalogo. Nessun dato è stato modificato. Riprova fra poco.</p></html>';
+// The interface addon follows the upstream chrome file after a newline, as in the former overlay's
+// derived files, so the served bytes stay comparable with them.
+const CHROME_ADDONS = [
+  ["chrome-client.js", "application/javascript", "chrome-addon.js"],
+  ["chrome.css", "text/css", "chrome-addon.css"],
+];
 const CATALOG_ASSETS = [
   ["mb-catalog.css", "text/css"],
   ["mb-catalog-fonts.css", "text/css"],
@@ -26,10 +33,20 @@ function loadCatalog() {
 }
 
 // Registered in src/server.js before the upstream landing route, after the Host and Origin guards,
-// so the catalog replaces the landing page and stays behind the same host allowlist.
-export function registerBruvishRoutes(app, { stateFile, version, env = process.env }) {
+// so the catalog replaces the landing page and stays behind the same host allowlist. It also comes
+// before the upstream chrome routes: `chromeAssets` names the upstream files this server serves.
+export function registerBruvishRoutes(app, { stateFile, version, chromeAssets, env = process.env }) {
   if (!isBruvishRuntime(env)) return;
   const identity = runtimeIdentity();
+  for (const [name, type, addon] of CHROME_ADDONS) {
+    app.get(`/${name}`, async (_req, res, next) => {
+      try {
+        res.type(type).send(`${await readFile(chromeAssets[name], "utf8")}\n${await readAsset(addon)}`);
+      } catch (error) {
+        next(error);
+      }
+    });
+  }
   app.get("/mb-info", (_req, res) => {
     res.json({ app: "lavish-mb", product: "bruvish", identity, upstreamVersion: version });
   });
