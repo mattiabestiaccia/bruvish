@@ -36,11 +36,19 @@ node app/adopt.mjs apply app
 
 `adopt` scrive `~/.config/lavish-mb/opening.json`, unico punto per tutti gli agenti; conserva la configurazione precedente. Senza configurazione si usa Chrome. Ritorno a Chrome: `node app/adopt.mjs apply chrome`. Apre il server di Lavish, che legge il file a ogni richiesta: chi lancia `lavish-axi` non può cambiare la superficie, né per una sola apertura né con un adattatore (vedi «Apertura dal server» in `BRUVISH.md`). Dalla sandbox degli agenti funziona solo se il server gira fuori da essa (avviato dal servizio o da un terminale normale): un server avviato dentro la sandbox fa fallire l'apertura con un errore chiaro e prende la superficie dall'ambiente di chi l'ha avviato. Se l'app non conferma entro 15 s, l'opener la lascia viva e segnala il possibile consenso macOS pendente; un'app mancante o divergente fallisce in modo esplicito, senza cambiare browser.
 
+### Avvio dell'app
+
+Il servizio gira dentro un profilo Seatbelt, e l'opener (`open.mjs`) nasce dentro lo stesso profilo. Un processo lanciato direttamente da lì lo eredita: Electron non riesce più a inizializzare la sandbox di Chromium e l'app si chiude («sandbox initialization failed: Operation not permitted»). Per questo l'opener non lancia l'eseguibile, ma passa da LaunchServices con `/usr/bin/open`, come la superficie Chrome: l'app parte fuori dal profilo di chi la chiama.
+
+La chiamata è `open -n -a <bundle> --env … --stdout app.log --stderr app.log --args <url> <file> <id>`. Il bundle è quello verificato da `resolveEngine()` (`~/Applications/Bruvish.app` o `LAVISH_APP_BUNDLE`). `--env` passa `LAVISH_APP_STATE_DIR` e, se impostate, le variabili che l'app e il suo core leggono (porta, stato e host del servizio, `LAVISH_APP_CORE_ROOT`, `BRUVISH_TOOLS_ROOT`, la configurazione remota); `ELECTRON_RUN_AS_NODE` non arriva all'app. `-n` serve: l'app riceve una richiesta solo dagli argomenti, e un'istanza nuova la consegna a quella già aperta con il blocco a istanza singola (`second-instance` in `main.cjs`), poi si chiude. Senza `-n`, con l'app aperta, LaunchServices si limita ad attivarla e scarta argomenti, ambiente e redirezioni, e la conferma non arriverebbe mai. Restano invariate l'attesa della conferma in `requests/<id>.json`, il controllo del codice dell'app e i messaggi d'errore; se LaunchServices rifiuta l'avvio, l'opener lo dice e non apre altro.
+
 ## Verifiche
 
 ```sh
 node --test app/test/*.test.mjs
 ```
+
+Le prove dell'opener non avviano app né LaunchServices: `test-helpers/fake-launchservices.mjs` sostituisce `/usr/bin/open`, registra gli argomenti e avvia un bundle finto con il solo ambiente passato da `--env`.
 
 La prova DOM della home usa Chrome for Testing headless con `LAVISH_MB_TEST_CHROME`; senza, viene saltata. La prova Electron è opt-in (`LAVISH_MB_TEST_DEDICATED=1` e `LAVISH_APP_BUNDLE`) e richiede la build di Bruvish (`pnpm run build`). Dal terminale, `bash app/verify-library.sh` esegue la suite, costruisce e firma un bundle di prova in una cartella nuova sotto `/private/tmp`, esegue la prova Electron e lascia aperta un'anteprima su dati isolati; non installa nulla e non tocca il servizio.
 
