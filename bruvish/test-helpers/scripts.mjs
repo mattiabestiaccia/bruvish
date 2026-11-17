@@ -127,6 +127,8 @@ export function installCheckout(ws, version = '0.1.96') {
     write(path.join(repo, '.gitignore'), 'dist/\nnode_modules/\nbruvish/DESIGN.md\n');
     write(path.join(repo, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
     write(path.join(repo, 'LICENSE'), 'MIT\n');
+    write(path.join(repo, 'plugin.json'), JSON.stringify({ name: 'lavish-axi', version }, null, 2) + '\n');
+    write(path.join(repo, 'skills/lavish/SKILL.md'), '---\nname: lavish\n---\n');
     write(path.join(repo, 'scripts/bruvish-build.js'), FAKE_BRUVISH_BUILD);
     copyFromRepo(repo, ['bruvish/lib/install.mjs', 'bruvish/scripts/install', 'bruvish/scripts/rollback', 'app/protocol.cjs']);
     git(repo, ws.env, 'add', '-A');

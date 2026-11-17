@@ -64,6 +64,8 @@ const parents = (ws, ref = 'HEAD') => git(ws.fork, ws.env, 'rev-list', '--parent
 const checks = (ws) => ws.pnpmCalls().map(call => call.args.join(' '));
 // The Bruvish-Agent-Config trailer of the merge commit, as git itself parses trailers.
 const trailer = (ws) => git(ws.fork, ws.env, 'log', '-1', '--format=%(trailers:key=Bruvish-Agent-Config,valueonly)', 'HEAD');
+// git's own commented service lines ("# Conflicts:") in the merge commit message, which must have none.
+const commentLines = (ws) => git(ws.fork, ws.env, 'log', '-1', '--format=%B', 'HEAD').split('\n').filter((line) => line.startsWith('#'));
 const editLine = (file, number, text) => (repo) => {
     const lines = original(file);
     lines[number - 1] = text;
@@ -129,6 +131,7 @@ test('a small conflict at a hook stops for resolution; --continue commits and ch
         result = update(ws, '--continue');
         assert.equal(result.status, 0, result.output);
         assert.equal(parents(ws).length, 2, 'a merge commit');
+        assert.deepEqual(commentLines(ws), [], 'no # Conflicts lines after --continue');
         assert.deepEqual(checks(ws), ['install --frozen-lockfile', 'run check']);
 
         // The same conflict again (a fresh branch from carry): rerere replays the resolution.
@@ -137,6 +140,7 @@ test('a small conflict at a hook stops for resolution; --continue commits and ch
         result = update(ws, '--no-fetch', '0.1.9');
         assert.equal(result.status, 0, result.output);
         assert.equal(readFileSync(path.join(ws.fork, 'src/cli.js'), 'utf8'), resolved.join('\n') + '\n');
+        assert.deepEqual(commentLines(ws), [], 'no # Conflicts lines after the rerere replay');
     } finally {
         cleanup(ws);
     }

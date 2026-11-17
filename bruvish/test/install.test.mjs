@@ -44,6 +44,10 @@ test('install builds, installs under $HOME/tools/bruvish, verifies and links cur
         for (const part of ['dist/bruvish-manifest.json', 'dist/bruvish.mjs', 'bin/lavish-axi', 'bruvish/scripts/rollback', 'app/protocol.cjs', 'node_modules/fake-dep', 'package.json', 'LICENSE']) {
             assert.ok(exists(target, part), part);
         }
+        // The plugin root the bundle resolves (dist/..) holds what package.json "files" ships for it.
+        for (const part of ['plugin.json', 'skills/lavish/SKILL.md']) {
+            assert.ok(exists(target, part), `${part}: lavish-axi setup plugin needs it beside dist/`);
+        }
         assert.ok(!exists(target, 'scripts'), 'only the delta and the build are installed');
         assert.equal(link(ws, 'current'), name, 'relative link');
         assert.equal(link(ws, 'previous'), null);

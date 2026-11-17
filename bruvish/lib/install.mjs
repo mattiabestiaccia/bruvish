@@ -43,7 +43,7 @@ const protocol = createRequire(import.meta.url)("../../app/protocol.cjs");
 
 // Files copied next to dist/: the lockfile set lets pnpm install the production dependencies;
 // the licenses travel with the code they cover.
-const TOP_FILES = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "LICENSE", "THIRD-PARTY-NOTICES.md"];
+const TOP_FILES = ["package.json", "plugin.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "LICENSE", "THIRD-PARTY-NOTICES.md"];
 
 class Stop extends Error {}
 
@@ -168,7 +168,7 @@ function stage(root, staging) {
   cpSync(path.join(root, "dist"), path.join(staging, "dist"), { recursive: true, verbatimSymlinks: true });
   // Only committed files of the delta: never untracked leftovers. The personal style guide is not
   // tracked; the build already copied it to dist/bruvish-design.md when it was present.
-  copyTracked(root, staging, ["bruvish", "app"]);
+  copyTracked(root, staging, ["bruvish", "app", "skills/lavish"]);
   for (const name of TOP_FILES) {
     if (existsSync(path.join(root, name))) copyFileSync(path.join(root, name), path.join(staging, name));
   }

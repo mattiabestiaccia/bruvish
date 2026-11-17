@@ -297,7 +297,7 @@ function start(root, options, log) {
     const unmerged = gitLines(root, ["diff", "--name-only", "--diff-filter=U"]);
     if (unmerged.length === 0) {
       // rerere replayed every recorded resolution: only the commit is left.
-      if (gitVisible(root, ["commit", "--no-edit"]) !== 0) throw new Stop(EXIT.error, "git commit of the merge failed");
+      if (gitVisible(root, ["commit", "--no-edit", "--cleanup=strip"]) !== 0) throw new Stop(EXIT.error, "git commit of the merge failed");
     } else {
       stopOnConflicts(root, branch, unmerged);
     }
@@ -337,7 +337,7 @@ function resume(root, log) {
     if (gitLines(root, ["status", "--porcelain", "--untracked-files=all"]).some((line) => !/^[MADRC] /.test(line))) {
       throw new Stop(EXIT.error, "Unstaged or untracked changes: git add the resolution, set the rest aside.");
     }
-    if (gitVisible(root, ["commit", "--no-edit"]) !== 0) throw new Stop(EXIT.error, "git commit of the merge failed");
+    if (gitVisible(root, ["commit", "--no-edit", "--cleanup=strip"]) !== 0) throw new Stop(EXIT.error, "git commit of the merge failed");
   } else {
     ensureClean(root);
     if (!isAncestor(root, tag, "HEAD")) {
