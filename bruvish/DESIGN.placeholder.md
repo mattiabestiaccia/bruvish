@@ -16,4 +16,4 @@ Per generarla si usa `style-sync-ai`, che copia lo stile comune dal laboratorio 
 
 3. Ricostruire con `pnpm run build`: la build copia la guida in `dist/bruvish-design.md`, da dove la legge `lavish-axi design`.
 
-Senza la guida, `lavish-axi design` esce con un messaggio che rimanda a questo file; la guida ufficiale di Lavish resta disponibile con `lavish-axi design --upstream`. L'installazione (lavoro L5) deve portare con sé la guida locale.
+Senza la guida, `lavish-axi design` esce con un messaggio che rimanda a questo file; la guida ufficiale di Lavish resta disponibile con `lavish-axi design --upstream`. `bruvish/scripts/install` porta la guida nella copia installata solo se c'era al momento della build: vedi `BRUVISH.md`.

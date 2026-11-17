@@ -151,7 +151,9 @@ function checkBuild(root) {
 }
 
 function copyTracked(root, staging, directories) {
-  const files = git(root, ["ls-files", "-z", "--", ...directories]).split("\0").filter(Boolean);
+  const files = git(root, ["ls-files", "-z", "--", ...directories])
+    .split("\0")
+    .filter(Boolean);
   for (const file of files) {
     const source = path.join(root, file);
     const target = path.join(staging, file);
