@@ -43,7 +43,14 @@ const protocol = createRequire(import.meta.url)("../../app/protocol.cjs");
 
 // Files copied next to dist/: the lockfile set lets pnpm install the production dependencies;
 // the licenses travel with the code they cover.
-const TOP_FILES = ["package.json", "plugin.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "LICENSE", "THIRD-PARTY-NOTICES.md"];
+const TOP_FILES = [
+  "package.json",
+  "plugin.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "LICENSE",
+  "THIRD-PARTY-NOTICES.md",
+];
 
 class Stop extends Error {}
 
