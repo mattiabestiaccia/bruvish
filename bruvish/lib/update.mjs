@@ -16,7 +16,7 @@ update/vX.Y.Z made from the local carry branch, with rerere enabled, then runs t
 It stops before any push, pull request or installation.
 
   [tag]                          0.1.97, v0.1.97 or lavish-axi-v0.1.97
-  --no-fetch                     use the upstream tags already fetched
+  --no-fetch                     use the upstream tags and origin/carry already fetched
   --allow-agent-config <reason>  merge even though the release changes agent configuration
                                  (.claude/, .mcp.json, .agents/, CLAUDE.md, AGENTS.md), after
                                  review; the merge commit gets a Bruvish-Agent-Config: trailer
@@ -247,6 +247,11 @@ function start(root, options, log) {
     }
     if (gitVisible(root, ["fetch", "upstream", "--tags"]) !== 0) {
       throw new Stop(EXIT.error, "git fetch upstream --tags failed");
+    }
+    if (git(root, ["remote", "get-url", "origin"], { allowFail: true }) !== null) {
+      if (gitVisible(root, ["fetch", "origin", "carry"]) !== 0) {
+        throw new Stop(EXIT.error, "git fetch origin carry failed");
+      }
     }
   }
   const tag = options.tag ? parseTag(options.tag) : latestTag(gitLines(root, ["tag", "--list", "lavish-axi-v*"]));

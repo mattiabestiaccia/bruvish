@@ -266,6 +266,38 @@ test('the base is the local carry branch only', () => {
     }
 });
 
+test('fetches origin carry and refuses a local carry behind it', () => {
+    const ws = setup();
+    try {
+        release(ws, '0.1.9');
+        const origin = path.join(ws.dir, 'origin.git');
+        git(ws.dir, ws.env, 'clone', '-q', '--bare', ws.fork, origin);
+        git(ws.fork, ws.env, 'remote', 'add', 'origin', origin);
+        git(ws.fork, ws.env, 'fetch', '-q', 'origin');
+        git(ws.fork, ws.env, 'switch', '-q', '-c', 'merged-on-github', 'carry');
+        write(path.join(ws.fork, 'NOTES.md'), 'merged through a pull request\n');
+        commitAll(ws.fork, ws.env, 'merged on the host');
+        git(ws.fork, ws.env, 'push', '-q', origin, 'merged-on-github:carry');
+        git(ws.fork, ws.env, 'switch', '-q', 'carry');
+        git(ws.fork, ws.env, 'branch', '-q', '-D', 'merged-on-github');
+        git(ws.fork, ws.env, 'update-ref', 'refs/remotes/origin/carry', ws.carry);
+
+        let result = update(ws);
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /behind or apart from origin\/carry/);
+        assert.equal(branch(ws), 'carry');
+        assert.deepEqual(checks(ws), []);
+
+        git(ws.fork, ws.env, 'merge', '-q', '--ff-only', 'origin/carry');
+        result = update(ws);
+        assert.equal(result.status, 0, result.output);
+        assert.equal(branch(ws), 'update/v0.1.9');
+        assert.ok(existsSync(path.join(ws.fork, 'NOTES.md')), 'the update starts from the carry merged on the host');
+    } finally {
+        cleanup(ws);
+    }
+});
+
 test('failing checks stop with exit 4; refuses a dirty tree; nothing to do when carry has the tag', () => {
     const ws = setup();
     try {
