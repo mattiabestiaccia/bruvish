@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { HOOKS, hookProblems } from "./hooks.mjs";
@@ -8,20 +8,21 @@ import { HOOKS, hookProblems } from "./hooks.mjs";
 // made from `carry`, then runs the checks. It never pushes, opens a pull request or installs.
 // `carry` only moves forward: the merge is `--no-ff` and nothing is rebased or force-pushed.
 
-export const USAGE = `Usage: bruvish/scripts/update-upstream [tag] [--base <ref>] [--no-fetch] [--allow-agent-config]
+export const USAGE = `Usage: bruvish/scripts/update-upstream [tag] [--no-fetch] [--allow-agent-config <reason>]
        bruvish/scripts/update-upstream --continue
 
 Merges the upstream release tag (default: the latest lavish-axi-vX.Y.Z) into a new branch
-update/vX.Y.Z made from carry (or --base), with rerere enabled, then runs the checks.
+update/vX.Y.Z made from the local carry branch, with rerere enabled, then runs the checks.
 It stops before any push, pull request or installation.
 
-  [tag]                 0.1.97, v0.1.97 or lavish-axi-v0.1.97
-  --base <ref>          branch to start from (default: carry, else origin/carry)
-  --no-fetch            use the upstream tags already fetched
-  --allow-agent-config  merge even though the release changes agent configuration
-                        (.claude/, .mcp.json, .agents/, CLAUDE.md, AGENTS.md), after review
-  --continue            after resolving conflicts or fixing checks on update/vX.Y.Z:
-                        commit the merge if needed, then check hooks and run the checks again
+  [tag]                          0.1.97, v0.1.97 or lavish-axi-v0.1.97
+  --no-fetch                     use the upstream tags already fetched
+  --allow-agent-config <reason>  merge even though the release changes agent configuration
+                                 (.claude/, .mcp.json, .agents/, CLAUDE.md, AGENTS.md), after
+                                 review; the merge commit gets a Bruvish-Agent-Config: trailer
+                                 with the files and the reason, which the pull request must cite
+  --continue                     after resolving conflicts or fixing checks on update/vX.Y.Z:
+                                 commit the merge if needed, then check hooks and run the checks
 
 Exit codes: 0 ready for a pull request (or nothing to merge), 1 error, 2 needs a decision,
 3 conflicts to resolve, 4 checks failed.`;
@@ -101,19 +102,14 @@ export function latestTag(tags) {
   return releases.at(-1) ?? null;
 }
 
-function resolveBase(root, base) {
-  if (base) {
-    if (!hasRef(root, base)) throw new Stop(EXIT.error, `Unknown base: ${base}`);
-    return base;
+function resolveBase(root) {
+  if (!hasRef(root, "refs/heads/carry")) {
+    throw new Stop(EXIT.error, "No local carry branch: create it from origin/carry first.");
   }
-  if (hasRef(root, "refs/heads/carry")) {
-    if (hasRef(root, "refs/remotes/origin/carry") && !isAncestor(root, "origin/carry", "carry")) {
-      throw new Stop(EXIT.error, "Local carry is behind or apart from origin/carry: bring it up to date first.");
-    }
-    return "carry";
+  if (hasRef(root, "refs/remotes/origin/carry") && !isAncestor(root, "origin/carry", "carry")) {
+    throw new Stop(EXIT.error, "Local carry is behind or apart from origin/carry: bring it up to date first.");
   }
-  if (hasRef(root, "refs/remotes/origin/carry")) return "origin/carry";
-  throw new Stop(EXIT.error, "No carry branch (local or origin/carry): pass --base <ref>.");
+  return "carry";
 }
 
 // Conflict hunks of a file with merge markers. `lines` counts both sides (ours and theirs), not the
@@ -182,33 +178,17 @@ function checkHooks(root, skip) {
   }
 }
 
-function bruvishTestFiles(root) {
-  const files = [];
-  for (const directory of ["bruvish/test", "app/test"]) {
-    const full = path.join(root, directory);
-    if (!existsSync(full)) continue;
-    for (const name of readdirSync(full).sort()) if (name.endsWith(".test.mjs")) files.push(`${directory}/${name}`);
-  }
-  return files;
-}
-
-// `pnpm run check` is upstream's full gate (build, lint, format, types, every test, skill and plugin
-// freshness) and today also runs the Bruvish tests. They run once more by name so that they keep
-// running even if a release narrows upstream's `test` script.
+// `pnpm run check` is upstream's full gate (build, lint, format, types, every test including the
+// Bruvish ones, skill and plugin freshness).
 function runChecks(root, branch, log) {
-  const tests = bruvishTestFiles(root);
-  if (tests.length === 0) {
-    throw new Stop(EXIT.checks, "checks failed: no Bruvish tests found in bruvish/test or app/test");
-  }
   const steps = [
-    ["pnpm", ["install", "--frozen-lockfile"]],
-    ["pnpm", ["run", "check"]],
-    [process.execPath, ["--test", ...tests]],
+    ["install", "--frozen-lockfile"],
+    ["run", "check"],
   ];
-  for (const [command, args] of steps) {
-    const label = `${command === process.execPath ? "node" : command} ${args.join(" ")}`;
+  for (const args of steps) {
+    const label = `pnpm ${args.join(" ")}`;
     log(`==> ${label}`);
-    const result = spawnSync(command, args, { cwd: root, stdio: "inherit" });
+    const result = spawnSync("pnpm", args, { cwd: root, stdio: "inherit" });
     if (result.status !== 0) {
       throw new Stop(
         EXIT.checks,
@@ -223,25 +203,37 @@ function finish(root, branch, tag, log) {
   runChecks(root, branch, log);
   log(`\nMerged ${tag} into ${branch}; hooks are in place and every check passed.`);
   log(`Next: push ${branch} to origin and open a pull request into carry. Nothing was pushed or installed.`);
+  const agentConfig = gitLines(root, [
+    "log",
+    "--first-parent",
+    "--merges",
+    "--format=%(trailers:key=Bruvish-Agent-Config,valueonly)",
+    "carry..HEAD",
+  ]).join("; ");
+  if (agentConfig) {
+    log(`The merge changes agent configuration: the pull request must cite Bruvish-Agent-Config: ${agentConfig}`);
+  }
   return EXIT.ok;
 }
 
 function parseArgs(argv) {
-  const options = { tag: null, base: null, fetch: true, allowAgentConfig: false, continue: false, help: false };
+  const options = { tag: null, fetch: true, agentConfigReason: null, continue: false, help: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--help" || arg === "-h") options.help = true;
     else if (arg === "--continue") options.continue = true;
     else if (arg === "--no-fetch") options.fetch = false;
-    else if (arg === "--allow-agent-config") options.allowAgentConfig = true;
-    else if (arg === "--base") {
-      options.base = argv[i + 1];
+    else if (arg === "--allow-agent-config") {
+      const reason = (argv[i + 1] ?? "").trim();
       i += 1;
-      if (!options.base) throw new Stop(EXIT.error, "--base needs a ref");
+      if (!reason || reason.startsWith("-") || /[\r\n]/.test(reason)) {
+        throw new Stop(EXIT.error, "--allow-agent-config needs a reason (one line, for the merge commit trailer)");
+      }
+      options.agentConfigReason = reason;
     } else if (arg.startsWith("-") || options.tag !== null) throw new Stop(EXIT.error, `Unexpected argument: ${arg}`);
     else options.tag = arg;
   }
-  if (options.continue && (options.tag || options.base || options.allowAgentConfig || !options.fetch)) {
+  if (options.continue && (options.tag || options.agentConfigReason || !options.fetch)) {
     throw new Stop(EXIT.error, "--continue takes no other argument");
   }
   return options;
@@ -260,7 +252,7 @@ function start(root, options, log) {
   const tag = options.tag ? parseTag(options.tag) : latestTag(gitLines(root, ["tag", "--list", "lavish-axi-v*"]));
   if (!tag) throw new Stop(EXIT.error, "No lavish-axi-vX.Y.Z tag found: fetch the upstream tags first.");
   if (!hasRef(root, `refs/tags/${tag}`)) throw new Stop(EXIT.error, `Unknown tag: ${tag}`);
-  const base = resolveBase(root, options.base);
+  const base = resolveBase(root);
   if (isAncestor(root, tag, base)) {
     log(`${base} already contains ${tag}: nothing to merge.`);
     return EXIT.ok;
@@ -275,22 +267,26 @@ function start(root, options, log) {
 
   const mergeBase = git(root, ["merge-base", base, tag]);
   const agentConfig = gitLines(root, ["diff", "--name-only", mergeBase, tag, "--", ...AGENT_CONFIG_PATHSPECS]);
-  if (agentConfig.length > 0 && !options.allowAgentConfig) {
-    log(`${tag} changes agent configuration since the last merged release:\n`);
-    gitVisible(root, ["--no-pager", "diff", "--stat", mergeBase, tag, "--", ...AGENT_CONFIG_PATHSPECS]);
-    log("");
-    gitVisible(root, ["--no-pager", "diff", mergeBase, tag, "--", ...AGENT_CONFIG_PATHSPECS]);
-    throw new Stop(
-      EXIT.decision,
-      `needs-decision: ${tag} changes ${agentConfig.join(", ")}. Nothing was merged. Review the differences above; once approved, rerun with --allow-agent-config.`,
-    );
+  let message = `Merge upstream ${tag} into carry`;
+  if (agentConfig.length > 0) {
+    if (!options.agentConfigReason) {
+      log(`${tag} changes agent configuration since the last merged release:\n`);
+      gitVisible(root, ["--no-pager", "diff", "--stat", mergeBase, tag, "--", ...AGENT_CONFIG_PATHSPECS]);
+      log("");
+      gitVisible(root, ["--no-pager", "diff", mergeBase, tag, "--", ...AGENT_CONFIG_PATHSPECS]);
+      throw new Stop(
+        EXIT.decision,
+        `needs-decision: ${tag} changes ${agentConfig.join(", ")}. Nothing was merged. Review the differences above; once approved, rerun with --allow-agent-config <reason>.`,
+      );
+    }
+    message += `\n\nBruvish-Agent-Config: ${agentConfig.join(", ")}; reason: ${options.agentConfigReason}`;
   }
 
   git(root, ["config", "rerere.enabled", "true"]);
   git(root, ["config", "rerere.autoUpdate", "true"]);
   git(root, ["switch", "--quiet", "-c", branch, base]);
   log(`Merging ${tag} into ${branch} (from ${base}).`);
-  const merged = gitVisible(root, ["merge", "--no-ff", "--no-edit", "-m", `Merge upstream ${tag} into carry`, tag]);
+  const merged = gitVisible(root, ["merge", "--no-ff", "--no-edit", "-m", message, tag]);
   if (merged !== 0) {
     if (!hasRef(root, "MERGE_HEAD")) throw new Stop(EXIT.error, `git merge ${tag} failed without starting a merge.`);
     const unmerged = gitLines(root, ["diff", "--name-only", "--diff-filter=U"]);

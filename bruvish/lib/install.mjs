@@ -18,7 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // bruvish/scripts/install and bruvish/scripts/rollback. An installation is a folder
-// <tools root>/bruvish/<upstream version>-<sha7> with dist/, bin/lavish-axi, bruvish/, app/ and the
+// <tools root>/bruvish/<upstream version>-<sha7>[-<identity6>] with dist/, bin/lavish-axi, bruvish/, app/ and the
 // production node_modules. The `current` link names the one in use and `previous` the one before.
 // Neither script touches ~/bin, launchd, the installed app or anything outside <tools root>/bruvish,
 // and rollback deletes nothing.
@@ -27,7 +27,9 @@ export const INSTALL_USAGE = `Usage: bruvish/scripts/install [--no-switch]
 
 Builds this checkout (clean, committed), installs it into <tools root>/bruvish/<version>-<sha7>,
 verifies it, then points the current link at it and keeps the previous one as previous.
-<tools root> is ~/tools, or $BRUVISH_TOOLS_ROOT.
+If that folder already holds another build of the same commit (for example a regenerated
+bruvish/DESIGN.md), it installs into <version>-<sha7>-<first 6 characters of the build identity>
+and leaves the existing folder alone. <tools root> is ~/tools, or $BRUVISH_TOOLS_ROOT.
 
   --no-switch  install side by side and leave current where it is (rerun without it to switch)`;
 
@@ -180,23 +182,31 @@ function stage(root, staging) {
   }
 }
 
+// <version>-<sha7>, or <version>-<sha7>-<identity6> when that folder already holds another build of
+// the same commit (a build input outside git changed, such as bruvish/DESIGN.md). An existing
+// installation is never touched.
+function installName(tools, built) {
+  const base = `${built.version}-${built.head.slice(0, 7)}`;
+  const identity = built.manifest.identity;
+  const candidates = [base, `${base}-${identity.slice(0, 6)}`];
+  const name = candidates.find((candidate) => {
+    const target = path.join(tools, candidate);
+    return !existsSync(target) || verifyInstallation(target).manifest.identity === identity;
+  });
+  if (!name) throw new Stop(`${path.join(tools, candidates[1])} exists with another build: move it aside first.`);
+  return name;
+}
+
 function install(root, { switchCurrent }, log) {
   ensureClean(root);
-  // `pnpm run build` already ends with scripts/bruvish-build.js (BRUVISH:hook build); running it
-  // again by name keeps the manifest right even if that hook went missing.
   run("pnpm", ["run", "build"], root);
-  run(process.execPath, ["scripts/bruvish-build.js"], root);
   const built = checkBuild(root);
-  const name = `${built.version}-${built.head.slice(0, 7)}`;
   const tools = installRoot();
-  const target = path.join(tools, name);
   mkdirSync(tools, { recursive: true });
+  const name = installName(tools, built);
+  const target = path.join(tools, name);
 
   if (existsSync(target)) {
-    const existing = verifyInstallation(target);
-    if (existing.manifest.identity !== built.manifest.identity) {
-      throw new Stop(`${target} exists with another build (${existing.manifest.identity}): move it aside first.`);
-    }
     log(`${target} is already installed and verified.`);
   } else {
     const staging = path.join(tools, `.${name}.tmp-${process.pid}`);

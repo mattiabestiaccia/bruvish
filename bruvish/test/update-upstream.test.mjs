@@ -28,7 +28,7 @@ function release(ws, version, edit = () => {}) {
 }
 
 // Upstream at 0.1.8, and a fork whose carry adds one marker line per hook (after lines 10, 20, 30)
-// plus the script and its tests.
+// plus the script.
 function setup() {
     const ws = workspace('bruvish-update-');
     ws.upstream = path.join(ws.dir, 'upstream');
@@ -52,8 +52,6 @@ function setup() {
         writeLines(ws.fork, file, lines);
     }
     copyFromRepo(ws.fork, ['bruvish/lib/update.mjs', 'bruvish/lib/hooks.mjs', 'bruvish/scripts/update-upstream']);
-    write(path.join(ws.fork, 'bruvish/test/ok.test.mjs'), "import test from 'node:test';\ntest('ok', () => {});\n");
-    write(path.join(ws.fork, 'app/test/ok.test.mjs'), "import test from 'node:test';\ntest('ok', () => {});\n");
     commitAll(ws.fork, ws.env, 'carry delta');
     ws.carry = git(ws.fork, ws.env, 'rev-parse', 'carry');
     return ws;
@@ -64,6 +62,8 @@ const update = (ws, ...args) => runScript(ws.fork, ws.env, 'update-upstream', ..
 const branch = (ws) => git(ws.fork, ws.env, 'branch', '--show-current');
 const parents = (ws, ref = 'HEAD') => git(ws.fork, ws.env, 'rev-list', '--parents', '-n', '1', ref).split(' ').slice(1);
 const checks = (ws) => ws.pnpmCalls().map(call => call.args.join(' '));
+// The Bruvish-Agent-Config trailer of the merge commit, as git itself parses trailers.
+const trailer = (ws) => git(ws.fork, ws.env, 'log', '-1', '--format=%(trailers:key=Bruvish-Agent-Config,valueonly)', 'HEAD');
 const editLine = (file, number, text) => (repo) => {
     const lines = original(file);
     lines[number - 1] = text;
@@ -92,8 +92,8 @@ test('merges the latest release into update/vX.Y.Z with --no-ff and rerere, runs
         assert.equal(git(ws.fork, ws.env, 'config', 'rerere.enabled'), 'true');
         assert.match(readFileSync(path.join(ws.fork, 'src/cli.js'), 'utf8'), /upstream change far from the hooks/);
         assert.deepEqual(checks(ws), ['install --frozen-lockfile', 'run check']);
-        assert.match(result.stdout, /tests 2/, 'the Bruvish and app tests run by name');
         assert.match(result.stdout, /Nothing was pushed or installed/);
+        assert.equal(trailer(ws), '', 'no agent-configuration trailer');
         assert.equal(git(ws.fork, ws.env, 'status', '--porcelain'), '');
 
         const again = update(ws, '0.1.10');
@@ -109,7 +109,7 @@ test('a small conflict at a hook stops for resolution; --continue commits and ch
     try {
         release(ws, '0.1.9', editLine('src/cli.js', 10, 'upstream rewrote line 10'));
         git(ws.fork, ws.env, 'fetch', '-q', 'upstream', '--tags');
-        let result = update(ws, '--no-fetch', '--base', 'carry', '0.1.9');
+        let result = update(ws, '--no-fetch', '0.1.9');
         assert.equal(result.status, 3, result.output);
         assert.match(result.stderr, /Conflicts to resolve at hooks:\n {2}src\/cli\.js: line \d+/);
         assert.ok(existsSync(path.join(ws.fork, '.git/MERGE_HEAD')), 'the merge is left in progress');
@@ -203,9 +203,61 @@ test('a release that changes agent configuration stops before merging and shows 
         assert.equal(branch(ws), 'carry');
         assert.equal(git(ws.fork, ws.env, 'branch', '--list', 'update/*'), '', 'no branch was created');
 
-        result = update(ws, '--no-fetch', '--allow-agent-config');
+        for (const reason of [[], [''], ['--no-fetch'], ['two\nlines']]) {
+            result = update(ws, '--no-fetch', '0.1.9', '--allow-agent-config', ...reason);
+            assert.equal(result.status, 1, `a reason is required: ${JSON.stringify(reason)}`);
+            assert.match(result.stderr, /--allow-agent-config needs a reason/);
+        }
+        assert.equal(branch(ws), 'carry');
+
+        result = update(ws, '--no-fetch', '--allow-agent-config', 'reviewed by Mattia: new upstream instruction is fine');
         assert.equal(result.status, 0, result.output);
         assert.equal(branch(ws), 'update/v0.1.9');
+        const expected = 'AGENTS.md, docs/.claude/settings.json; reason: reviewed by Mattia: new upstream instruction is fine';
+        assert.equal(trailer(ws), expected);
+        assert.match(result.stdout, /the pull request must cite Bruvish-Agent-Config:/);
+    } finally {
+        cleanup(ws);
+    }
+});
+
+test('the agent-configuration trailer survives a conflict resolved with --continue', () => {
+    const ws = setup();
+    try {
+        release(ws, '0.1.9', (repo) => {
+            write(path.join(repo, 'AGENTS.md'), '# Agents\nNew upstream instruction.\n');
+            editLine('src/cli.js', 10, 'upstream rewrote line 10')(repo);
+        });
+        let result = update(ws, '--allow-agent-config', 'reviewed');
+        assert.equal(result.status, 3, result.output);
+        const resolved = original('src/cli.js');
+        resolved[9] = 'upstream rewrote line 10';
+        resolved.splice(10, 0, '# BRUVISH:hook open-import');
+        resolved.splice(21, 0, '# BRUVISH:hook open-present');
+        writeLines(ws.fork, 'src/cli.js', resolved);
+        git(ws.fork, ws.env, 'add', 'src/cli.js');
+        result = update(ws, '--continue');
+        assert.equal(result.status, 0, result.output);
+        assert.equal(trailer(ws), 'AGENTS.md; reason: reviewed');
+        assert.match(result.stdout, /the pull request must cite Bruvish-Agent-Config: AGENTS\.md; reason: reviewed/);
+    } finally {
+        cleanup(ws);
+    }
+});
+
+test('the base is the local carry branch only', () => {
+    const ws = setup();
+    try {
+        release(ws, '0.1.9');
+        let result = update(ws, '--base', 'carry');
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /Unexpected argument: --base/);
+
+        git(ws.fork, ws.env, 'switch', '-q', '-c', 'other');
+        git(ws.fork, ws.env, 'branch', '-q', '-D', 'carry');
+        result = update(ws);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /No local carry branch/);
     } finally {
         cleanup(ws);
     }

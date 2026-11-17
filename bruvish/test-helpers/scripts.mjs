@@ -9,13 +9,16 @@ import { fileURLToPath } from 'node:url';
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 
-const FAKE_PNPM = `import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+// \`run build\` ends with scripts/bruvish-build.js, as the real build does through BRUVISH:hook build.
+const FAKE_PNPM = `import { execFileSync } from 'node:child_process';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 appendFileSync(process.env.FAKE_PNPM_LOG, JSON.stringify({ cwd: process.cwd(), args }) + '\\n');
 if (process.env.FAKE_PNPM_FAIL && args.join(' ') === process.env.FAKE_PNPM_FAIL) process.exit(1);
 if (args.join(' ') === 'run build') {
     mkdirSync('dist', { recursive: true });
     for (const name of ['cli.mjs', 'server.mjs']) writeFileSync('dist/' + name, '// upstream ' + name + '\\n');
+    execFileSync(process.execPath, ['scripts/bruvish-build.js'], { stdio: 'inherit' });
 }
 if (args[0] === 'install' && args.includes('--prod')) {
     mkdirSync('node_modules/fake-dep', { recursive: true });
@@ -24,10 +27,11 @@ if (args[0] === 'install' && args.includes('--prod')) {
 `;
 
 // Stands in for scripts/bruvish-build.js: a command that needs its production dependency and
-// prints the version, and a manifest in the same shape as the real one.
+// prints the version, and a manifest in the same shape as the real one. Like the real build, the
+// untracked style guide bruvish/DESIGN.md, when present, becomes dist/bruvish-design.md.
 const FAKE_BRUVISH_BUILD = `import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
 const sha = (data) => createHash('sha256').update(data).digest('hex');
 mkdirSync('dist', { recursive: true });
@@ -40,7 +44,12 @@ writeFileSync('dist/bruvish.mjs', [
 ].join('\\n'));
 chmodSync('dist/bruvish.mjs', 0o755);
 const outputs = {};
-for (const name of ['cli.mjs', 'server.mjs', 'bruvish.mjs']) outputs[name] = sha(readFileSync('dist/' + name));
+const names = ['cli.mjs', 'server.mjs', 'bruvish.mjs'];
+if (existsSync('bruvish/DESIGN.md')) {
+    copyFileSync('bruvish/DESIGN.md', 'dist/bruvish-design.md');
+    names.push('bruvish-design.md');
+}
+for (const name of names) outputs[name] = sha(readFileSync('dist/' + name));
 if (process.env.FAKE_BUILD_CORRUPT) outputs['bruvish.mjs'] = '0'.repeat(64);
 const git = (args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 const manifest = {
@@ -115,7 +124,7 @@ export function installCheckout(ws, version = '0.1.96') {
     mkdirSync(repo);
     git(repo, ws.env, 'init', '-q', '-b', 'carry');
     write(path.join(repo, 'package.json'), JSON.stringify({ name: 'lavish-axi', version }, null, 2) + '\n');
-    write(path.join(repo, '.gitignore'), 'dist/\nnode_modules/\n');
+    write(path.join(repo, '.gitignore'), 'dist/\nnode_modules/\nbruvish/DESIGN.md\n');
     write(path.join(repo, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
     write(path.join(repo, 'LICENSE'), 'MIT\n');
     write(path.join(repo, 'scripts/bruvish-build.js'), FAKE_BRUVISH_BUILD);

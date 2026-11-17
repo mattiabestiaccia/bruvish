@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readlinkSync, rmSync, unlinkSync } from 'node:fs';
+import { readFileSync, readdirSync, readlinkSync, rmSync, unlinkSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import protocol from '../../app/protocol.cjs';
@@ -87,6 +87,35 @@ test('install --no-switch leaves current; a later install switches and keeps pre
         assert.equal(link(ws, 'previous'), second, 'a second rollback returns to the newer build');
         assert.equal(versionOf(path.join(tools(ws), 'current/bin/lavish-axi'), ws.env), '0.1.96');
         assert.ok(exists(tools(ws), first) && exists(tools(ws), second), 'rollback deletes nothing');
+    } finally {
+        rmSync(ws.dir, { recursive: true, force: true });
+    }
+});
+
+test('another build of the same commit (a regenerated style guide) installs beside the existing folder', () => {
+    const ws = workspace('bruvish-install-');
+    try {
+        const repo = installCheckout(ws);
+        const first = `0.1.96-${git(repo, ws.env, 'rev-parse', 'HEAD').slice(0, 7)}`;
+        assert.equal(runScript(repo, ws.env, 'install').status, 0);
+        const firstManifest = readFileSync(path.join(tools(ws), first, 'dist/bruvish-manifest.json'), 'utf8');
+
+        write(path.join(repo, 'bruvish/DESIGN.md'), '# Style guide\n');
+        let result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 0, result.output);
+        const identity = JSON.parse(readFileSync(path.join(repo, 'dist/bruvish-manifest.json'), 'utf8')).identity;
+        const second = `${first}-${identity.slice(0, 6)}`;
+        assert.ok(exists(tools(ws), second, 'dist/bruvish-design.md'));
+        assert.equal(link(ws, 'current'), second);
+        assert.equal(link(ws, 'previous'), first);
+        assert.equal(readFileSync(path.join(tools(ws), first, 'dist/bruvish-manifest.json'), 'utf8'), firstManifest, 'the existing folder is untouched');
+        assert.ok(!exists(tools(ws), first, 'dist/bruvish-design.md'));
+
+        result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /already installed and verified/);
+        assert.equal(link(ws, 'current'), second);
+        assert.equal(link(ws, 'previous'), first);
     } finally {
         rmSync(ws.dir, { recursive: true, force: true });
     }
