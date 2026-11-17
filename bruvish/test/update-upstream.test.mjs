@@ -212,10 +212,10 @@ test('a release that changes agent configuration stops before merging and shows 
 
         // merge.log would append a shortlog after the trailer paragraph; the trailer must stay last.
         git(ws.fork, ws.env, 'config', 'merge.log', 'true');
-        result = update(ws, '--no-fetch', '--allow-agent-config', 'reviewed by Mattia: new upstream instruction is fine');
+        result = update(ws, '--no-fetch', '--allow-agent-config', 'reviewed by the owner: new upstream instruction is fine');
         assert.equal(result.status, 0, result.output);
         assert.equal(branch(ws), 'update/v0.1.9');
-        const expected = 'AGENTS.md, docs/.claude/settings.json; reason: reviewed by Mattia: new upstream instruction is fine';
+        const expected = 'AGENTS.md, docs/.claude/settings.json; reason: reviewed by the owner: new upstream instruction is fine';
         assert.equal(trailer(ws), expected);
         assert.match(result.stdout, /the pull request must cite Bruvish-Agent-Config:/);
     } finally {
