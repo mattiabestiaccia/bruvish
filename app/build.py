@@ -29,7 +29,10 @@ def tree_sha(root):
   if stat.S_ISLNK(mode):record=[b'l',rel,b'-',os.fsencode(os.readlink(p))]
   elif stat.S_ISDIR(mode):record=[b'd',rel,b'-',b'']
   elif stat.S_ISREG(mode):
-   with open(p,'rb') as f:record=[b'f',rel,b'x' if mode&stat.S_IXUSR else b'-',hashlib.file_digest(f,'sha256').hexdigest().encode()]
+   digest=hashlib.sha256()
+   with open(p,'rb') as f:
+    for block in iter(lambda:f.read(1<<20),b''):digest.update(block)
+   record=[b'f',rel,b'x' if mode&stat.S_IXUSR else b'-',digest.hexdigest().encode()]
   else:raise ValueError('Unexpected file type in the Electron app: '+str(p))
   h.update(b'\0'.join(record)+b'\0')
  return h.hexdigest()
