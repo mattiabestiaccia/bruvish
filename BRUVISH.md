@@ -19,6 +19,17 @@ Il runtime Bruvish è attivo quando `LAVISH_BRUVISH=1`. Lo impostano il punto d'
 
 Nel runtime: `/` è il catalogo per il telefono, `/mb-info` dichiara la build, ogni artefatto carica `/mb-artifact.js` subito dopo lo script dell'SDK (eccezione voluta all'invariante «un solo script iniettato»), il server serve `/chrome-client.js` e `/chrome.css` con l'addon dell'interfaccia in coda al file ufficiale (i file in `dist/` restano quelli ufficiali), e `open` aggiunge il link remoto verificato, un prefisso al `next_step` ufficiale e l'apertura della superficie configurata. Il CLI rifiuta un server di un'altra build sulla stessa porta e stato.
 
+### Apertura dal server
+
+Link per il telefono e apertura li fa il server, non il comando: la sandbox degli agenti raggiunge il server locale ma non può lanciare l'app o Chrome né raggiungere la tailnet. `lavish-axi open <pagina>` e la forma nuda `lavish-axi <pagina>` creano la sessione come l'originale (`POST /api/sessions`), poi chiedono al server `GET /mb/remote` e, senza `--no-open`, `POST /mb/open`; `lavish-axi remote <url della sessione>` chiede solo `GET /mb/remote`. Le due richieste (`bruvish/lib/control.mjs`) portano soltanto la chiave della sessione (`{"session": "<16 hex>"}`, più `no_gate` per `--no-gate`) e rifiutano ogni altro campo:
+
+- il server ricava file e indirizzo dal proprio stato e accetta solo sessioni registrate (404 altrimenti); `/mb/open` non apre una sessione conclusa (409): la riapertura resta la scelta di `--reopen` sulla route ufficiale, mentre `/mb/remote` è in sola lettura e risponde anche per le concluse;
+- la superficie la sceglie il server dalla propria configurazione (`opening.json`, letto a ogni richiesta, o `LAVISH_MB_SURFACE` nel suo ambiente); nessun percorso, comando, adattatore o variabile d'ambiente arriva dal chiamante, e `LAVISH_MB_OPEN_ADAPTER` non esiste più;
+- oltre ai controlli ufficiali di Host e Origin, accettano solo un Host di loopback, nessuna intestazione di proxy (il telefono passa dal proxy Tailscale) e nessuna pagina web (niente Origin o Referer);
+- un limite di frequenza per route (12 aperture e 30 verifiche al minuto) risponde 429 con `Retry-After`.
+
+Se il server non risponde o non ha queste route (un server ufficiale o di un'altra build), il comando lo dice e si ferma: niente ripiego che apra o verifichi da sé. Un'apertura fallita lascia la sessione valida, riporta `opening.status: failed` con il motivo ed esce con 1.
+
 ## Build
 
 `pnpm run build` produce la build ufficiale e poi, con `scripts/bruvish-build.js`, `dist/bruvish.mjs` (il comando da installare), gli asset in `dist/` e `dist/bruvish-manifest.json` (versione e tag ufficiali, commit del carry, impronte; l'identità della build è l'impronta delle uscite). Nel layout installato servono `dist/`, `bruvish/`, `app/`, `plugin.json` e `skills/lavish/` (letti da `lavish-axi setup plugin` accanto a `dist/`) e le dipendenze di produzione, senza `src/` e con un `bin/` che contiene solo il link `lavish-axi` verso `dist/bruvish.mjs` (niente `bin/lavish-axi-server.js` ufficiale): così il server parte da `dist/server.mjs`.
@@ -46,17 +57,17 @@ La radice degli strumenti, `~/tools`, è definita una volta sola in `app/protoco
 
 Ogni punto toccato del codice ufficiale porta `BRUVISH:hook <id>`. L'elenco sta in `bruvish/lib/hooks.mjs`: `bruvish/test/hooks.test.mjs` controlla che ognuno ci sia una volta sola e che non ce ne siano altri, e `update-upstream` lo ricontrolla dopo ogni merge. Durante un merge, un conflitto in uno di questi punti si risolve rimettendo l'aggancio, non riscrivendo l'innesto.
 
-| id                 | File                                   | Cosa fa                                                                              |
-| ------------------ | -------------------------------------- | ------------------------------------------------------------------------------------ |
-| `server-import`    | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                     |
-| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js` e addon prima delle route ufficiali |
-| `artifact-script`  | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                   |
-| `open-import`      | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                       |
-| `open-present`     | `src/cli.js`                           | link remoto, prefisso del `next_step`, apertura della superficie                     |
-| `build`            | `scripts/build.js`                     | lancia `scripts/bruvish-build.js`                                                    |
-| `prettier`         | `.prettierignore`                      | esclude i file portati byte per byte dallo strato precedente                         |
-| `workflow-ci`      | `.github/workflows/ci.yml`             | la CI ufficiale gira solo nel repository ufficiale                                   |
-| `workflow-release` | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                              |
+| id                 | File                                   | Cosa fa                                                                                                        |
+| ------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `server-import`    | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                                               |
+| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js`, addon, `/mb/open` e `/mb/remote` prima delle route ufficiali |
+| `artifact-script`  | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                                             |
+| `open-import`      | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                                                 |
+| `open-present`     | `src/cli.js`                           | chiede al server link remoto e apertura; prefisso del `next_step`                                              |
+| `build`            | `scripts/build.js`                     | lancia `scripts/bruvish-build.js`                                                                              |
+| `prettier`         | `.prettierignore`                      | esclude i file portati byte per byte dallo strato precedente                                                   |
+| `workflow-ci`      | `.github/workflows/ci.yml`             | la CI ufficiale gira solo nel repository ufficiale                                                             |
+| `workflow-release` | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                                                        |
 
 I workflow girano dal ramo dell'evento: `main` del fork è lo specchio ufficiale senza questi agganci, quindi il vero interruttore su GitHub resta Actions disattivato nelle impostazioni del fork.
 

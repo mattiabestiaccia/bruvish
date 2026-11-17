@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { runtimeEnvironment } from '../../bruvish/lib/env.mjs';
 import { renderDocument } from '../../bruvish/lib/document.mjs';
-import fs from 'node:fs';import {execute} from '../../bruvish/lib/open.mjs';
+import fs from 'node:fs';import {execute} from '../../bruvish/lib/opening.mjs';
 import { builtCli, builtServer, buildSkip, isolatedEnvironment, root } from '../../bruvish/test-helpers/runtime.mjs';
 const delay = ms => new Promise(r => setTimeout(r, ms));
 async function until(fn, message) { let last; for (let i = 0; i < 120; i++) {
