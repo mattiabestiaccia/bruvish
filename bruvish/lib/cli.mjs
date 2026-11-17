@@ -7,7 +7,7 @@ import { printRemoteStatus } from "./remote.mjs";
 import { assertCompatibleServer } from "./runtime.mjs";
 
 export const HELP = `Bruvish: Lavish (upstream lavish-axi) with a personal delta; the command stays lavish-axi.
-The Bruvish server opens the review and verifies the phone link: the command sends it only the session key, so open and remote also work inside an agent sandbox. The server picks the surface from its own configuration (~/.config/lavish-mb/opening.json: app or Chrome; without it, Chrome); a call cannot override it. --no-open only creates the session.
+The Bruvish server opens the review and verifies the phone link: the command sends it only the session key, so open and remote also work inside an agent sandbox, provided the server runs outside it (started by the LaunchAgent service or from a normal terminal). The server picks the surface from its own configuration (~/.config/lavish-mb/opening.json: app or Chrome; without it, Chrome); a call cannot override it. If no server is running, a sandboxed open starts one inside the sandbox: the opening then fails with a clear error and that caller's environment pins the surface until the server stops. --no-open only creates the session.
 Presenting a review includes its verified remote.url for the phone and an immediate tracked poll. remote.catalog_url is the separately verified fixed catalog bookmark.
 Existing session: lavish-axi remote <local-session-url> (read-only check by the server).
 Artifact style: lavish-axi design (upstream reference: lavish-axi design --upstream). Only native Send to Agent sends feedback.

@@ -26,7 +26,9 @@ Link per il telefono e apertura li fa il server, non il comando: la sandbox degl
 - il server ricava file e indirizzo dal proprio stato e accetta solo sessioni registrate (404 altrimenti); `/mb/open` non apre una sessione conclusa (409): la riapertura resta la scelta di `--reopen` sulla route ufficiale, mentre `/mb/remote` è in sola lettura e risponde anche per le concluse;
 - la superficie la sceglie il server dalla propria configurazione (`opening.json`, letto a ogni richiesta, o `LAVISH_MB_SURFACE` nel suo ambiente); nessun percorso, comando, adattatore o variabile d'ambiente arriva dal chiamante, e `LAVISH_MB_OPEN_ADAPTER` non esiste più;
 - oltre ai controlli ufficiali di Host e Origin, accettano solo un Host di loopback, nessuna intestazione di proxy (il telefono passa dal proxy Tailscale) e nessuna pagina web (niente Origin o Referer);
-- un limite di frequenza per route (12 aperture e 30 verifiche al minuto) risponde 429 con `Retry-After`.
+- un limite di frequenza per route (12 aperture e 30 verifiche al minuto) risponde 429 con `Retry-After`; conta solo le richieste con la chiave di una sessione registrata, così le chiamate senza chiave valida non esauriscono il budget.
+
+Tutto questo vale dalla sandbox solo se il server gira fuori da essa: avviato dal servizio (LaunchAgent) o da un terminale normale. Se nessun server è in ascolto, un `lavish-axi open` lanciato in sandbox lo avvia come l'originale, e il server nasce dentro la sandbox con l'ambiente del chiamante: l'apertura fallisce con un errore chiaro, il link per il telefono risulta non disponibile e la superficie la fissa l'ambiente di quel chiamante (`LAVISH_MB_SURFACE`) finché il server non si ferma.
 
 Se il server non risponde o non ha queste route (un server ufficiale o di un'altra build), il comando lo dice e si ferma: niente ripiego che apra o verifichi da sé. Un'apertura fallita lascia la sessione valida, riporta `opening.status: failed` con il motivo ed esce con 1.
 

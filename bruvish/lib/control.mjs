@@ -19,7 +19,7 @@ const PROXY_HEADER = /^(?:x-forwarded-|forwarded$|x-real-ip$|tailscale-)/;
 const ALLOWED_FIELDS = new Set(["session", "no_gate"]);
 
 // At most `limit` accepted calls in any `windowMs`; the answer is the wait in seconds, 0 when the
-// call is accepted.
+// call is accepted. Only calls with a well-formed key of a registered session are charged.
 export function createRateLimiter({ limit, windowMs }, now = Date.now) {
   const hits = [];
   return () => {
@@ -114,12 +114,6 @@ export function registerControlRoutes(
       refuse(res, 403, "FORBIDDEN_CALLER", callerProblem);
       return null;
     }
-    const wait = limiters[kind]();
-    if (wait) {
-      res.setHeader("retry-after", String(wait));
-      refuse(res, 429, "RATE_LIMITED", `Too many ${kind} requests; retry in ${wait} s.`);
-      return null;
-    }
     const request = parseRequest(fields, { query });
     if (!request) {
       refuse(
@@ -135,6 +129,12 @@ export function registerControlRoutes(
     const session = await store.findByKey(request.key);
     if (!session) {
       refuse(res, 404, "UNKNOWN_SESSION", "No registered session has this key; create it with lavish-axi open first.");
+      return null;
+    }
+    const wait = limiters[kind]();
+    if (wait) {
+      res.setHeader("retry-after", String(wait));
+      refuse(res, 429, "RATE_LIMITED", `Too many ${kind} requests; retry in ${wait} s.`);
       return null;
     }
     return { ...request, session };

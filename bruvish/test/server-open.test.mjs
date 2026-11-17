@@ -119,7 +119,9 @@ test('the control routes have a simple rate limit per route', async () => {
     const r = await routes({ limits: { open: { limit: 2, windowMs: 60_000 }, remote: { limit: 1, windowMs: 60_000 } }, now: () => time });
     try {
         assert.equal((await postOpen(r.base, { session: KEY })).status, 200);
-        assert.equal((await postOpen(r.base, { session: 'aaaaaaaaaaaaaaaa' })).status, 404, 'refused calls count too');
+        assert.equal((await postOpen(r.base, { session: 'aaaaaaaaaaaaaaaa' })).status, 404);
+        assert.equal((await postOpen(r.base, { session: 'nope' })).status, 400);
+        assert.equal((await postOpen(r.base, { session: KEY })).status, 200, 'refused calls are not charged');
         const limited = await postOpen(r.base, { session: KEY });
         assert.equal(limited.status, 429);
         assert.equal(limited.json.code, 'RATE_LIMITED');
@@ -128,7 +130,22 @@ test('the control routes have a simple rate limit per route', async () => {
         assert.equal((await raw(r.base, 'GET', '/mb/remote?session=' + KEY)).status, 429);
         time += 60_000;
         assert.equal((await postOpen(r.base, { session: KEY })).status, 200, 'the window moves on');
-        assert.equal(r.opened.length, 2);
+        assert.equal(r.opened.length, 3);
+    } finally { await r.close(); }
+});
+
+test('header-less GET /mb/remote calls without a valid key cannot exhaust the remote budget', async () => {
+    const r = await routes({ limits: { open: { limit: 1, windowMs: 60_000 }, remote: { limit: 1, windowMs: 60_000 } }, now: () => 1_000_000 });
+    try {
+        for (let i = 0; i < 20; i += 1) {
+            for (const query of ['', 'session=nope', 'session=aaaaaaaaaaaaaaaa', `session=${KEY}&file=/etc/passwd`]) {
+                const refused = await raw(r.base, 'GET', '/mb/remote?' + query);
+                assert.notEqual(refused.status, 429, query);
+            }
+        }
+        const legitimate = await raw(r.base, 'GET', '/mb/remote?session=' + KEY);
+        assert.equal(legitimate.status, 200, JSON.stringify(legitimate.json));
+        assert.equal(r.verified.length, 1);
     } finally { await r.close(); }
 });
 
