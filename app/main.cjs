@@ -21,6 +21,8 @@ const logFile = path.join(root, 'app.log');
 fs.closeSync(fs.openSync(logFile, 'a', 0o600));
 app.commandLine.appendSwitch('enable-logging');
 app.commandLine.appendSwitch('log-file', logFile);
+// WARNING and above only: errors and crashes stay, the artifacts' console messages (INFO) do not.
+app.commandLine.appendSwitch('log-level', '1');
 app.setName('Lavish');
 app.setPath('userData', path.join(root, 'profile'));
 app.setPath('sessionData', path.join(root, 'profile'));
