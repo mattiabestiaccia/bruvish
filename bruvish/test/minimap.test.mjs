@@ -372,10 +372,16 @@ test('addon: official panel texts turn Italian, also when written later, and the
   const path = box('button', 'menu-file', panel, { title: "Copy path · /tmp/a$&b$'.html" });
   const receipt = box('span', 'receipt-step', panel, { 'aria-label': 'Seen 10:30 AM', title: 'Done: not yet' });
   const selected = text('3 selected', box('span', 'warnings-selected', panel));
+  const revisionLabel = text('Working draft', box('span', 'revision-label', panel));
+  const revisionSummary = text('Done with layout', box('p', 'revision-summary', panel));
+  const revisionCopy = text('Copy', box('span', 'revision-label', panel));
+  const chip = text('Seen 3m ago', box('span', 'warning-chip', panel));
   const { observers } = await runAddon(new Map(), { panel });
   assert.deepEqual([status.nodeValue, editor.attributes['aria-label'], path.attributes.title, receipt.attributes['aria-label'], receipt.attributes.title, selected.nodeValue],
     ['In coda ', 'Modifica il messaggio in coda', "Copia il percorso · /tmp/a$&b$'.html", 'Visto 10:30 AM', 'Fatto: non ancora', '3 scelti'], 'a path keeps its characters as they are');
   assert.deepEqual([draft.nodeValue, message.nodeValue], ['Copy', 'Copy'], 'a queued note being edited and a sent message are the reader\'s words');
+  assert.deepEqual([revisionLabel.nodeValue, revisionSummary.nodeValue, revisionCopy.nodeValue], ['Working draft', 'Done with layout', 'Copy'], 'revision labels and summaries are the agent\'s words');
+  assert.equal(chip.nodeValue, 'Seen 3m ago', 'layout-issue chips stay as the server writes them');
   const later = text('Cancel', box('button', 'queued-edit-cancel', panel));
   observers.find(o => o.target === panel).fn([{ type: 'childList', addedNodes: [later] }]);
   assert.equal(later.nodeValue, 'Annulla', 'text the official code writes later');

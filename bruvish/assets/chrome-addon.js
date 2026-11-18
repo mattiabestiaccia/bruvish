@@ -67,7 +67,7 @@
         ['Revisions', 'Revisioni'], ['Layout issues', 'Problemi di impaginazione'], ['Select all', 'Seleziona tutto'], ['Queue selected fixes', 'Accoda le correzioni scelte'],
         ['Queueing sends a repair request with your next feedback. An issue is marked resolved only after a newer artifact load and a complete check at the same viewport no longer finds it.', 'Accodare manda una richiesta di correzione con il prossimo riscontro. Un problema risulta risolto solo quando, dopo un nuovo caricamento dell’artefatto, un controllo completo alla stessa larghezza non lo trova più.'],
         ['The agent declares these in the artifact itself. Reveal flashes the next block it marked for that revision; nothing about the page is restyled, so the saved file still looks the way it does here.', 'Le dichiara l’agente nell’artefatto. «Mostra» fa lampeggiare il blocco successivo che ha segnato per quella revisione; la pagina non viene ristilizzata, quindi il file salvato resta come lo vedi qui.'],
-        ['Reveal', 'Mostra'], ['Dismiss', 'Ignora'], ['No unresolved layout issues.', 'Nessun problema di impaginazione aperto.'], ['Queued for send', 'In coda per l’invio'],
+        ['Reveal', 'Mostra'], ['Dismiss', 'Ignora'], ['No unresolved layout issues.', 'Nessun problema di impaginazione aperto.'],
         ['More', 'Altro'], ['Editing', 'In modifica'], ['Copy', 'Copia'], ['Copied', 'Copiato'], ['Reload artifact', 'Ricarica l’artefatto'], ['Copy DOM snapshot', 'Copia l’istantanea del DOM'],
         ['Export standalone HTML', 'Esporta HTML autonomo'], ['Publish link', 'Pubblica un link'], ['End session', 'Chiudi la sessione'],
         ['Cancel', 'Annulla'], ['Save', 'Salva'], ['None selected', 'Nessuno scelto'],
@@ -85,7 +85,7 @@
         [/^(Show|Hide) conversation(?: \((\d+) queued\)| \((new reply)\))?$/, m => (m[1] === 'Show' ? 'Mostra' : 'Nascondi') + ' la conversazione' + (m[2] ? ' (' + m[2] + ' in coda)' : m[3] ? ' (nuova risposta)' : '')],
         [/^(\d+) queued$/, m => m[1] + ' in coda'],
         [/^(\d+) selected$/, m => m[1] + (m[1] === '1' ? ' scelto' : ' scelti')],
-        [/^(Seen|Working|Done)(?:: (not yet)| (.+))$/, m => RECEIPT_STEPS[m[1]] + (m[2] ? ': non ancora' : ' ' + m[3])],
+        [/^(Seen|Working|Done)(?:: (not yet)| (\d{1,2}[:.]\d{2}(?:\s?[AaPp]\.?[Mm]\.?)?))$/, m => RECEIPT_STEPS[m[1]] + (m[2] ? ': non ancora' : ' ' + m[3])],
         [/^Copy path · ([^]*)$/, m => 'Copia il percorso · ' + m[1]]
     ];
     function italian(text) { const core = text.trim(); if (!core)
@@ -95,7 +95,7 @@
         if (match)
             return text.replace(core, () => write(match));
     } return text; }
-    const OWN_WORDS = '.chat-md,.bubble-text,.note-draft,.anchor,.menu-file-text';
+    const OWN_WORDS = '.chat-md,.bubble-text,.note-draft,.anchor,.menu-file-text,.revision-label,.revision-summary,.warning-chip,.warning-title,.warning-explanation,.warning-target';
     function localizeText(node) { if (node.parentElement?.closest(OWN_WORDS) || node.parentElement?.tagName === 'TEXTAREA')
         return; const value = italian(node.nodeValue); if (value !== node.nodeValue)
         node.nodeValue = value; }
