@@ -1,6 +1,11 @@
 /* Runtime-only bridge. Generated artifacts carry semantic IDs, never an index implementation. */
 (() => {
     const VERSION = 1;
+    const ua = navigator.userAgent || '';
+    const macApp = /\bElectron\//.test(ua) && /Macintosh|Mac OS X/.test(ua);
+    document.documentElement.dataset.mbMode = 'dark';
+    // Retire the duplicate control in older generated files too. Their saved web mode is obsolete.
+    document.querySelectorAll('.mb-mode,[data-mb-mode-switch]').forEach(el => el.remove());
     let token = '', initialized = false, zoom = 1, pendingFrame = 0;
     let initial = new Map(), retained = {}, conflicts = {}, outlineEntries = [];
     // The minimap is the only cursor: once it has entries, the native scrollbar of the document goes
@@ -165,7 +170,7 @@
         document.documentElement.dataset.mbTheme = m.theme;
         schedule();
     } if (m.type === 'lavish-mb:mode' && ['dark', 'transparent'].includes(m.mode)) {
-        document.documentElement.dataset.mbMode = m.mode;
+        document.documentElement.dataset.mbMode = macApp && m.mode === 'transparent' ? 'transparent' : 'dark';
     } if (m.type === 'lavish-mb:zoom' && Number.isFinite(m.zoom)) {
         zoom = Math.max(.6, Math.min(2.5, m.zoom));
         document.documentElement.style.zoom = String(zoom);
@@ -195,9 +200,9 @@
                 delete conflicts[id];
         } draft(); });
     document.addEventListener('change', draft);
-    // The artifact iframe is sandboxed (no storage): the host page remembers the backdrop mode on the device.
-    document.addEventListener('lavish-mb:mode-change', event => { const mode = event.detail?.mode; if (token && ['dark', 'transparent'].includes(mode))
-        send('mode', { mode }); });
+    // Compatibility with older generated scripts: ask for the authoritative app value, never send a choice.
+    document.addEventListener('lavish-mb:mode-change', () => { if (token)
+        send('mode-request'); });
     document.addEventListener('toggle', () => { draft(); schedule(); }, true);
     addEventListener('scroll', () => { if (!pendingFrame)
         pendingFrame = requestAnimationFrame(() => { pendingFrame = 0; position(); }); }, { passive: true });

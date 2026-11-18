@@ -137,53 +137,32 @@ const chromeMac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/5
 const electronMac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) lavish-private/0.3.0 Chrome/140.0.0.0 Electron/38.0.0 Safari/537.36';
 const pixel = 'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36';
 
-test('mode defaults: dark in browsers and on the phone, transparent in the Lavish app on the Mac; a saved choice wins', () => {
-  assert.equal(runArtifactJs({ userAgent: chromeMac, storage: 'blocked' }).root.dataset.mbMode, 'dark');
-  assert.equal(runArtifactJs({ userAgent: pixel, storage: {} }).root.dataset.mbMode, 'dark');
-  assert.equal(runArtifactJs({ userAgent: electronMac, storage: 'blocked' }).root.dataset.mbMode, 'transparent');
-  assert.equal(runArtifactJs({ userAgent: electronMac, storage: { 'lavish-mb:mode': 'dark' } }).root.dataset.mbMode, 'dark');
-  assert.equal(runArtifactJs({ userAgent: chromeMac, storage: { 'lavish-mb:mode': 'transparent' } }).root.dataset.mbMode, 'transparent');
-  assert.equal(runArtifactJs({ userAgent: chromeMac, storage: { 'lavish-mb:mode': 'bogus' } }).root.dataset.mbMode, 'dark');
-  assert.equal(runArtifactJs({ userAgent: pixel, pointer: 'coarse', storage: { 'lavish-mb:mode': 'transparent' } }).root.dataset.mbMode, 'dark', 'the phone has no switch, so a saved mode never applies there');
+test('artifacts paint dark before the app supplies its single authoritative mode, ignoring old saved choices', () => {
+  for (const userAgent of [chromeMac,pixel,electronMac]) for (const saved of ['dark','transparent','bogus']) {
+    const run=runArtifactJs({userAgent,storage:{'lavish-mb:mode':saved},preset:'transparent'});
+    assert.equal(run.root.dataset.mbMode,'dark');
+    assert.equal(run.localStorage.data['lavish-mb:mode'],saved,'legacy storage is neither read nor rewritten');
+    assert.equal(run.buttons[0].click,undefined,'no artifact switch click handler');
+  }
+  assert.equal(runArtifactJs({userAgent:chromeMac,storage:'blocked'}).root.dataset.mbMode,'dark');
 });
 
-test('the visible switch toggles the mode, remembers it where storage works and tells the runtime bridge', () => {
-  const run = runArtifactJs({ userAgent: pixel, storage: {} });
-  assert.deepEqual(run.buttons.map(b => b.attributes['aria-checked']), ['false']);
-  run.buttons[0].click();
-  assert.equal(run.root.dataset.mbMode, 'transparent');
-  assert.equal(run.localStorage.data['lavish-mb:mode'], 'transparent');
-  assert.deepEqual(run.events.map(e => [e.type, e.detail.mode]), [['lavish-mb:mode-change', 'transparent']]);
-  run.observer();
-  assert.deepEqual(run.buttons.map(b => b.attributes['aria-checked']), ['true']);
-  run.buttons[0].click();
-  assert.equal(run.root.dataset.mbMode, 'dark', 'the same switch turns it back off');
-  assert.equal(run.localStorage.data['lavish-mb:mode'], 'dark');
-  const sandboxed = runArtifactJs({ userAgent: pixel, storage: 'blocked' });
-  sandboxed.buttons[0].click();
-  assert.equal(sandboxed.root.dataset.mbMode, 'transparent', 'works without storage; the host page remembers it');
-  assert.equal(sandboxed.events.length, 1);
-});
-
-test('rendered pages carry the family, the switch and the mode script in the head before the body', async () => {
+test('rendered pages carry no transparency switch, only a dark-first mode bootstrap before body paint', async () => {
   const html = await renderDocument(doc([card('a')]), { id: 'x' });
   assert.match(html, /<html lang="it" data-mb-theme="dark" data-mb-family="(B|F|E2|G2|D3)"/);
-  assert.doesNotMatch(html, /<html[^>]*data-mb-mode=/, 'the mode is decided on the device, not at render time');
-  assert(html.indexOf("lavish-mb:mode") < html.indexOf('<body>'), 'mode resolved before the body paints');
-  assert.match(html, /<div class="mb-mode"><button type="button" class="mb-switch" role="switch" aria-checked="false" data-mb-mode-switch>[\s\S]*Trasparenza<\/button><\/div>/);
-  assert.doesNotMatch(html, /data-mb-mode-button|Fondo della pagina|>Scuro</, 'one switch replaces the two-button group');
+  assert(html.indexOf("root.dataset.mbMode = 'dark'") < html.indexOf('<body>'));
+  assert.doesNotMatch(html, /data-mb-mode-switch|class="mb-mode"|mb-switch|>Trasparenza</);
   assert.doesNotMatch(html, /mb-theme-standalone|data-mb-theme-button/);
 });
 
-test('runtime bridge relays the mode to the host page, which remembers it for every artifact on the device', async () => {
+test('runtime mode travels from the app to the artifact, never from web storage or an artifact choice', async () => {
   const bridge = await readFile(new URL('../assets/bridge.js', import.meta.url), 'utf8');
   const addon = await readFile(new URL('../assets/chrome-addon.js', import.meta.url), 'utf8');
-  assert.match(bridge, /addEventListener\('lavish-mb:mode-change'[\s\S]{0,200}send\('mode', \{ mode \}\)/);
   assert.match(bridge, /m\.type === 'lavish-mb:mode' && \['dark', 'transparent'\]\.includes\(m\.mode\)/);
-  assert.match(bridge, /getPropertyValue\('--mb-state-color'\)/, 'the minimap takes the glow colour');
-  assert.match(addon, /const MODE_KEY = 'lavish-mb:mode'/);
-  assert.match(addon, /localStorage\.setItem\(MODE_KEY, mode\)/);
-  assert.match(addon, /if \(mode\)\n\s*send\('mode', \{ mode \}\)/);
+  assert.match(bridge, /macApp && m\.mode === 'transparent' \? 'transparent' : 'dark'/);
+  assert.match(bridge, /getPropertyValue\('--mb-state-color'\)/);
+  assert.match(addon, /root\.dataset\.mbAppMode === 'transparent'/);
+  assert.doesNotMatch(addon, /MODE_KEY|localStorage\.(?:getItem|setItem)\([^)]*(?:mode|MODE_KEY)/);
 });
 
 test('interview questions explain the two-tap answer and carry no free text field', async () => {

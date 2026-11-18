@@ -8,7 +8,7 @@ const read = name => readFile(new URL('../assets/' + name, import.meta.url), 'ut
 const [bridge, addon, css, artifactJs] = await Promise.all(['bridge.js', 'chrome-addon.js', 'chrome-addon.css', 'artifact.js'].map(read));
 const tick = () => new Promise(r => setImmediate(r));
 
-function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null, handshake = true } = {}) {
+function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null, handshake = true, userAgent = 'Chrome', legacyControls = [] } = {}) {
   const posted = [], listeners = {}, documentListeners = {}, styles = [], scrolls = [];
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
@@ -29,7 +29,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     documentElement: root, body: {}, head: { append: style => styles.push(style) },
     createElement: tag => ({ tagName: tag.toUpperCase(), textContent: '' }),
     get activeElement() { return active?.() ?? document.body; },
-    querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : [],
+    querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : selector === '.mb-mode,[data-mb-mode-switch]' ? legacyControls : [],
     querySelector: selector => { if (!/^#[\w-]+$/.test(selector)) throw new SyntaxError('bad selector'); return nodes.find(node => '#' + node.id === selector) ?? null; },
     addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
@@ -38,7 +38,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     borderLeftColor: 'rgb(1, 2, 3)', color: 'rgb(4, 5, 6)'
   });
   const context = {
-    parent, document, getComputedStyle, scrollY: 0, innerHeight: 1000,
+    parent, document, navigator: {userAgent}, getComputedStyle, scrollY: 0, innerHeight: 1000,
     matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')', addEventListener() { } }),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
     requestAnimationFrame: () => 1,
@@ -98,12 +98,12 @@ function upstreamChrome() {
   return { bar, brandBox, brand, annotate, title, send, end, endButton, exit, input };
 }
 
-async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null } = {}) {
+async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null, appMode = null } = {}) {
   const listeners = {}, posted = [], documentListeners = {}, observers = [];
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
   const body = element('body'), head = element('head');
-  const root = { style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
+  const root = { dataset: appMode ? {mbAppMode: appMode} : {}, style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
   const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {} };
   const bySelector = { ...chrome ? { '.brand': chrome.brandBox, '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {}, ...panel ? { '.panel': panel } : {} };
   const descendants = node => (node.children || []).flatMap(child => [child, ...descendants(child)]);
@@ -177,28 +177,41 @@ test('addon: no separate scroll cursor, new and changed lines are marked, focus 
   assert.equal(rail.style.props['--mb-accent'], '#49cbbd');
 });
 
-test('backdrop mode: the sandboxed artifact relays a choice, the host page keeps it on the device and replays it on ready', async () => {
-  const { posted, dispatch } = runBridge([]);
-  dispatch('lavish-mb:mode-change', { detail: { mode: 'transparent' } });
-  dispatch('lavish-mb:mode-change', { detail: { mode: 'neon' } });
-  assert.deepEqual(posted.filter(m => m.type === 'lavish-mb:mode').map(m => [m.mode, m.token]), [['transparent', 't']], 'only a known mode reaches the host page');
+test('backdrop mode is app-authoritative, survives the handshake and ignores stored or artifact choices', async () => {
+  const storage = new Map([['lavish-mb:mode','dark']]);
+  const app = await runAddon(storage,{appMode:'transparent'});
+  app.deliver({type:'lavish-mb:ready'});
+  assert.equal(app.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'transparent');
+  app.deliver({type:'lavish-mb:mode',mode:'dark'});
+  assert.equal(app.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'transparent','an artifact cannot override the toolbar');
+  app.root.dataset.mbAppMode='dark';app.observers.filter(o=>o.target===app.root).forEach(o=>o.fn());
+  assert.equal(app.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'dark','native preference updates reach the current artifact');
+  app.deliver({type:'lavish-mb:ready'});
+  assert.equal(app.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'dark','reload uses current app preference');
+  assert.equal(storage.get('lavish-mb:mode'),'dark','web mode is not rewritten');
+  for(const pointer of ['fine','coarse']) {
+    const browser=await runAddon(new Map([['lavish-mb:mode','transparent']]),{pointer});
+    browser.deliver({type:'lavish-mb:ready'});
+    assert.equal(browser.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'dark','browser and phone ignore old transparent choice');
+  }
+});
 
-  const storage = new Map();
-  const first = await runAddon(storage);
-  first.deliver({ type: 'lavish-mb:mode', mode: 'transparent' });
-  assert.equal(storage.get('lavish-mb:mode'), 'transparent');
-  first.deliver({ type: 'lavish-mb:mode', mode: 'neon' });
-  assert.equal(storage.get('lavish-mb:mode'), 'transparent', 'an unknown mode is not remembered');
-
-  const next = await runAddon(storage);
-  next.deliver({ type: 'lavish-mb:ready' });
-  assert.deepEqual(next.posted.filter(m => m.type === 'lavish-mb:mode').map(m => m.mode), ['transparent'], 'the next artifact gets the remembered mode');
-  const phone = await runAddon(storage, { pointer: 'coarse' });
-  phone.deliver({ type: 'lavish-mb:ready' });
-  assert.equal(phone.posted.some(m => m.type === 'lavish-mb:mode'), false, 'the phone has no switch: the artifact keeps its dark default');
-  const fresh = await runAddon();
-  fresh.deliver({ type: 'lavish-mb:ready' });
-  assert.equal(fresh.posted.some(m => m.type === 'lavish-mb:mode'), false, 'no choice yet: the artifact keeps its own default');
+test('only the Mac app bridge accepts transparent mode; browser and phone remain dark, old controls retire',()=>{
+ const native='Mozilla/5.0 (Macintosh; Intel Mac OS X) Electron/44.2.0';
+ for(const userAgent of ['Chrome Macintosh','Chrome Android','Electron/44.2.0 Windows',native]) {
+  let removed=0;
+  const run=runBridge([],{userAgent,legacyControls:[{remove(){removed++;}}]});
+  assert.equal(removed,1);assert.equal(run.root.dataset.mbMode,'dark');
+  run.deliver({type:'lavish-mb:mode',token:'wrong',mode:'transparent'});
+  assert.equal(run.root.dataset.mbMode,'dark','wrong channel token is ignored');
+  run.deliver({type:'lavish-mb:mode',token:'t',mode:'transparent'});
+  assert.equal(run.root.dataset.mbMode,userAgent===native?'transparent':'dark');
+  run.deliver({type:'lavish-mb:mode',token:'t',mode:'dark'});
+  assert.equal(run.root.dataset.mbMode,'dark');
+  run.dispatch('lavish-mb:mode-change',{detail:{mode:'transparent'}});
+  assert.equal(run.posted.some(m=>m.type==='lavish-mb:mode'),false,'no artifact mode choice goes upstream');
+  assert.equal(run.posted.at(-1).type,'lavish-mb:mode-request','old scripts only request the app value');
+ }
 });
 
 test('minimap shape and colours follow the approved mock-up; the new lines pulse in opacity unless motion is reduced', () => {

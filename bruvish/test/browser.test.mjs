@@ -158,17 +158,14 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
             await client.evaluate('document.dispatchEvent(new KeyboardEvent("keydown",{key:"0",metaKey:true,bubbles:true,cancelable:true}))', frame);
             await until(() => client.evaluate('document.documentElement.style.zoom==="1"', true), 'shortcut reset');
         }
-        const switchDisplay = () => client.evaluate('getComputedStyle(document.querySelector(".mb-mode")).display', true);
-        assert.notEqual(await switchDisplay(), 'none', 'the mode switch is shown on the computer');
+        assert.equal(await client.evaluate('document.querySelector(".mb-mode,[data-mb-mode-switch]")', true),null,'no artifact transparency switch on the computer');
+        await client.evaluate('localStorage.setItem("lavish-mb:mode","transparent")');
         await client.emulate('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
-        await until(async () => await client.evaluate('matchMedia("(pointer: coarse)").matches', true) && await switchDisplay() === 'none', 'switch hidden with a phone pointer');
+        await until(() => client.evaluate('matchMedia("(pointer: coarse)").matches', true), 'phone pointer');
+        assert.deepEqual(await client.evaluate('[document.documentElement.dataset.mbMode,getComputedStyle(document.body,"::before").backgroundColor,document.querySelector(".mb-mode,[data-mb-mode-switch]")]', true),['dark','rgb(31, 32, 35)',null],'phone stays dark and has no toggle');
         await client.emulate('Emulation.setTouchEmulationEnabled', { enabled: false });
-        await until(async () => await switchDisplay() !== 'none', 'switch shown again on the computer');
-        // The mode switch lives in the sandboxed artifact; the host page remembers the choice on the device.
-        await client.evaluate('document.querySelector("[data-mb-mode-switch]").click()', true);
-        await until(() => client.evaluate('localStorage.getItem("lavish-mb:mode")==="transparent"'), 'mode remembered by the host page');
-        assert.deepEqual(await client.evaluate('[getComputedStyle(document.documentElement).backgroundColor,getComputedStyle(document.body).backgroundColor,document.querySelector("[data-mb-mode-switch]").getAttribute("aria-checked")]', true), ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'true']);
-        await until(async()=>{try{await matchingCardColors();return true;}catch{return false;}},'card colors in minimap after mode change');
+        await client.evaluate('document.dispatchEvent(new CustomEvent("lavish-mb:mode-change",{detail:{mode:"transparent"}}))',true);
+        assert.equal(await client.evaluate('document.documentElement.dataset.mbMode',true),'dark','legacy artifact events cannot enable transparency in a browser');
         // Interview cards carry no free text field: notes go through the annotation tool. The draft is the choice.
         assert.equal(await client.evaluate('document.querySelectorAll("textarea,[data-mb-question] input:not([type=radio])").length', true), 0);
         const q0Choice = 'document.querySelector("[data-mb-question=q0] input:checked")?.value';
@@ -176,7 +173,7 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(() => client.evaluate('Object.values(Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith("lavish-mb:v1:")))).some(v=>JSON.parse(v).fields?.["q0:choice"]?.value==="yes")'), 'draft persisted');
         await client.call('Page.reload');
         await until(async () => await client.evaluate(q0Choice, true) === 'yes', 'draft restored after reload');
-        await until(() => client.evaluate('document.documentElement.dataset.mbMode==="transparent"', true), 'mode restored after reload');
+        await until(() => client.evaluate('document.documentElement.dataset.mbMode==="dark"', true), 'old transparent web-storage choice ignored after reload');
         input.state.answers.q0 = { choice: 'no' };
         input.state.revision = 2;
         await writeFile(file, await renderDocument(input));

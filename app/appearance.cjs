@@ -21,7 +21,10 @@ function watchAppearance(view, getSettings, onError = error => console.error('La
   view.applyAppearance = () => {
     const run = chain.then(async () => {
       if (contents.isDestroyed()) return;
-      const settings = getSettings(), enabled = settings.transparent && settings.artifactBackground;
+      const settings = getSettings(), enabled = settings.transparent;
+      // This top-level app-owned value is forwarded by chrome-addon through the existing bound bridge.
+      // Old artifactBackground/web-storage values must not create a second transparency state.
+      await contents.executeJavaScript(`document.documentElement.dataset.mbAppMode = ${JSON.stringify(enabled ? 'transparent' : 'dark')}`);
       view.setBackgroundColor(enabled ? '#00000000' : '#101318');
       if (cssKey) {await contents.removeInsertedCSS(cssKey).catch(() => {});cssKey = null;}
       if (enabled) cssKey = await contents.insertCSS(shellCSS, {cssOrigin: 'user'});

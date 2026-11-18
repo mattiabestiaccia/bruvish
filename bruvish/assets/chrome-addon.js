@@ -3,15 +3,9 @@
     const iframe = document.getElementById('artifact');
     if (!iframe)
         return;
-    // Backdrop mode chosen in an artifact (dark/transparent), remembered for every artifact on this device.
-    const MODE_KEY = 'lavish-mb:mode', MODES = ['dark', 'transparent'];
-    let mode = null;
-    try {
-        const saved = localStorage.getItem(MODE_KEY);
-        if (MODES.includes(saved) && matchMedia('(pointer: fine)').matches)
-            mode = saved;
-    }
-    catch { }
+    // One authority: the native app supplies its toolbar preference on this top-level document.
+    // Browsers and phones have no app value and stay dark; legacy web-storage modes are ignored.
+    let mode = 'dark';
     let token = '', theme = 'dark', contentZoom = 1, storageKey = '', storageAvailable = false, record = { fields: {}, conflicts: [] }, outlineItems = [];
     // Frame style from the approved frame mock-up: page fonts, BRUVISH mark, icon switches, Italian panel.
     const root = document.documentElement;
@@ -253,6 +247,12 @@
     document.body.append(tools);
     const send = (type, data = {}) => { if (token)
         iframe.contentWindow?.postMessage({ type: 'lavish-mb:' + type, version: 1, token, ...data }, '*'); };
+    const syncAppMode = () => {
+        mode = root.dataset.mbAppMode === 'transparent' ? 'transparent' : 'dark';
+        send('mode', { mode });
+    };
+    syncAppMode();
+    new MutationObserver(syncAppMode).observe(root, { attributes: true, attributeFilter: ['data-mb-app-mode'] });
     function button(label, fn) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); tools.append(b); return b; }
     // The panel only appears while it has something to say: a draft notice or conflicting drafts.
     const conflictButton = button('Bozze in conflitto', showConflicts);
@@ -317,21 +317,16 @@
             send('restore', { fields: record.fields || {} });
             send('theme', { theme });
             send('zoom', { zoom: contentZoom });
-            if (mode)
-                send('mode', { mode });
+            send('mode', { mode });
             send('closed', { show: showClosed });
         }
         if (m.type === 'lavish-mb:show-closed' && !showClosed)
             setShowClosed(true);
         if (m.type === 'lavish-mb:annotate-toggle')
             annotate?.click();
-        if (m.type === 'lavish-mb:mode' && MODES.includes(m.mode)) {
-            mode = m.mode;
-            try {
-                localStorage.setItem(MODE_KEY, mode);
-            }
-            catch { }
-        }
+        // Old artifacts can still request a mode; return the app's current value, never adopt theirs.
+        if (m.type === 'lavish-mb:mode' || m.type === 'lavish-mb:mode-request')
+            send('mode', { mode });
         if (m.type === 'lavish-mb:outline' && Array.isArray(m.items)) {
             outlineItems = m.items.filter(i => typeof i.id === 'string' && typeof i.title === 'string').slice(0, 400);
             if (typeof m.accent === 'string' && m.accent && CSS.supports('color', m.accent))

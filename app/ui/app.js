@@ -17,7 +17,7 @@ function button(text, listener, className = '') {const node = document.createEle
 function renderPreferences(next) {
  if (next) preferences = next;
  document.body.classList.toggle('transparent', preferences.transparent);
- document.body.classList.toggle('transparent-artifacts', preferences.transparent && preferences.artifactBackground);
+ document.body.classList.toggle('transparent-artifacts', preferences.transparent);
  $('transparent').setAttribute('aria-checked', String(preferences.transparent));
  $('layout').setAttribute('aria-pressed', String(preferences.layout === 'grid'));
  $('layout').textContent = preferences.layout === 'grid' ? 'Elenco' : 'Griglia';
