@@ -34,7 +34,10 @@ async function cdp(url) { const ws = new WebSocket(url); await new Promise((r, j
     if (c.auxData?.isDefault)
         contexts.set(c.auxData.frameId, c.id);
 } if (m.method === 'Runtime.exceptionThrown')
-    errors.push(m.params.exceptionDetails); }); const call = (method, params = {}, sessionId) => new Promise((resolve, reject) => { const n = ++id; pending.set(n, { resolve, reject }); ws.send(JSON.stringify({ id: n, method, params, ...sessionId ? { sessionId } : {} })); }); await call('Page.enable'); await call('Runtime.enable'); await call('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }); return { call, errors, close: () => ws.close(), async evaluate(expression, frame = false) { let contextId; if (frame && !artifactSession) {
+    errors.push(m.params.exceptionDetails); }); const call = (method, params = {}, sessionId) => new Promise((resolve, reject) => { const n = ++id; pending.set(n, { resolve, reject }); ws.send(JSON.stringify({ id: n, method, params, ...sessionId ? { sessionId } : {} })); }); await call('Page.enable'); await call('Runtime.enable'); await call('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }); return { call, errors, close: () => ws.close(),
+    // Emulation is per renderer: the sandboxed artifact is an out-of-process iframe, so it needs its own copy.
+    async emulate(method, params) { await call(method, params); if (artifactSession)
+        await call(method, params, artifactSession); }, async evaluate(expression, frame = false) { let contextId; if (frame && !artifactSession) {
         const tree = await call('Page.getFrameTree');
         contextId = contexts.get(tree.frameTree.childFrames?.find(c => c.frame.name === 'artifact')?.frame.id);
         if (!contextId)
@@ -124,9 +127,9 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         }
         const switchDisplay = () => client.evaluate('getComputedStyle(document.querySelector(".mb-mode")).display', true);
         assert.notEqual(await switchDisplay(), 'none', 'the mode switch is shown on the computer');
-        await client.call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+        await client.emulate('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
         await until(async () => await client.evaluate('matchMedia("(pointer: coarse)").matches', true) && await switchDisplay() === 'none', 'switch hidden with a phone pointer');
-        await client.call('Emulation.setTouchEmulationEnabled', { enabled: false });
+        await client.emulate('Emulation.setTouchEmulationEnabled', { enabled: false });
         await until(async () => await switchDisplay() !== 'none', 'switch shown again on the computer');
         // The mode switch lives in the sandboxed artifact; the host page remembers the choice on the device.
         await client.evaluate('document.querySelector("[data-mb-mode-switch]").click()', true);
