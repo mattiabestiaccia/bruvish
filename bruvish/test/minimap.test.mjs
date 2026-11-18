@@ -5,25 +5,33 @@ import vm from 'node:vm';
 // Minimap of the overlay, as in the approved mock-up laboratorio-stile/lavish/cornice/cornice.html
 // (decision of 16 November 2026: where the lab DESIGN.md and the mock-up differ, the mock-up wins).
 const read = name => readFile(new URL('../assets/' + name, import.meta.url), 'utf8');
-const [bridge, addon, css] = await Promise.all(['bridge.js', 'chrome-addon.js', 'chrome-addon.css'].map(read));
+const [bridge, addon, css, artifactJs] = await Promise.all(['bridge.js', 'chrome-addon.js', 'chrome-addon.css', 'artifact.js'].map(read));
 const tick = () => new Promise(r => setImmediate(r));
 
-function runBridge(cards, { pointer = 'fine' } = {}) {
-  const posted = [], listeners = {}, documentListeners = {};
+function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null } = {}) {
+  const posted = [], listeners = {}, documentListeners = {}, styles = [];
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
-  const nodes = cards.map((c, i) => ({
-    id: c.id, dataset: { mbState: c.state, ...c.fresh !== undefined ? { mbNew: c.fresh } : {} }, color: c.color,
-    getClientRects: () => [1], getBoundingClientRect: () => ({ top: 100 * i }),
-    matches: () => false, querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null
-  }));
+  // A closed card (answered, not new) has no boxes while the injected rule hides it.
+  const hiddenByRule = node => root.dataset.mbClosed === 'hide' && styles.length && node.dataset.mbState === 'answered' && !('mbNew' in node.dataset);
+  const nodes = cards.map((c, i) => {
+    const node = {
+      id: c.id, dataset: { mbState: c.state, ...c.fresh !== undefined ? { mbNew: c.fresh } : {} }, color: c.color,
+      getClientRects: () => hiddenByRule(node) ? [] : [1], getBoundingClientRect: () => ({ top: 100 * i }),
+      parentElement: { getClientRects: () => [1] },
+      matches: () => false, querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null
+    };
+    return node;
+  });
   const document = {
-    documentElement: root, body: {},
+    documentElement: root, body: {}, head: { append: style => styles.push(style) },
+    createElement: tag => ({ tagName: tag.toUpperCase(), textContent: '' }),
+    get activeElement() { return active?.() ?? document.body; },
     querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : [],
     addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
   const getComputedStyle = el => ({
-    getPropertyValue: name => el === root ? (name === '--title' ? ' #49cbbd ' : '') : name === '--mb-state-color' ? el.color : '',
+    getPropertyValue: name => el === root ? (palette[name] ?? '') : name === '--mb-state-color' ? el.color : '',
     borderLeftColor: 'rgb(1, 2, 3)', color: 'rgb(4, 5, 6)'
   });
   const context = {
@@ -38,47 +46,78 @@ function runBridge(cards, { pointer = 'fine' } = {}) {
   deliver({ type: 'lavish-mb:hello', token: 't' });
   deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
   const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
-  return { posted, observed: context.observed, root, dispatch };
+  return { posted, observed: context.observed, root, dispatch, deliver, styles };
 }
 
 function element(tag) {
   const classes = new Set();
   const el = {
-    tagName: tag.toUpperCase(), dataset: {}, attributes: {}, children: [], listeners: {}, hidden: false,
+    tagName: tag.toUpperCase(), dataset: {}, attributes: {}, children: [], listeners: {}, hidden: false, textContent: '', parent: null,
     style: { props: {}, setProperty(name, value) { this.props[name] = value; } },
-    classList: { add: name => classes.add(name), contains: name => classes.has(name), toggle: (name, on) => on ? classes.add(name) : classes.delete(name) },
+    classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name), toggle: (name, on) => on ? classes.add(name) : classes.delete(name) },
     setAttribute(name, value) { this.attributes[name] = String(value); },
-    append(...items) { this.children.push(...items); },
-    replaceChildren() { this.children = []; },
+    getAttribute(name) { return name in this.attributes ? this.attributes[name] : null; },
+    removeAttribute(name) { delete this.attributes[name]; },
+    append(...items) { for (const item of items) { item.parent = this; this.children.push(item); } },
+    replaceChildren(...items) { this.children = []; this.append(...items); },
+    remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; },
+    before(item) { const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this), 0, item); },
+    get childNodes() { return this.children; },
+    querySelector(selector) { const name = selector.replace(/^\./, ''); for (const child of this.children) { if (child.classList?.contains(name)) return child; const found = child.querySelector?.(selector); if (found) return found; } return null; },
     addEventListener(type, fn) { this.listeners[type] = fn; },
+    click() { if (!this.disabled) { this.clicks = (this.clicks || 0) + 1; this.listeners.click?.(); } },
     get className() { return [...classes].join(' '); }, set className(value) { classes.clear(); value.split(' ').filter(Boolean).forEach(c => classes.add(c)); }
   };
   return el;
 }
 
-async function runAddon(storage = new Map(), { pointer = 'fine' } = {}) {
-  const listeners = {}, posted = [];
+// The upstream bar pieces the addon restyles: brand, annotate switch (track, knob, label), panel title, send buttons.
+function upstreamChrome() {
+  const bar = element('div'), brand = element('span'), annotate = element('button'), track = element('span'), knob = element('span'), label = element('span');
+  brand.className = 'brand-mark'; brand.textContent = 'Lavish';
+  annotate.className = 'annotate-switch';
+  annotate.setAttribute('aria-pressed', 'true');
+  annotate.setAttribute('title', 'Toggle annotate/explore mode (⌘E / Ctrl+E)');
+  track.className = 'switch-track'; knob.className = 'switch-knob'; label.textContent = 'Annotate';
+  track.append(knob); annotate.append(track, label); bar.append(brand, annotate);
+  const title = element('h2'), send = element('button'), end = element('span'), input = element('textarea');
+  title.textContent = 'Conversation'; send.textContent = 'Send to Agent'; end.textContent = 'Send & End';
+  return { bar, brand, annotate, title, send, end, input };
+}
+
+async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null } = {}) {
+  const listeners = {}, posted = [], documentListeners = {}, observers = [];
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
-  const body = element('body');
+  const body = element('body'), head = element('head');
+  const root = { style: { props: {}, setProperty(name, value) { this.props[name] = value; } } };
+  const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {} };
+  const bySelector = chrome ? { '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {};
   const document = {
-    body, getElementById: id => id === 'artifact' ? iframe : null, createElement: element,
-    querySelector: () => null, addEventListener() { }
+    body, head, documentElement: root, getElementById: id => byId[id] ?? null, createElement: element,
+    createElementNS: (namespace, tag) => Object.assign(element(tag), { namespace }),
+    querySelector: selector => bySelector[selector] ?? null,
+    get activeElement() { return active?.() ?? body; },
+    addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
   const context = {
     document, posted,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
     crypto: { randomUUID: () => 'token-1' },
     matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')' }),
-    CSS: { supports: (property, value) => property === 'color' && /^(#[0-9a-f]{3,8}|rgb\([\d, ]+\))$/i.test(value) },
+    CSS: { supports: (property, value) => property === 'color' && /^(#[0-9a-f]{3,8}|rgba?\([\d., ]+\))$/i.test(value) },
+    MutationObserver: class { constructor(fn) { this.fn = fn; observers.push(this); } observe(target) { this.target = target; } },
     fetch: () => Promise.reject(new Error('offline')),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }
   };
   vm.runInNewContext(addon, context);
   await tick();
   const deliver = data => listeners.message.forEach(fn => fn({ source: contentWindow, data: { version: 1, token: 'token-1', ...data } }));
+  const key = (code, timeStamp, extra = {}) => (documentListeners.keydown || []).forEach(fn => fn({ code, timeStamp, ...extra }));
+  // Upstream sets aria-pressed again on every toggle; the observer then mirrors it.
+  const upstreamToggle = pressed => { chrome.annotate.setAttribute('aria-pressed', String(pressed)); observers.filter(o => o.target === chrome.annotate).forEach(o => o.fn()); };
   const rail = body.children.find(el => el.className === 'mb-rail');
-  return { body, rail, deliver, posted };
+  return { body, head, root, rail, deliver, posted, key, upstreamToggle };
 }
 
 test('bridge: each minimap entry carries the novelty of its card and the outline carries the theme accent', () => {
@@ -161,4 +200,153 @@ test('minimap shape and colours follow the approved mock-up; the new lines pulse
   assert.match(css, /\.mb-rail \.mb-new i\{animation:mb-rail-novelty 2s ease-in-out infinite\}/);
   assert.match(css, /@keyframes mb-rail-novelty\{0%,100%\{opacity:\.45\}50%\{opacity:1\}\}/);
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.mb-rail \.mb-new i\{animation:none\}\}/);
+});
+
+test('bridge: closed cards hide only on request and never all of them; the outline reports counts, dots and the theme family', () => {
+  const palette = { '--card': 'rgba(38,30,51,0.5)', '--line': '#4d4360', '--ink': '#e3e2f5', '--muted': '#a5b1cb', '--title': '#49cbbd', '--field': 'rgba(19,15,27,0.3)' };
+  const cards = [{ id: 'a', state: 'waiting', color: '#d6ab32' }, { id: 'b', state: 'answered', color: '#63ca84' }, { id: 'c', state: 'answered', fresh: 'changed', color: '#63ca84' }];
+  const run = runBridge(cards, { palette });
+  const last = () => run.posted.filter(m => m.type === 'lavish-mb:outline').at(-1);
+  assert.deepEqual({ ...last().palette }, { card: 'rgba(38,30,51,0.5)', line: '#4d4360', ink: '#e3e2f5', muted: '#a5b1cb', title: '#49cbbd', field: 'rgba(19,15,27,0.3)' });
+  assert.deepEqual([last().closed, last().open], [1, 2], 'a new or changed answered card is not closed');
+  assert.equal(run.root.dataset.mbClosed, 'show', 'nothing hidden before the host page asks');
+  run.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
+  assert.equal(run.root.dataset.mbClosed, 'hide');
+  assert.match(run.styles[0].textContent, /:root\[data-mb-closed=hide\] \[data-mb-state=answered\]:not\(\[data-mb-new\]\)\{display:none!important\}/);
+  assert.deepEqual([...last().items].map(i => [i.id, i.closed, i.hidden]), [['a', false, false], ['b', true, true], ['c', false, false]], 'the hidden closed card stays in the minimap');
+  run.deliver({ type: 'lavish-mb:closed', token: 't', show: true });
+  assert.equal(run.root.dataset.mbClosed, 'show');
+  assert.deepEqual([...last().items].map(i => i.hidden), [false, false, false]);
+  run.deliver({ type: 'lavish-mb:closed', token: 't', show: 'no' });
+  assert.equal(run.root.dataset.mbClosed, 'show', 'only a boolean changes the filter');
+  const allClosed = runBridge([{ id: 'x', state: 'answered', color: '#63ca84' }]);
+  allClosed.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
+  assert.equal(allClosed.root.dataset.mbClosed, 'show', 'a page of closed cards only is never emptied');
+});
+
+test('bridge: a double tap of the right Option key in the artifact asks for annotation mode, except while typing or with a key in between', () => {
+  let active = null;
+  const run = runBridge([], { active: () => active });
+  const toggles = () => run.posted.filter(m => m.type === 'lavish-mb:annotate-toggle').length;
+  const key = (code, timeStamp, extra = {}) => run.dispatch('keydown', { code, timeStamp, ...extra });
+  key('AltRight', 1000); key('AltRight', 1300);
+  assert.equal(toggles(), 1, 'two taps within 400 ms');
+  key('AltRight', 2000); key('AltRight', 2500);
+  assert.equal(toggles(), 1, 'too slow');
+  key('AltRight', 3000); key('KeyA', 3100); key('AltRight', 3200);
+  assert.equal(toggles(), 1, 'another key in between');
+  key('AltLeft', 4000); key('AltLeft', 4100);
+  assert.equal(toggles(), 1, 'only the right Option key');
+  key('AltRight', 5000); key('AltRight', 5100, { repeat: true }); key('AltRight', 5200);
+  assert.equal(toggles(), 2, 'auto-repeat is not a tap');
+  active = { tagName: 'TEXTAREA' };
+  key('AltRight', 6000); key('AltRight', 6100);
+  assert.equal(toggles(), 2, 'not while typing in a text field');
+  active = { tagName: 'INPUT', type: 'radio' };
+  key('AltRight', 7000); key('AltRight', 7100);
+  assert.equal(toggles(), 3, 'a focused radio button is not a text field');
+});
+
+test('addon: BRUVISH mark, Italian panel, annotate as a labelless pencil switch mirrored to aria-checked', async () => {
+  const chrome = upstreamChrome();
+  const { head } = await runAddon(new Map(), { chrome });
+  assert.equal(chrome.brand.textContent, 'BRUVISH');
+  assert.deepEqual([chrome.title.textContent, chrome.send.textContent, chrome.end.textContent, chrome.input.placeholder], ['Conversazione', 'Invia all’agente', 'Invia e chiudi', 'Scrivi all’agente…']);
+  assert.equal(head.children[0].href, '/mb-catalog-fonts.css', 'the page fonts reach the frame');
+  const annotate = chrome.annotate;
+  assert.equal(annotate.attributes.role, 'switch');
+  assert.equal(annotate.attributes['aria-label'], 'Annota');
+  assert.equal(annotate.attributes['aria-checked'], 'true');
+  assert.equal(annotate.getAttribute('aria-pressed'), null, 'a switch carries aria-checked, not aria-pressed');
+  assert.equal(annotate.attributes.title, 'Annota · doppio tocco di ⌥ destro · ⌘E / Ctrl+E');
+  assert.deepEqual(annotate.children.map(c => c.className), ['switch-track'], 'no "Annotate" text');
+  const svg = annotate.querySelector('.switch-knob').children[0];
+  assert.equal(svg.namespace, 'http://www.w3.org/2000/svg');
+  assert.equal(svg.attributes['aria-hidden'], 'true');
+  assert.deepEqual(svg.children.map(c => c.tagName), ['PATH', 'PATH'], 'pencil');
+});
+
+test('addon: the annotate switch also toggles with a double tap of the right Option key, and on the artifact\'s request', async () => {
+  const chrome = upstreamChrome();
+  let active = null;
+  const { key, deliver, upstreamToggle } = await runAddon(new Map(), { chrome, active: () => active });
+  key('AltRight', 100); key('AltRight', 450);
+  assert.equal(chrome.annotate.clicks, 1);
+  upstreamToggle(false);
+  assert.equal(chrome.annotate.attributes['aria-checked'], 'false', 'upstream state mirrored after the toggle');
+  key('AltRight', 1000); key('ShiftLeft', 1100); key('AltRight', 1200);
+  key('AltRight', 2000); key('AltRight', 2401);
+  assert.equal(chrome.annotate.clicks, 1, 'another key in between, or more than 400 ms');
+  active = { tagName: 'TEXTAREA' };
+  key('AltRight', 3000); key('AltRight', 3100);
+  assert.equal(chrome.annotate.clicks, 1, 'not while writing to the agent');
+  active = { tagName: 'DIV', isContentEditable: true };
+  key('AltRight', 4000); key('AltRight', 4100);
+  assert.equal(chrome.annotate.clicks, 1, 'not in an editable region');
+  active = null;
+  deliver({ type: 'lavish-mb:annotate-toggle' });
+  assert.equal(chrome.annotate.clicks, 2, 'double tap seen inside the artifact');
+  chrome.annotate.disabled = true;
+  key('AltRight', 5000); key('AltRight', 5100);
+  assert.equal(chrome.annotate.clicks, 2, 'an ended session keeps the switch disabled');
+});
+
+test('addon: closed-cards switch (check in a circle) next to annotate, hidden unless the page has closed and open cards', async () => {
+  const chrome = upstreamChrome();
+  const { rail, root, deliver, posted } = await runAddon(new Map(), { chrome });
+  const closed = chrome.bar.children.find(el => el.className === 'mb-closed-switch');
+  assert(closed, 'closed switch in the bar');
+  assert.equal(chrome.bar.children.indexOf(closed), chrome.bar.children.indexOf(chrome.annotate) - 1, 'right before annotate');
+  assert.deepEqual([closed.attributes.role, closed.attributes['aria-checked'], closed.attributes['aria-label'], closed.hidden], ['switch', 'false', 'Anche le carte chiuse', true]);
+  assert.deepEqual(closed.querySelector('.switch-knob').children[0].children.map(c => c.tagName), ['CIRCLE', 'PATH'], 'check in a circle');
+  deliver({ type: 'lavish-mb:ready' });
+  assert.deepEqual(posted.filter(m => m.type === 'lavish-mb:closed').map(m => m.show), [false], 'closed cards hidden by default');
+  const items = [{ id: 'a', title: 'Carta a', state: 'waiting' }, { id: 'b', title: 'Carta b', state: 'answered', closed: true, hidden: true }];
+  deliver({ type: 'lavish-mb:outline', items, closed: 1, open: 1, palette: { card: 'rgba(38,30,51,0.5)', title: '#49cbbd', ink: 'url(x)' } });
+  assert.equal(closed.hidden, false);
+  assert.deepEqual([root.style.props['--mb-card'], root.style.props['--mb-title'], root.style.props['--mb-ink']], ['rgba(38,30,51,0.5)', '#49cbbd', undefined], 'only colours reach the frame');
+  assert.deepEqual(rail.children.map(b => b.classList.contains('mb-closed')), [false, true], 'the hidden closed card is a dot');
+  closed.click();
+  assert.equal(closed.attributes['aria-checked'], 'true');
+  assert.deepEqual(posted.filter(m => m.type === 'lavish-mb:closed').map(m => m.show), [false, true]);
+  closed.click();
+  rail.children[1].listeners.click();
+  assert.deepEqual(posted.filter(m => ['lavish-mb:closed', 'lavish-mb:reveal'].includes(m.type)).slice(-2).map(m => [m.type, m.show ?? m.id]), [['lavish-mb:closed', true], ['lavish-mb:reveal', 'b']], 'a dot shows the closed cards, then goes there');
+  deliver({ type: 'lavish-mb:outline', items: [{ id: 'a', title: 'Carta a', state: 'answered', closed: true }], closed: 1, open: 0 });
+  assert.equal(closed.hidden, true, 'nothing to filter on a page of closed cards only');
+});
+
+test('frame style: theme glass, BRUVISH lettering, icon switches, light green reader messages, nothing under 13px', () => {
+  const rule = selector => css.match(new RegExp('(?:^|\\})' + selector.replace(/[.[\]=()*+]/g, '\\$&') + '\\{([^}]*)\\}', 'm'))?.[1] || '';
+  assert.match(css, /--mb-glass:color-mix\(in srgb,var\(--mb-fondo\) 72%,transparent\)/);
+  assert.match(css, /--bg-bar:var\(--mb-glass\);--bg-panel:var\(--mb-glass\)/);
+  assert.match(css, /--font-sans:'Atkinson Hyperlegible Next',system-ui,sans-serif;--font-serif:STIXLocal,serif/);
+  assert.match(rule('.brand-mark'), /font-family:STIXLocal,serif;[^}]*letter-spacing:\.16em;color:var\(--mb-title\)/);
+  assert.match(css, /\.annotate-switch\[aria-checked=true\] \.switch-knob,\.mb-closed-switch\[aria-checked=true\] \.switch-knob\{transform:translateX\(16px\)/);
+  assert.match(rule('.bubble.user'), /background:color-mix\(in srgb,var\(--mb-user\) 18%,transparent\)/);
+  assert.match(css, /--mb-user:#86efac/);
+  assert.match(rule('.bubble.agent'), /padding:0;border:0;background:transparent/, 'agent replies inline, no bubble');
+  const sizes = [...css.matchAll(/font(?:-size)?:[^;}]*?(\d+(?:\.\d+)?)px/g)].map(m => Number(m[1]));
+  assert(sizes.length && sizes.every(size => size >= 13), 'frame text sizes ' + sizes);
+});
+
+test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {
+  const listeners = {}, submitted = [];
+  class HTMLInputElement { constructor(value) { this.type = 'radio'; this.value = value; this.checked = false; this.label = { classes: new Set(), classList: null }; this.label.classList = { add: c => this.label.classes.add(c), remove: c => this.label.classes.delete(c) }; } closest() { return this.label; } }
+  const yes = new HTMLInputElement('yes'), no = new HTMLInputElement('no');
+  const status = { textContent: '' };
+  const form = { dataset: { mbQuestion: 'q0' }, addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }, requestSubmit() { submitted.push((yes.checked && 'yes') || (no.checked && 'no')); }, querySelector: s => s === '.queue-status' ? status : null };
+  const document = { documentElement: { dataset: {} }, readyState: 'complete', querySelectorAll: s => s === '[data-mb-question]' ? [form] : s === '.mb-armed' ? [yes, no].map(i => i.label).filter(l => l.classes.has('mb-armed')) : [], addEventListener() { } };
+  vm.runInNewContext(artifactJs, { document, navigator: { userAgent: '' }, matchMedia: () => ({ matches: false }), localStorage: { getItem: () => null }, MutationObserver: class { observe() { } }, HTMLInputElement, FormData: class { }, CustomEvent: class { } });
+  const tap = input => { yes.checked = no.checked = false; input.checked = true; listeners.click.forEach(fn => fn({ target: input })); };
+  tap(yes);
+  assert.deepEqual(submitted, [], 'first tap only selects');
+  assert(yes.label.classes.has('mb-armed'), 'the selected option asks for a second tap');
+  tap(no);
+  assert.deepEqual(submitted, [], 'a different option is a new first tap');
+  assert.deepEqual([yes.label.classes.has('mb-armed'), no.label.classes.has('mb-armed')], [false, true]);
+  tap(no);
+  assert.deepEqual(submitted, ['no'], 'second tap on the same option queues it');
+  listeners.click.forEach(fn => fn({ target: { tagName: 'LABEL' } }));
+  assert.deepEqual(submitted, ['no'], 'the click on the label itself is not a tap');
 });

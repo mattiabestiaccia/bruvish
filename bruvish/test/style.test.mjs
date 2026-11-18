@@ -185,3 +185,10 @@ test('runtime bridge relays the mode to the host page, which remembers it for ev
   assert.match(addon, /localStorage\.setItem\(MODE_KEY, mode\)/);
   assert.match(addon, /if \(mode\)\n\s*send\('mode', \{ mode \}\)/);
 });
+
+test('interview questions explain the two-tap answer and mark the selected option', async () => {
+  const html = await renderDocument(doc([card('q', { status: 'waiting', question: { options: [{ value: 'si', label: 'Sì' }, { value: 'no', label: 'No' }] } })]));
+  assert.match(html, /<\/label><p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla\.<\/p><label>Nota/);
+  assert.match(css, /label\.option\.mb-armed\{border-color:var\(--title\)/);
+  assert.match(css, /label\.option\.mb-armed::after\{content:"tocca di nuovo per accodare"/);
+});

@@ -70,9 +70,23 @@
             conflicts[id] = true;
         }
     } initialized = true; draft(); outline(); }
+    // Closed cards (answered and not new) are hidden while the host page asks for it, unless that would hide every card.
+    const closed = el => el.dataset.mbState === 'answered' && !('mbNew' in el.dataset);
+    let hideClosed = false, closedStyle = null;
     function outline() {
         const visible = el => el.getClientRects().length;
-        const cards = [...document.querySelectorAll('[data-mb-state],.card')].filter(visible);
+        const all = [...document.querySelectorAll('[data-mb-state],.card')];
+        const closedCount = all.filter(closed).length, openCount = all.length - closedCount;
+        const hiding = hideClosed && closedCount > 0 && openCount > 0;
+        if (hiding && !closedStyle) {
+            closedStyle = document.createElement('style');
+            closedStyle.textContent = ':root[data-mb-closed=hide] [data-mb-state=answered]:not([data-mb-new]){display:none!important}';
+            (document.head || document.documentElement).append(closedStyle);
+        }
+        document.documentElement.dataset.mbClosed = hiding ? 'hide' : 'show';
+        // A closed card hidden by that filter stays in the minimap, as a dot, when its place in the page is visible.
+        const hiddenClosed = el => hiding && closed(el) && !visible(el) && Boolean(el.parentElement?.getClientRects().length);
+        const cards = all.filter(el => visible(el) || hiddenClosed(el));
         // With cards present the minimap maps cards one-to-one, without extra title lines.
         const nodes = cards.length ? cards : [...document.querySelectorAll('h1,h2,h3,h4')].filter(visible);
         const ids = new Set();
@@ -89,15 +103,19 @@
                 color:cards.length ? (getComputedStyle(el).getPropertyValue('--mb-state-color').trim() || getComputedStyle(el).borderLeftColor) : getComputedStyle(heading || el).color,
                 // New or changed cards pulse in the minimap too (data-mb-new set by the renderer).
                 fresh:cards.length && ['new','changed'].includes(el.dataset.mbNew) ? el.dataset.mbNew : '',
+                closed:cards.length > 0 && closed(el),
+                hidden:hiddenClosed(el),
                 level:Number(heading?.tagName.slice(1) || 3),
                 top:el.getBoundingClientRect().top + scrollY
             };
         }).filter(Boolean);
         outlineEntries = items;
         scrollbar();
-        // The host page draws the minimap focus ring in the theme accent of the artifact.
-        send('outline',{items, accent:getComputedStyle(document.documentElement).getPropertyValue('--title').trim()});
-        position(items);
+        // The host page draws the minimap focus ring in the theme accent of the artifact, and bar and panel in its theme family.
+        const rootStyle = getComputedStyle(document.documentElement);
+        const palette = Object.fromEntries(['card','line','ink','muted','title','field'].map(name => [name, rootStyle.getPropertyValue('--' + name).trim()]));
+        send('outline',{items, accent:palette.title, palette, closed:closedCount, open:openCount});
+        position(items.filter(item => !item.hidden));
     }
     function position(items) { const list = items || outlineEntries.map(item => ({ id: item.id, el: document.getElementById(item.id) })).filter(item => item.el?.getClientRects().length).map(item => ({ id: item.id, top: item.el.getBoundingClientRect().top + scrollY })); let current = list[0]?.id || '', best = Infinity; for (const item of list) {
         const distance = Math.abs(item.top - scrollY - 80);
@@ -126,6 +144,9 @@
         zoom = Math.max(.6, Math.min(2.5, m.zoom));
         document.documentElement.style.zoom = String(zoom);
         schedule();
+    } if (m.type === 'lavish-mb:closed' && typeof m.show === 'boolean') {
+        hideClosed = !m.show;
+        outline();
     } if (m.type === 'lavish-mb:reveal') {
         const el = document.getElementById(String(m.id));
         el?.scrollIntoView({ behavior: 'auto', block: 'start' });
@@ -160,6 +181,28 @@
         event.preventDefault();
         send('zoom-request', { delta: event.key === '-' ? -.1 : event.key === '0' ? 0 : .1, reset: event.key === '0' });
     } }, true);
+    // A double tap of the right Option key inside the artifact asks the host page to toggle annotation mode,
+    // with the same rule as chrome-addon.js: within 400 ms, no other key in between, not while typing.
+    let lastTap = -Infinity;
+    function typing(el) { while (el?.shadowRoot?.activeElement)
+        el = el.shadowRoot.activeElement; if (!el)
+        return false; if (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')
+        return true; return el.tagName === 'INPUT' && !['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit'].includes(el.type); }
+    document.addEventListener('keydown', event => {
+        if (event.code !== 'AltRight' || event.ctrlKey || event.metaKey || event.shiftKey || typing(document.activeElement)) {
+            lastTap = -Infinity;
+            return;
+        }
+        if (event.repeat)
+            return;
+        if (event.timeStamp - lastTap <= 400) {
+            lastTap = -Infinity;
+            if (token)
+                send('annotate-toggle');
+        }
+        else
+            lastTap = event.timeStamp;
+    }, true);
     new MutationObserver(records => { if (records.some(r => r.type === 'childList' || r.attributeName === 'hidden' || r.attributeName === 'data-mb-state' || r.attributeName === 'data-mb-new' || r.attributeName === 'open'))
         schedule(); }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'data-mb-state', 'data-mb-new', 'open'] });
     document.fonts?.ready.then(schedule);

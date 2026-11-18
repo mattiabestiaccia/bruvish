@@ -90,9 +90,25 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         assert.equal(await client.evaluate('document.documentElement.dataset.mbMode',true),'dark','browsers default to the dark mode');
         assert.equal(await client.evaluate('getComputedStyle(document.body,"::before").backgroundColor',true),'rgb(31, 32, 35)');
         // Minimap as in the approved mock-up (cornice.html): 4px lines, 12px long, current 22px, 22px rows 9px apart.
-        assert.deepEqual(await client.evaluate('[document.querySelector(".mb-rail button:not(.current) i").getBoundingClientRect().width,document.querySelector(".mb-rail .current i").getBoundingClientRect().width,document.querySelector(".mb-rail i").getBoundingClientRect().height]'),[12,22,4]);
+        assert.deepEqual(await client.evaluate('[document.querySelector(".mb-rail button:not(.current):not(.mb-closed) i").getBoundingClientRect().width,document.querySelector(".mb-rail .current i").getBoundingClientRect().width,document.querySelector(".mb-rail i").getBoundingClientRect().height]'),[12,22,4]);
         assert.equal(await client.evaluate('(()=>{const [a,b]=document.querySelectorAll(".mb-rail button");return b.getBoundingClientRect().top-a.getBoundingClientRect().top})()'),31);
         assert.equal(await client.evaluate('document.querySelector(".mb-position")'),null,'the minimap is the only cursor');
+        // Frame from the approved mock-up: BRUVISH mark, labelless icon switches, closed cards hidden by default (q1 and q5 are answered and not new).
+        assert.deepEqual(await client.evaluate('(()=>{const a=document.getElementById("annotation"),c=document.querySelector(".mb-closed-switch");return {brand:document.querySelector(".brand-mark").textContent,role:a.getAttribute("role"),checked:a.getAttribute("aria-checked"),label:a.textContent.trim(),closedShown:getComputedStyle(c).display!=="none",closedChecked:c.getAttribute("aria-checked"),dots:Array.from(document.querySelectorAll(".mb-rail .mb-closed")).map(b=>b.dataset.target),title:document.querySelector(".panel h2").textContent,font:getComputedStyle(document.querySelector(".bar")).fontFamily}})()'),{brand:'BRUVISH',role:'switch',checked:'true',label:'',closedShown:true,closedChecked:'false',dots:['q1','q5'],title:'Conversazione',font:'"Atkinson Hyperlegible Next", system-ui, sans-serif'});
+        assert.deepEqual(await client.evaluate('["q1","q5","q0"].map(id=>getComputedStyle(document.getElementById(id)).display)',true),['none','none','block']);
+        await client.evaluate('document.querySelector(".mb-closed-switch").click()');
+        await until(() => client.evaluate('getComputedStyle(document.getElementById("q1")).display==="block"', true), 'closed cards shown by the switch');
+        await until(() => client.evaluate('document.querySelectorAll(".mb-rail .mb-closed").length===0'), 'no dots while the closed cards are shown');
+        await client.evaluate('document.querySelector(".mb-closed-switch").click()');
+        await until(() => client.evaluate('getComputedStyle(document.getElementById("q1")).display==="none"', true), 'closed cards hidden again');
+        // A double tap of the right Option key toggles annotation mode, in the frame and inside the artifact.
+        const altRight = async () => { for (const type of ['rawKeyDown', 'keyUp']) await client.call('Input.dispatchKeyEvent', { type, key: 'Alt', code: 'AltRight', location: 2, windowsVirtualKeyCode: 18, modifiers: type === 'rawKeyDown' ? 1 : 0 }); };
+        await client.evaluate('document.activeElement?.blur();document.body.focus()');
+        await altRight(); await altRight();
+        await until(() => client.evaluate('document.getElementById("annotation").getAttribute("aria-checked")==="false"'), 'double Option toggles annotation off');
+        await client.evaluate('window.focus()', true);
+        await altRight(); await altRight();
+        await until(() => client.evaluate('document.getElementById("annotation").getAttribute("aria-checked")==="true"'), 'double Option inside the artifact toggles annotation on');
         assert.deepEqual(await client.evaluate('Array.from(document.querySelectorAll(".card[data-mb-new]")).map(el=>[el.id,el.dataset.mbNew])',true),[['q3','changed'],['q7','new']]);
         assert.deepEqual(await client.evaluate('Array.from(document.querySelectorAll(".mb-rail .mb-new")).map(el=>{const css=getComputedStyle(el.querySelector("i"));return [el.dataset.target,css.animationName,css.animationDuration]})'),[['q3','mb-rail-novelty','2s'],['q7','mb-rail-novelty','2s']]);
         const accent = await client.evaluate('getComputedStyle(document.documentElement).getPropertyValue("--title").trim()',true);

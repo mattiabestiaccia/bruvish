@@ -13,6 +13,102 @@
     }
     catch { }
     let token = '', theme = 'dark', contentZoom = 1, storageKey = '', storageAvailable = false, record = { fields: {}, conflicts: [] }, outlineItems = [];
+    // Frame style from the approved frame mock-up: page fonts, BRUVISH mark, icon switches, Italian panel.
+    const root = document.documentElement;
+    if (document.head) {
+        const fonts = document.createElement('link');
+        fonts.rel = 'stylesheet';
+        fonts.href = '/mb-catalog-fonts.css';
+        document.head.append(fonts);
+    }
+    const brand = document.querySelector('.brand-mark');
+    if (brand)
+        brand.textContent = 'BRUVISH';
+    const panelTitle = document.querySelector('.panel h2'), sendLabel = document.getElementById('send'), endLabel = document.querySelector('#sendAndEnd span'), chatField = document.getElementById('chatInput');
+    if (panelTitle)
+        panelTitle.textContent = 'Conversazione';
+    if (sendLabel)
+        sendLabel.textContent = 'Invia all’agente';
+    if (endLabel)
+        endLabel.textContent = 'Invia e chiudi';
+    if (chatField)
+        chatField.placeholder = 'Scrivi all’agente…';
+    const SVG = 'http://www.w3.org/2000/svg';
+    const PENCIL = [['path', { d: 'M10.4 2.8l2.8 2.8-7.5 7.5-3.4.6.6-3.4z' }], ['path', { d: 'M8.9 4.3l2.8 2.8' }]];
+    const CHECK_IN_CIRCLE = [['circle', { cx: '8', cy: '8', r: '5.7' }], ['path', { d: 'M5.4 8.1l1.8 1.8 3.4-3.6' }]];
+    function icon(shapes) { const svg = document.createElementNS(SVG, 'svg'); svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false'); for (const [tag, attributes] of shapes) {
+        const shape = document.createElementNS(SVG, tag);
+        for (const [name, value] of Object.entries(attributes))
+            shape.setAttribute(name, value);
+        svg.append(shape);
+    } return svg; }
+    // A switch with no visible label: track and knob, the meaning drawn in the knob.
+    function iconSwitch(button, label, shapes) {
+        button.setAttribute('role', 'switch');
+        button.setAttribute('aria-label', label);
+        let track = button.querySelector('.switch-track');
+        for (const child of [...button.childNodes])
+            if (child !== track)
+                child.remove();
+        if (!track) {
+            track = document.createElement('span');
+            track.className = 'switch-track';
+            track.setAttribute('aria-hidden', 'true');
+            button.append(track);
+        }
+        const knob = document.createElement('span');
+        knob.className = 'switch-knob';
+        knob.append(icon(shapes));
+        track.replaceChildren(knob);
+    }
+    // Annotate: upstream keeps driving the button (click, aria-pressed); the state is mirrored to aria-checked.
+    const annotate = document.getElementById('annotation');
+    if (annotate) {
+        const hotkey = /\(([^)]*)\)/.exec(annotate.getAttribute('title') || '')?.[1];
+        iconSwitch(annotate, 'Annota', PENCIL);
+        annotate.setAttribute('title', 'Annota · doppio tocco di ⌥ destro' + (hotkey ? ' · ' + hotkey : ''));
+        const mirror = () => { const pressed = annotate.getAttribute('aria-pressed'); if (pressed === null)
+            return; annotate.setAttribute('aria-checked', String(pressed === 'true')); annotate.removeAttribute('aria-pressed'); };
+        mirror();
+        new MutationObserver(mirror).observe(annotate, { attributes: true, attributeFilter: ['aria-pressed'] });
+    }
+    // Closed cards (answered and not new) are hidden by default; the switch shows them. Only shown while the
+    // artifact has both closed and open cards (bridge.js never hides every card).
+    let showClosed = false;
+    const closedSwitch = document.createElement('button');
+    closedSwitch.type = 'button';
+    closedSwitch.className = 'mb-closed-switch';
+    closedSwitch.hidden = true;
+    iconSwitch(closedSwitch, 'Anche le carte chiuse', CHECK_IN_CIRCLE);
+    closedSwitch.setAttribute('aria-checked', 'false');
+    closedSwitch.setAttribute('title', 'Anche le chiuse');
+    function setShowClosed(value) { showClosed = value; closedSwitch.setAttribute('aria-checked', String(showClosed)); send('closed', { show: showClosed }); }
+    closedSwitch.addEventListener('click', () => setShowClosed(!showClosed));
+    annotate?.before(closedSwitch);
+    // Annotation mode also toggles with a double tap of the right Option key: two presses within
+    // DOUBLE_TAP_MS, no other key in between, never while typing in a text field. bridge.js does the
+    // same inside the artifact, where the keys go while it has focus.
+    const DOUBLE_TAP_MS = 400;
+    let lastTap = -Infinity;
+    function typing(el) { while (el?.shadowRoot?.activeElement)
+        el = el.shadowRoot.activeElement; if (!el)
+        return false; if (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')
+        return true; return el.tagName === 'INPUT' && !['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit'].includes(el.type); }
+    document.addEventListener('keydown', event => {
+        if (event.code !== 'AltRight' || event.ctrlKey || event.metaKey || event.shiftKey || typing(document.activeElement)) {
+            lastTap = -Infinity;
+            return;
+        }
+        if (event.repeat)
+            return;
+        if (event.timeStamp - lastTap <= DOUBLE_TAP_MS) {
+            lastTap = -Infinity;
+            annotate?.click();
+        }
+        else
+            lastTap = event.timeStamp;
+    }, true);
+    const PALETTE = ['card', 'line', 'ink', 'muted', 'title', 'field'];
     const rail = document.createElement('nav');
     rail.className = 'mb-rail';
     rail.setAttribute('aria-label', 'Indice delle schede');
@@ -58,7 +154,11 @@
         const line = document.createElement('i');
         if (typeof item.color === 'string' && CSS.supports('color', item.color)) line.style.backgroundColor = item.color;
         b.append(line);
-        b.addEventListener('click', () => send('reveal', { id: item.id }));
+        // A hidden closed card is a dimmed dot; choosing it shows the closed cards, then goes there.
+        if (item.closed && item.hidden)
+            b.classList.add('mb-closed');
+        b.addEventListener('click', () => { if (b.classList.contains('mb-closed'))
+            setShowClosed(true); send('reveal', { id: item.id }); });
         rail.append(b);
     } }
     function showConflicts() { document.querySelector('.mb-conflict-dialog')?.remove(); const dialog = document.createElement('section'); dialog.className = 'mb-conflict-dialog'; dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-label', 'Bozze e documento aggiornato'); const title = document.createElement('h3'); title.textContent = 'Il documento è cambiato: scegli come trattare queste bozze'; dialog.append(title); for (const id of record.conflicts || []) {
@@ -88,7 +188,10 @@
             send('zoom', { zoom: contentZoom });
             if (mode)
                 send('mode', { mode });
+            send('closed', { show: showClosed });
         }
+        if (m.type === 'lavish-mb:annotate-toggle')
+            annotate?.click();
         if (m.type === 'lavish-mb:mode' && MODES.includes(m.mode)) {
             mode = m.mode;
             try {
@@ -100,6 +203,12 @@
             outlineItems = m.items.filter(i => typeof i.id === 'string' && typeof i.title === 'string').slice(0, 400);
             if (typeof m.accent === 'string' && m.accent && CSS.supports('color', m.accent))
                 rail.style.setProperty('--mb-accent', m.accent);
+            // Bar and panel take the theme family of the artifact; anything that is not a colour is ignored.
+            if (m.palette && typeof m.palette === 'object' && root)
+                for (const name of PALETTE)
+                    if (typeof m.palette[name] === 'string' && m.palette[name] && CSS.supports('color', m.palette[name]))
+                        root.style.setProperty('--mb-' + name, m.palette[name]);
+            closedSwitch.hidden = !(Number(m.closed) > 0 && Number(m.open) > 0);
             renderOutline();
         }
         if (m.type === 'lavish-mb:position') {
