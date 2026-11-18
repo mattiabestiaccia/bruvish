@@ -17,14 +17,18 @@ function button(text, listener, className = '') {const node = document.createEle
 function renderPreferences(next) {
  if (next) preferences = next;
  document.body.classList.toggle('transparent', preferences.transparent);
- $('transparent').setAttribute('aria-pressed', String(preferences.transparent));
- $('artifact-background').checked = preferences.artifactBackground;
- $('artifact-background').disabled = !preferences.transparent;
+ document.body.classList.toggle('transparent-artifacts', preferences.transparent && preferences.artifactBackground);
+ $('transparent').setAttribute('aria-checked', String(preferences.transparent));
  $('layout').setAttribute('aria-pressed', String(preferences.layout === 'grid'));
  $('layout').textContent = preferences.layout === 'grid' ? 'Elenco' : 'Griglia';
  $('reviews').classList.toggle('grid', preferences.layout === 'grid');
 }
 function renderTabs(next) {
+ for (const key of ['--mb-title','--mb-muted','--mb-line','--mb-field','--mb-glass','--mb-on-accent']) {
+  const value = next.theme?.[key];
+  if (typeof value === 'string' && value.trim()) document.documentElement.style.setProperty(key, value);
+  else document.documentElement.style.removeProperty(key);
+ }
  state = next;renderPreferences(next.preferences);document.body.classList.toggle('fullscreen', Boolean(next.fullscreen));renderFullscreenImage(Boolean(next.fullscreen));document.body.classList.toggle('in-review', Boolean(state.active));$('tabs').replaceChildren();
  for (const tab of state.tabs) {const item = document.createElement('span');item.className = 'tab' + (tab.id === state.active ? ' active' : '');
   const title = button(tab.title, () => action(() => api.select(tab.id)), 'title');title.title = tab.title;
@@ -67,6 +71,6 @@ async function refresh() {$('status').textContent = 'Caricamento…';reviews = a
 $('search').addEventListener('input', renderCatalog);$('filter').addEventListener('change', renderCatalog);$('collection').addEventListener('change', renderCatalog);
 $('layout').addEventListener('click', () => action(() => settings({layout: preferences.layout === 'grid' ? 'list' : 'grid'})));
 $('transparent').addEventListener('click', () => action(() => settings({transparent: !preferences.transparent})));
-$('artifact-background').addEventListener('change', () => action(() => settings({artifactBackground: $('artifact-background').checked})));
-$('refresh').addEventListener('click', () => action(refresh));$('home').addEventListener('click', () => action(async () => {await api.home();await refresh();}));$('choose').addEventListener('click', () => action(() => api.chooseFile()));
+$('refresh').addEventListener('click', () => action(refresh));
+for (const id of ['home', 'index']) $(id).addEventListener('click', () => action(async () => {await api.home();await refresh();}));
 api.onChange(renderTabs);void action(async () => {renderTabs(await api.snapshot());await refresh();});

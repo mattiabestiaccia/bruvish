@@ -15,6 +15,7 @@
     "preferences.cjs",
     "appearance.cjs",
     "ui/index.html",
+    "ui/backdrop.html",
     "ui/app.js",
     "ui/app.css",
     "ui/fonts.css"

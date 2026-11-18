@@ -38,10 +38,17 @@
     const panelTitle = document.querySelector('.panel h2'), sendLabel = document.getElementById('send'), endLabel = document.querySelector('#sendAndEnd span'), chatField = document.getElementById('chatInput');
     if (panelTitle)
         panelTitle.textContent = 'Conversazione';
-    if (sendLabel)
-        sendLabel.textContent = 'Invia all’agente';
-    if (endLabel)
-        endLabel.textContent = 'Invia e chiudi';
+    if (sendLabel) {
+        sendLabel.setAttribute('aria-label', 'Invia all’agente');
+        sendLabel.setAttribute('title', 'Invia all’agente');
+        sendLabel.replaceChildren();
+    }
+    const endButton = endLabel?.parentElement;
+    if (endButton) {
+        endButton.setAttribute('aria-label', 'Invia e chiudi');
+        endButton.setAttribute('title', 'Invia e chiudi');
+        endLabel?.remove();
+    }
     if (chatField)
         chatField.placeholder = 'Scrivi all’agente…';
     // The other official texts of bar, panel and the ended card, in Italian, also when the official code writes them
@@ -50,7 +57,7 @@
     const ITALIAN = new Map([
         ['Attach images', 'Allega immagini'], ['Queued', 'In coda'], ['Sending\u2026', 'Invio…'],
         ['Edit queued prompt', 'Modifica il messaggio in coda'], ['Remove queued prompt', 'Togli il messaggio in coda'],
-        ['Your agent is not listening. If this persists, ask your agent to poll for updates from Lavish.', 'L’agente non è in ascolto. Se continua, chiedigli di tornare ad ascoltare Lavish.'],
+        ['Your agent is not listening. If this persists, ask your agent to poll for updates from Lavish.', 'Agente non in ascolto'],
         ['This review is open in another Lavish tab. Unsent answers stay in the tab or window where you entered them; taking over in another window does not bring them along.', 'Questa revisione è aperta in un’altra scheda di Lavish. ' + UNSENT_STAY],
         ['Take over here', 'Continua qui'],
         ['Nothing queued in this tab. Unsent answers stay in the tab or window where you entered them; taking over in another window does not bring them along.', 'Niente in coda in questa scheda. ' + UNSENT_STAY],
@@ -164,6 +171,8 @@
             shape.setAttribute(name, value);
         svg.append(shape);
     } return svg; }
+    if (sendLabel)
+        sendLabel.append(icon([['path', { d: 'M2 8h11M8 3l5 5-5 5' }]]));
     // A switch with no visible label: track and knob, the meaning drawn in the knob.
     function iconSwitch(button, label, shapes) {
         button.setAttribute('role', 'switch');

@@ -28,7 +28,7 @@ app.setPath('userData', path.join(root, 'profile'));
 app.setPath('sessionData', path.join(root, 'profile'));
 const uiFile = path.join(__dirname, 'ui/index.html'), uiUrl = pathToFileURL(uiFile).href;
 const coreDirectory = coreRoot();
-let win, workspace, core, preferences, initialized, queue = Promise.resolve();
+let win, toolbar, workspace, core, preferences, initialized, queue = Promise.resolve();
 const enqueue = fn => {const current = queue.then(fn);queue = current.catch(() => {});return current;};
 function parse(argv) {
   const [url, file, id] = argv.slice(-3);
@@ -67,12 +67,36 @@ function drainRequests() {
   }).catch(error => log('Review request ' + entry.id + ' failed: ' + error.message));
 }
 function snapshot() {return {...workspace.snapshot(), preferences: preferences.snapshot(), fullscreen: isFullscreen()};}
-function notify() {if (win && !win.isDestroyed()) win.webContents.send('lavish:changed', snapshot());}
+async function syncToolbarTheme() {
+  const row = workspace?.tabs.get(workspace.active);
+  if (!row || row.view.webContents.isDestroyed()) return;
+  try {
+    const theme = await row.view.webContents.executeJavaScript(`(() => {const style=getComputedStyle(document.documentElement);const theme=Object.fromEntries(['--mb-title','--mb-muted','--mb-line','--mb-field','--mb-glass','--mb-on-accent'].map(key=>[key,style.getPropertyValue(key)]));const bar=document.querySelector('.bar');if(bar)theme['--mb-glass']=getComputedStyle(bar).backgroundColor;return theme})()`);
+    if (workspace?.tabs.get(workspace.active) !== row) return;
+    if (JSON.stringify(row.theme) !== JSON.stringify(theme)) {row.theme = theme;notify();}
+  } catch { /* A reload or a closing tab will be sampled again. */ }
+}
+let backdropState = '';
+function notify() {
+  if (toolbar && !toolbar.webContents.isDestroyed()) toolbar.webContents.send('lavish:changed', snapshot());
+  syncBackdrop();
+}
+function syncBackdrop() {
+  if (!win || win.isDestroyed()) return;
+  const file = preferences.snapshot().transparent && isFullscreen() ? preferences.snapshot().fullscreenImage : null;
+  const state = JSON.stringify(file);
+  if (state === backdropState) return;
+  try {
+    const url = file ? fullscreenImage() : null;
+    backdropState = state;
+    void win.webContents.executeJavaScript(`document.body.className=${JSON.stringify(url ? 'transparent fullscreen-image' : 'transparent')};document.body.style.setProperty('--fullscreen-image',${JSON.stringify(url ? `url("${url}")` : 'none')})`).catch(error => {backdropState = '';log(error.message);});
+  } catch (error) {log(error.message);}
+}
 // With transparency, macOS native full screen moves the window to its own empty
 // Space and only black remains behind it. Like iTerm2's non-native full screen,
 // Lavish then uses Electron's simple (pre-Lion) full screen on the current Space,
-// so the desktop or the chosen image stays behind the backgrounds. The green
-// button cannot be redirected, so it maximizes instead of opening a new Space.
+// so the desktop or the chosen image stays behind the backgrounds. Native green-button
+// entry is reconciled to the same policy after macOS reports enter-full-screen.
 const sameSpace = () => process.platform === 'darwin' && preferences.snapshot().transparent;
 function isFullscreen() {return Boolean(win && !win.isDestroyed() && (win.isFullScreen() || (process.platform === 'darwin' && win.isSimpleFullScreen())));}
 function toggleFullscreen() {
@@ -88,7 +112,7 @@ function fullscreenPolicy() {
   const transparent = preferences.snapshot().transparent;
   if (transparent && win.isFullScreen()) {win.once('leave-full-screen', () => {fullscreenPolicy();win.setSimpleFullScreen(true);notify();});win.setFullScreen(false);return;}
   if (!transparent && win.isSimpleFullScreen()) {win.setSimpleFullScreen(false);notify();}
-  win.fullScreenable = !transparent;
+  win.fullScreenable = true;
 }
 function appearance() {if (win && !win.isDestroyed()) {applyWindowAppearance(win, preferences.snapshot());fullscreenPolicy();}}
 async function chooseFullscreenImage() {
@@ -111,22 +135,36 @@ function createView() {
   view.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
   view.webContents.on('will-attach-webview', event => event.preventDefault());
   watchAppearance(view, () => preferences.snapshot());
+  // Main-process CSS on the review's top-level document only. No renderer gains IPC or a preload,
+  // and neither a query parameter nor an artifact message can enable this app-only composition.
+  view.webContents.on('did-finish-load', () => {
+    void view.webContents.insertCSS(`:root{--bar-h:40px}.bar{height:40px}.bar>.mb-index,.bar>.brand{display:none!important}`).catch(error => log(error.message));
+  });
   return view;
 }
 async function ensureWindow() {
   if (win && !win.isDestroyed()) return;
   win = new BrowserWindow({title: 'Bruvish', width: 1240, height: 920, minWidth: 720, minHeight: 520,
-    transparent: true, backgroundColor: '#00000000', visualEffectState: 'active', show: false, webPreferences: {sandbox: true, nodeIntegration: false,
-      contextIsolation: true, webSecurity: true, preload: path.join(__dirname, 'preload.cjs')}});
-  workspace = new Workspace({window: win, createView, onChange: notify});
-  win.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
-  win.webContents.on('will-navigate', event => event.preventDefault());
-  win.webContents.on('will-redirect', event => event.preventDefault());
-  win.webContents.on('will-attach-webview', event => event.preventDefault());
+    transparent: true, backgroundColor: '#00000000', visualEffectState: 'active', show: false,
+    titleBarStyle: 'hidden', trafficLightPosition: {x: 12, y: 13},
+    webPreferences: {sandbox: true, nodeIntegration: false, contextIsolation: true, webSecurity: true}});
+  toolbar = new WebContentsView({webPreferences: {sandbox: true, nodeIntegration: false,
+    contextIsolation: true, webSecurity: true, preload: path.join(__dirname, 'preload.cjs')}});
+  toolbar.setBackgroundColor('#00000000');
+  workspace = new Workspace({window: win, toolbar, createView, onChange: notify});
+  for (const contents of [win.webContents, toolbar.webContents]) {
+    contents.setWindowOpenHandler(() => ({action: 'deny'}));
+    for (const name of ['will-navigate', 'will-redirect', 'will-attach-webview']) contents.on(name, event => event.preventDefault());
+  }
+  workspace.layout();
+  const themeTimer = setInterval(() => {void syncToolbarTheme();}, 500);
   win.on('resize', () => workspace?.layout());
-  for (const name of ['enter-full-screen', 'leave-full-screen']) win.on(name, notify);
-  win.on('closed', () => {workspace?.destroy();workspace = null;win = null;});
-  appearance();await win.loadFile(uiFile);win.show();
+  win.on('enter-full-screen', () => {fullscreenPolicy();notify();});
+  win.on('leave-full-screen', notify);
+  win.on('closed', () => {clearInterval(themeTimer);workspace?.destroy();toolbar?.webContents.close();toolbar = null;workspace = null;win = null;});
+  appearance();await win.loadFile(path.join(__dirname, 'ui/backdrop.html'));
+  backdropState = '';syncBackdrop();
+  await toolbar.webContents.loadFile(uiFile);win.show();
 }
 async function openRequest(request) {
   try {await ensureWindow();const result = await workspace.open(request);
@@ -178,7 +216,7 @@ function registerIpc() {
     'lavish:choose-file': chooseFile
   };
   for (const [channel, handle] of Object.entries(handlers)) ipcMain.handle(channel, (event, ...args) => {
-    authorizeUi(event, win?.webContents, uiUrl);
+    authorizeUi(event, toolbar?.webContents, uiUrl);
     if (args.length > 1) throw Error('Unexpected application arguments');
     return enqueue(() => handle(...args)).catch(error => {dialog.showErrorBox('Bruvish', error.message);throw error;});
   });
@@ -208,7 +246,7 @@ else {
       {label: 'File', submenu: [{label: 'Tutti i Lavish', accelerator: 'CmdOrCtrl+L', click: () => {void enqueue(async () => {await ensureWindow();workspace.home();});}},
         {label: 'Apri HTML…', accelerator: 'CmdOrCtrl+O', click: () => {void enqueue(async () => {await ensureWindow();await chooseFile();}).catch(error => dialog.showErrorBox('Bruvish', error.message));}},
         {label: 'Chiudi scheda', accelerator: 'CmdOrCtrl+W', click: () => {if (workspace?.active) workspace.close(workspace.active);else win?.close();}}]},
-      {role: 'editMenu'}, {label: 'Vista', submenu: [{label: 'Ricarica scheda', accelerator: 'CmdOrCtrl+R', click: () => {const view = workspace?.tabs.get(workspace.active)?.view;if (view) view.webContents.reload();else win?.webContents.reload();}}, {type: 'separator'},
+      {role: 'editMenu'}, {label: 'Vista', submenu: [{label: 'Ricarica scheda', accelerator: 'CmdOrCtrl+R', click: () => {const view = workspace?.tabs.get(workspace.active)?.view;if (view) view.webContents.reload();else toolbar?.webContents.reload();}}, {type: 'separator'},
         {label: 'Schermo intero', accelerator: 'Ctrl+Cmd+F', click: toggleFullscreen},
         {label: 'Immagine a schermo intero…', click: () => {void enqueue(chooseFullscreenImage).catch(error => dialog.showErrorBox('Bruvish', error.message));}},
         {label: 'Scrivania a schermo intero', click: () => {void enqueue(async () => {preferences.setFullscreenImage(null);notify();}).catch(error => dialog.showErrorBox('Bruvish', error.message));}}]}

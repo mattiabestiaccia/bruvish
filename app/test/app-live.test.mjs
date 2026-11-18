@@ -82,6 +82,8 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   }
   // Exercise real application IPC and frame styling without reloading the review.
   const stableView = JSON.parse(reused.stdout).view;
+  assert.deepEqual(await client.evaluate('(()=>{const bar=document.querySelector(".bar"),brand=document.querySelector(".brand");return [bar.getBoundingClientRect().top,bar.getBoundingClientRect().height,getComputedStyle(brand).display]})()'),[0,40,'none'],'review toolbar occupies the app row without a second mark');
+  assert.deepEqual(await uiClient.evaluate('(()=>{const mark=document.querySelector(".brand"),bar=document.querySelector(".toolbar");return [mark.textContent,getComputedStyle(mark).fontSize,bar.getBoundingClientRect().height,document.getElementById("transparent").getAttribute("role")]})()'),['BRUVISH','15px',40,'switch']);
   // Establish an acknowledged opaque baseline before measuring the toggle.
   await uiClient.evaluate('window.lavishApp.preferences({transparent:false,artifactBackground:true,layout:"list"})');
   await until(()=>uiClient.evaluate('!document.body.classList.contains("transparent")'),'opaque baseline acknowledged');
@@ -98,11 +100,12 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   assert(bodyAlpha > 0 && bodyAlpha < 128,'artifact body has a translucent background');
   assert.equal(await client.evaluate('scrollY',true),beforeToggle,'appearance toggle preserves scroll');
   assert.equal(await client.evaluate(choice,true),draftBeforeToggle);
-  await uiClient.evaluate('document.getElementById("artifact-background").click()');
+  assert.equal(await uiClient.evaluate('document.querySelector("#artifact-background,#choose")'),null,'obsolete toolbar controls are removed');
+  await uiClient.evaluate('window.lavishApp.preferences({artifactBackground:false})');
   await uiClient.evaluate('window.lavishApp.snapshot()');
   await until(()=>client.evaluate('!document.getElementById("lavish-private-app-background")',true),'original artifact background restored');
   assert.equal(await client.evaluate('getComputedStyle(document.body).backgroundColor',true),backgroundBeforeToggle);
-  await uiClient.evaluate('document.getElementById("artifact-background").click()');
+  await uiClient.evaluate('window.lavishApp.preferences({artifactBackground:true})');
   await uiClient.evaluate('window.lavishApp.snapshot()');
   await until(()=>client.evaluate('!!document.getElementById("lavish-private-app-background")',true),'artifact background enabled again');
   await client.call('Page.reload');

@@ -70,7 +70,7 @@ function element(tag) {
     getAttribute(name) { return name in this.attributes ? this.attributes[name] : null; },
     removeAttribute(name) { delete this.attributes[name]; },
     append(...items) { for (const item of items) { item.parent = this; this.children.push(item); } },
-    replaceChildren(...items) { this.children = []; this.append(...items); },
+    replaceChildren(...items) { this.textContent = ''; this.children = []; this.append(...items); },
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; },
     before(item) { const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this), 0, item); },
     get childNodes() { return this.children; },
@@ -93,7 +93,9 @@ function upstreamChrome() {
   track.append(knob); annotate.append(track, label); bar.append(brandBox, annotate);
   const title = element('h2'), send = element('button'), end = element('span'), input = element('textarea');
   title.textContent = 'Conversation'; send.textContent = 'Send to Agent'; end.textContent = 'Send & End';
-  return { bar, brandBox, brand, annotate, title, send, end, input };
+  const endButton = element('button'), exit = element('svg');
+  endButton.append(exit, end);
+  return { bar, brandBox, brand, annotate, title, send, end, endButton, exit, input };
 }
 
 async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null } = {}) {
@@ -289,7 +291,11 @@ test('addon: arrow to the artifacts index, BRUVISH mark, Italian panel, annotate
   const index = chrome.bar.children[0];
   assert.deepEqual([index.tagName, index.className, index.href, index.textContent, index.attributes['aria-label']], ['A', 'mb-index', '/', '←', 'Indice degli artefatti'], 'the arrow to the catalog home comes first, before the mark');
   assert.equal(chrome.bar.children[1], chrome.brandBox);
-  assert.deepEqual([chrome.title.textContent, chrome.send.textContent, chrome.end.textContent, chrome.input.placeholder], ['Conversazione', 'Invia all’agente', 'Invia e chiudi', 'Scrivi all’agente…']);
+  assert.deepEqual([chrome.title.textContent, chrome.send.textContent, chrome.input.placeholder], ['Conversazione', '', 'Scrivi all’agente…']);
+  assert.deepEqual([chrome.send.getAttribute('aria-label'),chrome.send.getAttribute('title')],['Invia all’agente','Invia all’agente']);
+  assert.equal(chrome.send.children[0].tagName,'SVG');
+  assert.deepEqual([chrome.endButton.getAttribute('aria-label'),chrome.endButton.getAttribute('title')],['Invia e chiudi','Invia e chiudi']);
+  assert.deepEqual(chrome.endButton.children,[chrome.exit],'send and close keeps only its original icon');
   assert.equal(head.children[0].href, '/mb-catalog-fonts.css', 'the page fonts reach the frame');
   const annotate = chrome.annotate;
   assert.equal(annotate.attributes.role, 'switch');

@@ -79,8 +79,10 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     assert.deepEqual(await evaluate('calls'),[['open','2']]);
     await evaluate('document.getElementById("search").value="intervista";document.getElementById("search").dispatchEvent(new Event("input"))');
     assert.equal(await evaluate('document.querySelectorAll(".review").length'),1);
-    await evaluate('document.querySelector(".tab .title").click();document.querySelector(".tab .close").click();document.getElementById("choose").click()');
-    assert.deepEqual(await evaluate('calls.slice(1)'),[['select','tab1'],['close','tab1'],['choose']]);
+    await evaluate('document.querySelector(".tab .title").click();document.querySelector(".tab .close").click()');
+    assert.deepEqual(await evaluate('calls.slice(1)'),[['select','tab1'],['close','tab1']]);
+    assert.equal(await evaluate('document.querySelector("#choose,#artifact-background")'),null);
+    assert.deepEqual(await evaluate('(()=>{const b=document.getElementById("transparent");return [b.getAttribute("role"),b.getAttribute("aria-label"),b.getAttribute("aria-checked"),b.textContent.trim()]})()'),['switch','Trasparenza','false','']);
     await evaluate('changed({tabs:[],active:null});document.getElementById("search").value="";document.getElementById("search").dispatchEvent(new Event("input"))');
     assert.equal(await evaluate('document.querySelectorAll(".tab").length'),0);
     await evaluate('document.getElementById("layout").click()');
@@ -100,6 +102,7 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     assert.equal(await evaluate('document.querySelectorAll(".review").length'),1);
     await evaluate('document.getElementById("transparent").click()');
     await until(() => evaluate('document.body.classList.contains("transparent")'));
+    assert.equal(await evaluate('document.getElementById("transparent").getAttribute("aria-checked")'),'true');
     assert.equal(await evaluate('getComputedStyle(document.documentElement).backgroundColor'),'rgba(0, 0, 0, 0)');
     if (process.env.LAVISH_MB_TEST_EVIDENCE_DIR) {
       await fs.mkdir(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});
