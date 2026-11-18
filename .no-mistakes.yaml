@@ -1,0 +1,2 @@
+# This fork runs no CI on GitHub, so the gate must not wait for checks.
+no_ci: true
