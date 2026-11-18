@@ -104,16 +104,16 @@ test('another build of the same commit (a regenerated style guide) installs besi
         assert.equal(runScript(repo, ws.env, 'install').status, 0);
         const firstManifest = readFileSync(path.join(tools(ws), first, 'dist/bruvish-manifest.json'), 'utf8');
 
-        write(path.join(repo, 'bruvish/DESIGN.md'), '# Style guide\n');
+        write(path.join(repo, 'bruvish/DESIGN.md'), '# Style guide, regenerated\n');
         let result = runScript(repo, ws.env, 'install');
         assert.equal(result.status, 0, result.output);
         const identity = JSON.parse(readFileSync(path.join(repo, 'dist/bruvish-manifest.json'), 'utf8')).identity;
         const second = `${first}-${identity.slice(0, 6)}`;
-        assert.ok(exists(tools(ws), second, 'dist/bruvish-design.md'));
+        assert.equal(readFileSync(path.join(tools(ws), second, 'dist/bruvish-design.md'), 'utf8'), '# Style guide, regenerated\n');
         assert.equal(link(ws, 'current'), second);
         assert.equal(link(ws, 'previous'), first);
         assert.equal(readFileSync(path.join(tools(ws), first, 'dist/bruvish-manifest.json'), 'utf8'), firstManifest, 'the existing folder is untouched');
-        assert.ok(!exists(tools(ws), first, 'dist/bruvish-design.md'));
+        assert.equal(readFileSync(path.join(tools(ws), first, 'dist/bruvish-design.md'), 'utf8'), '# Style guide\n');
 
         result = runScript(repo, ws.env, 'install');
         assert.equal(result.status, 0, result.output);
@@ -125,30 +125,33 @@ test('another build of the same commit (a regenerated style guide) installs besi
     }
 });
 
-test('install checks that the installed lavish-axi design prints the guide, and warns with the remedy when it does not', () => {
+test('install requires that the installed lavish-axi design prints the guide: without it nothing is installed and the links stay', () => {
     const ws = workspace('bruvish-install-');
     try {
         const repo = installCheckout(ws);
-        // No guide: the install still succeeds, and says what is missing and how to fix it.
+        const first = `0.1.96-${git(repo, ws.env, 'rev-parse', 'HEAD').slice(0, 7)}`;
+        assert.equal(runScript(repo, ws.env, 'install').status, 0);
+        const second = `0.1.96-${commitChange(ws, repo, 'bruvish/note.md', 'second\n')}`;
         let result = runScript(repo, ws.env, 'install');
         assert.equal(result.status, 0, result.output);
-        const first = link(ws, 'current');
-        assert.match(result.stderr, /Warning: lavish-axi design does not print the style guide/);
-        assert.match(result.stderr, /Bruvish style guide missing/);
-        assert.match(result.stderr, /bruvish\/DESIGN\.placeholder\.md/);
-        assert.doesNotMatch(result.stdout, /prints the style guide/);
-
-        // With the guide: no warning, and the installed command prints it.
-        write(path.join(repo, 'bruvish/DESIGN.md'), '# Style guide\n');
-        result = runScript(repo, ws.env, 'install');
-        assert.equal(result.status, 0, result.output);
-        assert.doesNotMatch(result.stderr, /style guide/);
         assert.match(result.stdout, /lavish-axi design prints the style guide\./);
+        assert.equal(link(ws, 'current'), second);
+        assert.equal(link(ws, 'previous'), first);
         const printed = spawnSync(process.execPath, [path.join(tools(ws), 'current/bin/lavish-axi'), 'design'], { env: ws.env, encoding: 'utf8' });
         assert.equal(printed.status, 0, printed.stderr);
-        assert.match(printed.stdout, /# Style guide/);
-        assert.notEqual(link(ws, 'current'), first, 'the guide makes another build of the same commit');
+        assert.equal(printed.stdout.trim(), '# Style guide');
+
+        commitChange(ws, repo, 'bruvish/note.md', 'third\n');
+        rmSync(path.join(repo, 'bruvish/DESIGN.md'));
+        result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /lavish-axi design of this build does not print the style guide/);
+        assert.match(result.stderr, /Bruvish style guide missing/);
+        assert.match(result.stderr, /bruvish\/DESIGN\.placeholder\.md/);
+        assert.doesNotMatch(result.stdout, /Installed /);
+        assert.equal(link(ws, 'current'), second);
         assert.equal(link(ws, 'previous'), first);
+        assert.deepEqual(readdirSync(tools(ws)).sort(), [first, second, 'current', 'previous'].sort(), 'no folder, not even a staging one, is left');
     } finally {
         rmSync(ws.dir, { recursive: true, force: true });
     }
@@ -157,15 +160,22 @@ test('install checks that the installed lavish-axi design prints the guide, and 
 test('the guide check ignores BRUVISH_DESIGN: it is about the installed copy', () => {
     const ws = workspace('bruvish-install-');
     try {
+        const repo = installCheckout(ws);
         const outside = path.join(ws.dir, 'elsewhere.md');
         write(outside, '# Not installed\n');
         const env = { ...ws.env, BRUVISH_DESIGN: outside };
-        const result = runScript(installCheckout(ws), env, 'install');
-        assert.equal(result.status, 0, result.output);
-        assert.match(result.stderr, /Warning: lavish-axi design does not print the style guide/);
+        assert.equal(runScript(repo, env, 'install').status, 0);
+        const first = link(ws, 'current');
         const printed = spawnSync(process.execPath, [path.join(tools(ws), 'current/bin/lavish-axi'), 'design'], { env, encoding: 'utf8' });
         assert.equal(printed.status, 0, printed.stderr);
         assert.match(printed.stdout, /# Not installed/, 'the installed command honours BRUVISH_DESIGN');
+
+        commitChange(ws, repo, 'bruvish/note.md', 'second\n');
+        rmSync(path.join(repo, 'bruvish/DESIGN.md'));
+        const result = runScript(repo, env, 'install');
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /does not print the style guide/);
+        assert.equal(link(ws, 'current'), first);
     } finally {
         rmSync(ws.dir, { recursive: true, force: true });
     }
