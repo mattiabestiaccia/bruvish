@@ -57,7 +57,11 @@ function element(tag) {
   const el = {
     nodeType: 1, tagName: tag.toUpperCase(), dataset: {}, attributes: {}, children: [], listeners: {}, hidden: false, textContent: '', parent: null,
     get parentElement() { return this.parent; },
-    closest(selector) { for (let node = this; node; node = node.parent) if (selector.split(',').some(part => part.trim() === node.tagName.toLowerCase() || node.classList.contains(part.trim().replace(/^\./, '')))) return node; return null; },
+    closest(selector) {
+      const simple = (node, token) => token === node.tagName.toLowerCase() || (token.startsWith('.') && node.classList.contains(token.slice(1)));
+      const matches = (node, part) => { const [ancestor, own] = part.trim().split(/\s+/).length > 1 ? part.trim().split(/\s+/) : [null, part.trim()]; if (!simple(node, own)) return false; if (!ancestor) return true; for (let up = node.parent; up; up = up.parent) if (simple(up, ancestor)) return true; return false; };
+      for (let node = this; node; node = node.parent) if (selector.split(',').some(part => matches(node, part))) return node; return null;
+    },
     style: { props: {}, setProperty(name, value) { this.props[name] = value; } },
     classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name), toggle: (name, on) => on ? classes.add(name) : classes.delete(name) },
     setAttribute(name, value) { this.attributes[name] = String(value); },
@@ -382,8 +386,23 @@ test('addon: official panel texts turn Italian, also when written later, and the
   assert.deepEqual([draft.nodeValue, message.nodeValue], ['Copy', 'Copy'], 'a queued note being edited and a sent message are the reader\'s words');
   assert.deepEqual([revisionLabel.nodeValue, revisionSummary.nodeValue, revisionCopy.nodeValue], ['Working draft', 'Done with layout', 'Copy'], 'revision labels and summaries are the agent\'s words');
   assert.equal(chip.nodeValue, 'Seen 3m ago', 'layout-issue chips stay as the server writes them');
+  const written = ['Working...', 'Exporting...', 'Exported with 2 unresolved assets and 1 notice', 'Exported with 1 notice', 'Export failed - retry', 'Reveal 2/3', 'Uploading…',
+    'Not sent — more than 4 images on one prompt; an image is no longer available. Remove or fix the image, then send again.', 'Unsupported file type. Use PNG, JPEG, or WEBP.', 'You can attach up to 1 image.']
+    .map(value => text(value, box('span', '', panel)));
+  const revealRevision = box('button', 'revision-reveal', panel, { 'aria-label': 'Reveal the next block changed in Working draft' });
+  const revealWarning = box('button', 'warning-action', panel, { 'aria-label': 'Reveal Text overflow on .card in the artifact' });
+  const dismissWarning = box('button', 'warning-action', panel, { 'aria-label': 'Dismiss Text overflow for this artifact revision' });
+  const chipCopy = box('span', 'chat-attachment-copy', panel);
+  const fileName = text('Copy', box('strong', '', chipCopy));
+  const retry = box('button', '', panel, { 'aria-label': 'Retry Copy.png' });
   const later = text('Cancel', box('button', 'queued-edit-cancel', panel));
   observers.find(o => o.target === panel).fn([{ type: 'childList', addedNodes: [later] }]);
+  observers.find(o => o.target === panel).fn([...written, revealRevision, revealWarning, dismissWarning, chipCopy, retry].map(node => ({ type: 'childList', addedNodes: [node] })));
+  assert.deepEqual(written.map(node => node.nodeValue), ['L’agente sta lavorando…', 'Esportazione…', 'Esportato con 2 risorse non risolte e 1 avviso', 'Esportato con 1 avviso', 'Esportazione non riuscita: riprova', 'Mostra 2/3', 'Caricamento…',
+    'Non inviato: più di 4 immagini in un messaggio; un’immagine non è più disponibile. Togli o correggi l’immagine, poi invia di nuovo.', 'Tipo di file non supportato. Usa PNG, JPEG o WEBP.', 'Puoi allegare fino a 1 immagine.']);
+  assert.deepEqual([revealRevision, revealWarning, dismissWarning, retry].map(el => el.attributes['aria-label']),
+    ['Mostra il blocco successivo cambiato in Working draft', 'Mostra Text overflow on .card nell’artefatto', 'Ignora Text overflow per questa revisione dell’artefatto', 'Riprova Copy.png'], 'the agent\'s label, the server\'s title and the file name stay verbatim');
+  assert.equal(fileName.nodeValue, 'Copy', 'an attachment file name is the reader\'s');
   assert.equal(later.nodeValue, 'Annulla', 'text the official code writes later');
 });
 

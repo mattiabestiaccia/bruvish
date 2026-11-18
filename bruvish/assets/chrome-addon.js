@@ -78,15 +78,48 @@
         ['Lavish was stopped. Reload after you start it again.', 'Lavish è stato fermato. Ricarica dopo averlo riavviato.'],
         ['Lavish is still not running. Start it again, then use Check and reload.', 'Lavish non è ancora acceso. Riavvialo, poi usa «Controlla e ricarica».'],
         ['Lavish did not answer the check, so this page cannot tell whether it is running. Try again in a moment.', 'Lavish non ha risposto al controllo, quindi questa pagina non sa se è acceso. Riprova fra un momento.'],
-        ['Check and reload', 'Controlla e ricarica']
+        ['Check and reload', 'Controlla e ricarica'],
+        ['Working...', 'L’agente sta lavorando…'], ['Exporting...', 'Esportazione…'], ['Export failed - retry', 'Esportazione non riuscita: riprova'],
+        ['Uploading…', 'Caricamento…'], ['Retry', 'Riprova'], ['Waiting for an image to finish uploading…', 'Aspetto che un’immagine finisca di caricarsi…'],
+        ['An image couldn\'t be attached. Retry or remove it before sending.', 'Non è stato possibile allegare un’immagine. Riprova o toglila prima di inviare.'],
+        ['Too many uploads. Wait a moment and retry.', 'Troppi caricamenti. Aspetta un momento e riprova.'],
+        ['Too many uploads in flight. Wait a moment and retry.', 'Troppi caricamenti in corso. Aspetta un momento e riprova.']
     ]);
+    const plural = (n, one, many) => n + ' ' + (n === '1' ? one : many);
+    const NOT_SENT = [
+        [/^images exceed the ([^]*) per-prompt limit$/, m => 'le immagini superano il limite di ' + m[1] + ' per messaggio'],
+        [/^more than (\d+) images on one prompt$/, m => 'più di ' + m[1] + ' immagini in un messaggio'],
+        [/^too many images queued at once$/, () => 'troppe immagini in coda insieme'],
+        [/^an image attachment was malformed$/, () => 'un’immagine allegata non è valida'],
+        [/^an image is no longer available$/, () => 'un’immagine non è più disponibile'],
+        [/^some attachments could not be delivered$/, () => 'alcuni allegati non sono stati consegnati']
+    ];
+    const notSentPart = part => { for (const [rule, write] of NOT_SENT) {
+        const match = rule.exec(part);
+        if (match)
+            return write(match);
+    } return part; };
     const RECEIPT_STEPS = { Seen: 'Visto', Working: 'In lavorazione', Done: 'Fatto' };
     const ITALIAN_RULES = [
         [/^(Show|Hide) conversation(?: \((\d+) queued\)| \((new reply)\))?$/, m => (m[1] === 'Show' ? 'Mostra' : 'Nascondi') + ' la conversazione' + (m[2] ? ' (' + m[2] + ' in coda)' : m[3] ? ' (nuova risposta)' : '')],
         [/^(\d+) queued$/, m => m[1] + ' in coda'],
         [/^(\d+) selected$/, m => m[1] + (m[1] === '1' ? ' scelto' : ' scelti')],
         [/^(Seen|Working|Done)(?:: (not yet)| (\d{1,2}[:.]\d{2}(?:\s?[AaPp]\.?[Mm]\.?)?))$/, m => RECEIPT_STEPS[m[1]] + (m[2] ? ': non ancora' : ' ' + m[3])],
-        [/^Copy path · ([^]*)$/, m => 'Copia il percorso · ' + m[1]]
+        [/^Copy path · ([^]*)$/, m => 'Copia il percorso · ' + m[1]],
+        [/^Exported with (?:(\d+) unresolved assets?)?(?: and )?(?:(\d+) notices?)?$/, m => 'Esportato con ' + [m[1] && plural(m[1], 'risorsa non risolta', 'risorse non risolte'), m[2] && plural(m[2], 'avviso', 'avvisi')].filter(Boolean).join(' e ')],
+        [/^Reveal (\d+)\/(\d+)$/, m => 'Mostra ' + m[1] + '/' + m[2]],
+        [/^Reveal the next block changed in ([^]*)$/, m => 'Mostra il blocco successivo cambiato in ' + m[1]],
+        [/^Reveal ([^]*) in the artifact$/, m => 'Mostra ' + m[1] + ' nell’artefatto'],
+        [/^Select ([^]*) on ([^]*)$/, m => 'Seleziona ' + m[1] + ' su ' + m[2]],
+        [/^([^]*) on ([^]*) (is queued to send|is already queued for a fix)$/, m => m[1] + ' su ' + m[2] + (m[3] === 'is queued to send' ? ' è in coda per l’invio' : ' ha già una correzione in coda')],
+        [/^Dismiss ([^]*) for this artifact revision$/, m => 'Ignora ' + m[1] + ' per questa revisione dell’artefatto'],
+        [/^([^]*) cannot be dismissed while (queued to send|a fix is queued)$/, m => m[1] + ' non si può ignorare mentre ' + (m[2] === 'queued to send' ? 'è in coda per l’invio' : 'c’è una correzione in coda')],
+        [/^(Retry|Remove) ([^]*)$/, m => (m[1] === 'Retry' ? 'Riprova ' : 'Togli ') + m[2]],
+        [/^Image is larger than the ([^]*) limit$/, m => 'L’immagine supera il limite di ' + m[1]],
+        [/^Unsupported file type\. Use ([^]*)\.$/, m => 'Tipo di file non supportato. Usa ' + m[1].replace(/,? or /, ' o ') + '.'],
+        [/^Upload limit reached for this session \(([^]*)\)\.$/, m => 'Limite di caricamento raggiunto per questa sessione (' + m[1] + ').'],
+        [/^You can attach up to (\d+) images?\.$/, m => 'Puoi allegare fino a ' + plural(m[1], 'immagine', 'immagini') + '.'],
+        [/^Not sent — ([^]*)\. Remove or fix the image, then send again\.$/, m => 'Non inviato: ' + m[1].split('; ').map(notSentPart).join('; ') + '. Togli o correggi l’immagine, poi invia di nuovo.']
     ];
     function italian(text) { const core = text.trim(); if (!core)
         return text; const exact = ITALIAN.get(core); if (exact !== undefined)
@@ -95,7 +128,7 @@
         if (match)
             return text.replace(core, () => write(match));
     } return text; }
-    const OWN_WORDS = '.chat-md,.bubble-text,.note-draft,.anchor,.menu-file-text,.revision-label,.revision-summary,.warning-chip,.warning-title,.warning-explanation,.warning-target';
+    const OWN_WORDS = '.chat-md,.bubble-text,.note-draft,.anchor,.menu-file-text,.revision-label,.revision-summary,.warning-chip,.warning-title,.warning-explanation,.warning-target,.chat-attachment-copy strong';
     function localizeText(node) { if (node.parentElement?.closest(OWN_WORDS) || node.parentElement?.tagName === 'TEXTAREA')
         return; const value = italian(node.nodeValue); if (value !== node.nodeValue)
         node.nodeValue = value; }
