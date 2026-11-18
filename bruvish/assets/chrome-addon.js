@@ -198,7 +198,7 @@
         new MutationObserver(mirror).observe(annotate, { attributes: true, attributeFilter: ['aria-pressed'] });
     }
     // Closed cards (answered and not new) are hidden by default; the switch shows them. Only shown while the
-    // artifact has both closed and open cards (bridge.js never hides every card).
+    // artifact has cards, even before its first answer (bridge.js never hides every card).
     let showClosed = false;
     const closedSwitch = document.createElement('button');
     closedSwitch.type = 'button';
@@ -341,7 +341,7 @@
                     else
                         root.style.removeProperty('--mb-' + name);
             }
-            closedSwitch.hidden = !(Number(m.closed) > 0 && Number(m.open) > 0);
+            closedSwitch.hidden = !(Number(m.closed) + Number(m.open) > 0);
             renderOutline();
         }
         if (m.type === 'lavish-mb:position') {

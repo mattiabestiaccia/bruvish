@@ -13,12 +13,13 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
   // A closed card (answered, not new) has no boxes while the injected rule hides it.
-  const hiddenByRule = node => root.dataset.mbClosed === 'hide' && styles.length && node.dataset.mbState === 'answered' && !('mbNew' in node.dataset);
+  const hiddenByRule = node => root.dataset.mbClosed === 'hide' && styles.length && (node.dataset.mbState === 'answered' || node.dataset.mbClosedCard === 'true') && !('mbNew' in node.dataset);
   const nodes = cards.map((c, i) => {
     const node = {
       id: c.id, dataset: { mbState: c.state, ...c.fresh !== undefined ? { mbNew: c.fresh } : {} }, color: c.color,
+      classList: {contains: name => (c.classes || []).includes(name)},
       getClientRects: () => hiddenByRule(node) ? [] : [1], getBoundingClientRect: () => ({ top: 100 * i }),
-      parentElement: { getClientRects: () => [1] }, closest: selector => selector === '[data-mb-state]' ? node : null,
+      parentElement: { getClientRects: () => [1] }, closest: selector => ['[data-mb-state]','[data-mb-state],.card'].includes(selector) ? node : null,
       matches: () => false, querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null,
       // Records whether the element had a layout box when it was scrolled to: a scroll without one does nothing.
       scrollIntoView: options => scrolls.push([node.id, node.getClientRects().length > 0, options?.block])
@@ -51,8 +52,36 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
   }
   const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
-  return { posted, observed: context.observed, root, dispatch, deliver, styles, scrolls };
+  return { posted, observed: context.observed, root, dispatch, deliver, styles, scrolls, nodes };
 }
+
+test('handwritten card classes supply status colours and answered-card counts without generated metadata',()=>{
+ const cards=[{id:'a',classes:['attesa'],color:''},{id:'b',classes:['fatta'],color:''},{id:'c',classes:['info'],color:''},{id:'d',classes:['bloccata'],color:''}];
+ const run=runBridge(cards);
+ const outline=run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1);
+ assert.deepEqual(Array.from(outline.items,item=>[item.state,item.color]),[['waiting','#d6ab32'],['answered','#63ca84'],['info','#6bb5ff'],['blocked','#fe8b83']]);
+ assert.deepEqual([outline.closed,outline.open],[1,3]);
+ assert.equal(outline.items[1].hidden,true,'handwritten answered cards participate in the existing filter');
+ assert(run.observed.includes('class'),'legacy state changes must refresh rail and closed control');
+ cards[0].classes=['fatta'];run.deliver({type:'lavish-mb:closed',token:'t',show:true});
+ const changed=run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1);
+ assert.deepEqual([changed.items[0].state,changed.items[0].color,changed.closed],['answered','#63ca84',2],'a new answer changes state without stale generated metadata');
+});
+
+test('a neutral card border never replaces a known status colour',()=>{
+ const run=runBridge([{id:'a',state:'waiting',color:''},{id:'b',state:'blocked',color:''}]);
+ assert.deepEqual(Array.from(run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1).items,item=>item.color),['#d6ab32','#fe8b83']);
+});
+
+test('review menus have an opaque background in both transparency modes',()=>{
+ assert.match(css,/\.menu\s*\{[^}]*background:\s*#1f2023/);
+});
+
+test('the closed-card control stays available for a page with only open cards',async()=>{
+ const chrome=upstreamChrome();const run=await runAddon(new Map(),{chrome});
+ run.deliver({type:'lavish-mb:outline',items:[{id:'a',state:'waiting'}],closed:0,open:1});
+ assert.equal(chrome.bar.children.find(el=>el.className==='mb-closed-switch').hidden,false);
+});
 
 function element(tag) {
   const classes = new Set();
@@ -348,7 +377,7 @@ test('addon: the annotate switch also toggles with a double tap of the right Opt
   assert.equal(chrome.annotate.clicks, 2, 'an ended session keeps the switch disabled');
 });
 
-test('addon: closed-cards switch (check in a circle) next to annotate, hidden unless the page has closed and open cards', async () => {
+test('addon: closed-cards switch (check in a circle) remains available whenever the page has cards', async () => {
   const chrome = upstreamChrome();
   const { rail, root, deliver, posted } = await runAddon(new Map(), { chrome });
   const closed = chrome.bar.children.find(el => el.className === 'mb-closed-switch');
@@ -384,7 +413,7 @@ test('addon: closed-cards switch (check in a circle) next to annotate, hidden un
   deliver({ type: 'lavish-mb:show-closed' });
   assert.deepEqual([closed.attributes['aria-checked'], posted.filter(m => m.type === 'lavish-mb:closed').at(-1).show], ['true', true], 'a reveal inside a hidden closed card turns the switch on');
   deliver({ type: 'lavish-mb:outline', items: [{ id: 'a', title: 'Carta a', state: 'answered', closed: true }], closed: 1, open: 0 });
-  assert.equal(closed.hidden, true, 'nothing to filter on a page of closed cards only');
+  assert.equal(closed.hidden, false, 'the control stays available on pages containing only answered cards');
 });
 
 test('addon: official panel texts turn Italian, also when written later, and the reader\'s own words never change', async () => {

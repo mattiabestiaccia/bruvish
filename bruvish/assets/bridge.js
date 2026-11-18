@@ -77,15 +77,20 @@
     } initialized = true; draft(); outline(); }
     // Closed cards (answered and not new) are hidden from the start, as the host page's default, and until the host
     // page asks to show them; never every card. Applied before the load, so the scroll restored on load lands on this layout.
-    const closed = el => el.dataset.mbState === 'answered' && !('mbNew' in el.dataset);
+    // Generated metadata wins; handwritten reviews can retain their established status classes.
+    const stateColors = {waiting:'#d6ab32',answered:'#63ca84',info:'#6bb5ff',blocked:'#fe8b83'};
+    const stateClasses = {attesa:'waiting',fatta:'answered',bloccata:'blocked',waiting:'waiting',answered:'answered',info:'info',blocked:'blocked'};
+    const cardState = el => Object.hasOwn(stateColors,el.dataset.mbState) ? el.dataset.mbState : Object.entries(stateClasses).find(([name])=>el.classList?.contains(name))?.[1] || 'info';
+    const closed = el => cardState(el) === 'answered' && !('mbNew' in el.dataset);
     let hideClosed = true, closedStyle = null;
     function applyClosed() {
         const all = [...document.querySelectorAll('[data-mb-state],.card')];
+        for (const el of all) {if (closed(el)) el.dataset.mbClosedCard = 'true'; else delete el.dataset.mbClosedCard;}
         const closedCount = all.filter(closed).length, openCount = all.length - closedCount;
         const hiding = hideClosed && closedCount > 0 && openCount > 0;
         if (hiding && !closedStyle) {
             closedStyle = document.createElement('style');
-            closedStyle.textContent = ':root[data-mb-closed=hide] [data-mb-state=answered]:not([data-mb-new]){display:none!important}';
+            closedStyle.textContent = ':root[data-mb-closed=hide] [data-mb-state=answered]:not([data-mb-new]),:root[data-mb-closed=hide] [data-mb-closed-card=true]{display:none!important}';
             (document.head || document.documentElement).append(closedStyle);
         }
         document.documentElement.dataset.mbClosed = hiding ? 'hide' : 'show';
@@ -104,7 +109,7 @@
             target = document.querySelector(m.selector);
         }
         catch { }
-        const card = target?.closest('[data-mb-state]');
+        const card = target?.closest('[data-mb-state],.card');
         if (!card || !closed(card))
             return;
         hideClosed = false;
@@ -129,9 +134,9 @@
             return {
                 id:el.id,
                 title:String(heading?.textContent || el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g,' ').slice(0,160),
-                state:el.dataset.mbState || 'info',
-                // Cards expose their state colour as --mb-state-color (glow); older pages used the left border.
-                color:cards.length ? (getComputedStyle(el).getPropertyValue('--mb-state-color').trim() || getComputedStyle(el).borderLeftColor) : getComputedStyle(heading || el).color,
+                state:cardState(el),
+                // An explicit state paint wins; a neutral frame border must not erase the status colour.
+                color:cards.length ? (getComputedStyle(el).getPropertyValue('--mb-state-color').trim() || stateColors[cardState(el)]) : getComputedStyle(heading || el).color,
                 // New or changed cards pulse in the minimap too (data-mb-new set by the renderer).
                 fresh:cards.length && ['new','changed'].includes(el.dataset.mbNew) ? el.dataset.mbNew : '',
                 closed:cards.length > 0 && closed(el),
@@ -235,7 +240,7 @@
             lastTap = event.timeStamp;
     }, true);
     applyClosed();
-    new MutationObserver(records => { if (records.some(r => r.type === 'childList' || r.attributeName === 'hidden' || r.attributeName === 'data-mb-state' || r.attributeName === 'data-mb-new' || r.attributeName === 'open'))
-        schedule(); }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'data-mb-state', 'data-mb-new', 'open'] });
+    new MutationObserver(records => { if (records.some(r => r.type === 'childList' || r.attributeName === 'hidden' || r.attributeName === 'data-mb-state' || r.attributeName === 'data-mb-new' || r.attributeName === 'open' || r.attributeName === 'class'))
+        schedule(); }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'data-mb-state', 'data-mb-new', 'open', 'class'] });
     document.fonts?.ready.then(schedule);
 })();

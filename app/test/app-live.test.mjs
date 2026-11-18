@@ -71,12 +71,22 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await client.call('Page.reload');await until(async()=>await client.evaluate(choice,true)==='giro-3','draft reload');
   // Two feedback rounds through the ordinary CLI: a tracked poll, the native Send, then a reply.
   const cli=(...args)=>execute(process.execPath,[builtCli,...args],{env});
+  const clickReview=async selector=>{
+   const point=await until(()=>client.evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return null;el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`),'click target '+selector);
+   for(const type of ['mousePressed','mouseReleased'])await client.call('Input.dispatchMouseEvent',{type,...point,button:'left',clickCount:1});
+  };
   for(let i=1;i<=2;i++){
    const text='giro-'+i;
    await until(()=>client.evaluate('window.lavish&&'+choose(text)+'&&(document.querySelector("[data-mb-question=q0]").requestSubmit(),true)',true),'form ready before send');
+   await until(()=>client.evaluate('!!document.querySelector("#queuedLog .bubble.queued .bubble-text")'),'editable queued answer');
+   await clickReview('#queuedLog .bubble.queued .bubble-text');
+   await until(()=>client.evaluate('!!document.querySelector(".queued-edit-input")'),'clicking the queued answer opens its original editor');
+   await client.evaluate('(()=>{const input=document.querySelector(".queued-edit-input");input.value='+JSON.stringify(text+' corrected in panel')+';input.dispatchEvent(new Event("input",{bubbles:true}))})()');
+   await clickReview('.queued-edit-save');
+   await until(()=>client.evaluate('!document.querySelector(".queued-edit-input")&&document.querySelector("#queuedLog .bubble-text")?.textContent.includes("corrected in panel")'),'queued edit saved on the same note');
    const poll=cli('poll',file,'--timeout-ms','60000');
    await until(()=>client.evaluate('!document.getElementById("send").disabled'),'send enabled');await client.evaluate('document.getElementById("send").click()');
-   const feedback=await poll;assert.equal(feedback.code,0,feedback.stderr);assert(feedback.stdout.includes(text),feedback.stdout);
+   const feedback=await poll;assert.equal(feedback.code,0,feedback.stderr);assert(feedback.stdout.includes(text+' corrected in panel'),feedback.stdout);
    const reply=await cli('reply',file,'--agent-reply','Riscontro agente '+i);assert.equal(reply.code,0,reply.stderr);
    await until(()=>client.evaluate('document.body.textContent.includes('+JSON.stringify('Riscontro agente '+i)+')'),'reply visible');
   }
@@ -155,14 +165,27 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR){fs.mkdirSync(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});const shot=await client.call('Page.captureScreenshot',{format:'png'});await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'dedicated-dummy.png'),Buffer.from(shot.data,'base64'));await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'dedicated-result.json'),JSON.stringify({first,secondSend:true,persistentDraft:true,italianVoices:voices,speechStart:speech,audioListened:false},null,2));}
   // Replace the isolated dummy with a truly hand-written document: no generated CSS/script or paper variable.
   // Inspect rendered pixels, not just computed body CSS (a white iframe canvas can sit beneath it).
-  await writeFile(file,'<!doctype html><html><head><style>html{background:transparent}body{margin:0;min-height:100vh;background:transparent;color:#e6e0f2}.card{margin:60px;padding:24px;background:rgba(36,31,52,.5)}</style></head><body><h1 id="handwritten">Handwritten canvas regression</h1><div class="card">Dark glass</div></body></html>');
+  await writeFile(file,'<!doctype html><html><head><style>html{background:transparent}body{margin:0;min-height:100vh;background:transparent;color:#e6e0f2}.card{margin:60px;padding:24px;background:rgba(36,31,52,.5)}</style></head><body><h1 id="handwritten">Handwritten canvas regression</h1><div class="card attesa">Waiting</div><div class="card fatta">Answered</div><div class="card info">Information</div><div class="card bloccata">Blocked</div></body></html>');
   await until(()=>client.evaluate('!!document.getElementById("handwritten")',true),'handwritten fixture reload');
+  await until(()=>uiClient.evaluate('!document.getElementById("closed").hidden&&!document.getElementById("closed").disabled'),'closed-card switch remains in the right toolbar');
+  await until(()=>client.evaluate('document.querySelectorAll(".mb-rail button").length===4'),'handwritten status rail');
+  assert.deepEqual(await client.evaluate('Array.from(document.querySelectorAll(".mb-rail button i"),el=>getComputedStyle(el).backgroundColor)'),['rgb(214, 171, 50)','rgb(99, 202, 132)','rgb(107, 181, 255)','rgb(254, 139, 131)'],'every handwritten card retains its state paint in the rail');
+  await until(()=>client.evaluate('document.querySelector(".fatta").getClientRects().length===0',true),'answered handwritten card initially hidden');
+  await uiClient.evaluate('document.getElementById("closed").click()');
+  await until(()=>client.evaluate('document.querySelector(".fatta").getClientRects().length>0',true),'native closed switch shows answered cards');
+  await uiClient.evaluate('document.getElementById("closed").click()');
+  await until(()=>client.evaluate('document.querySelector(".fatta").getClientRects().length===0',true),'native closed switch hides answered cards again');
   const pixels=[];
   for(const transparent of [false,true,false]){
    await uiClient.evaluate('window.lavishApp.preferences({transparent:'+transparent+'})');
    await until(()=>client.evaluate('document.documentElement.dataset.mbMode==='+JSON.stringify(transparent?'transparent':'dark'),true),'handwritten mode');
    assert.equal(await client.evaluate('getComputedStyle(document.documentElement).colorScheme',true),'dark','child canvas scheme matches its dark embedding frame');
    assert.equal(await client.evaluate('getComputedStyle(document.getElementById("artifact")).colorScheme'),'dark');
+   await uiClient.evaluate('document.getElementById("more").click()');
+   await until(()=>client.evaluate('!document.getElementById("moreMenu").hidden'),'opaque more menu');
+   assert.equal(await client.evaluate('getComputedStyle(document.getElementById("moreMenu")).backgroundColor'),'rgb(31, 32, 35)','more menu is opaque whether the artifact is glass or dark');
+   await uiClient.evaluate('document.getElementById("more").click()');
+   await until(()=>client.evaluate('document.getElementById("moreMenu").hidden'),'more menu closed before background sample');
    const shot=await client.call('Page.captureScreenshot',{format:'png'});
    const sample=await client.evaluate(`new Promise((resolve,reject)=>{const image=new Image();image.onerror=()=>reject(Error('Cannot decode screenshot'));image.onload=()=>{const rect=document.getElementById('artifact').getBoundingClientRect(),scale=image.width/innerWidth,canvas=document.createElement('canvas');canvas.width=canvas.height=1;const ctx=canvas.getContext('2d');ctx.drawImage(image,-Math.floor((rect.x+4)*scale),-Math.floor((rect.y+4)*scale));resolve(Array.from(ctx.getImageData(0,0,1,1).data))};image.src=${JSON.stringify('data:image/png;base64,'+shot.data)}})`);
    pixels.push({transparent,sample});
@@ -177,6 +200,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
    await mkdir(evidence,{recursive:true});
    const diagnostic={error:error.message,uiExceptions:uiClient?.errors,reviewExceptions:client?.errors};
    try{diagnostic.ui=await uiClient.evaluate(`({inReview:document.body.classList.contains('in-review'),layoutLabel:document.getElementById('layout')?.textContent,grid:document.getElementById('reviews')?.classList.contains('grid'),error:document.getElementById('error')?.textContent})`);}catch(e){diagnostic.uiError=e.message;}
+   try{diagnostic.queue=await client.evaluate(`({bubbles:Array.from(document.querySelectorAll('#queuedLog .bubble')).map(el=>({index:el.dataset.index,className:el.className,editDisabled:el.querySelector('.queued-edit')?.disabled})),editor:!!document.querySelector('.queued-edit-input')})`);}catch{}
    try{diagnostic.preferences=JSON.parse(await readFile(path.join(dir,'app/preferences.json'),'utf8'));}catch{}
    try{const shot=await uiClient.call('Page.captureScreenshot',{format:'png'});await writeFile(path.join(evidence,'native-failure.png'),Buffer.from(shot.data,'base64'));}catch{}
    await writeFile(path.join(evidence,'native-failure.json'),JSON.stringify(diagnostic,null,2));
