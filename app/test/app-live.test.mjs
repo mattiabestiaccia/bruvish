@@ -101,7 +101,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await client.evaluate('localStorage.setItem("lavish-mb:mode","transparent")');
   await uiClient.evaluate('window.lavishApp.preferences({transparent:false,artifactBackground:false,layout:"list"})');
   await until(()=>uiClient.evaluate('!document.body.classList.contains("transparent")'),'opaque baseline acknowledged');
-  await until(()=>client.evaluate('!document.getElementById("lavish-private-app-background")&&document.documentElement.dataset.mbMode==="dark"',true),'opaque artifact baseline');
+  await until(()=>client.evaluate('document.getElementById("lavish-private-app-background")?.textContent.includes("#1f2023")&&document.documentElement.dataset.mbMode==="dark"',true),'opaque artifact baseline');
   const beforeToggle = await client.evaluate('scrollY',true);
   const draftBeforeToggle = await client.evaluate(choice,true);
   const backgroundBeforeToggle = await client.evaluate('getComputedStyle(document.body).backgroundColor',true);
@@ -130,7 +130,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await until(()=>client.evaluate('!!document.getElementById("lavish-private-app-background")&&document.documentElement.dataset.mbMode==="transparent"',true),'artifact transparency survives reload');
   await uiClient.evaluate('document.getElementById("transparent").click()');
   await uiClient.evaluate('window.lavishApp.snapshot()');
-  await until(()=>client.evaluate('!document.getElementById("lavish-private-app-background")',true),'opaque appearance restored');
+  await until(()=>client.evaluate('document.getElementById("lavish-private-app-background")?.textContent.includes("#1f2023")',true),'opaque appearance restored');
   await until(()=>client.evaluate('document.documentElement.dataset.mbMode==="dark"',true),'toolbar off sets dark mode despite legacy transparent web storage');
   assert.equal(await client.evaluate('getComputedStyle(document.body).backgroundColor',true),backgroundBeforeToggle);
   await uiClient.evaluate('document.getElementById("home").click()');
@@ -153,6 +153,24 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   const voices=await until(()=>client.evaluate('typeof speechSynthesis==="object"?speechSynthesis.getVoices().filter(v=>v.lang.startsWith("it")).length:0',true),'Italian SpeechSynthesis voices');
   const speech=await client.evaluate('new Promise(resolve=>{const u=new SpeechSynthesisUtterance("Prova Lavish");u.lang="it-IT";let done=false;const finish=v=>{if(done)return;done=true;resolve(v)};u.onstart=()=>{finish("started");speechSynthesis.cancel()};u.onerror=e=>finish(e.error);speechSynthesis.speak(u);setTimeout(()=>{finish("timeout");speechSynthesis.cancel()},4000)})',true);assert.equal(speech,'started');
   if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR){fs.mkdirSync(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});const shot=await client.call('Page.captureScreenshot',{format:'png'});await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'dedicated-dummy.png'),Buffer.from(shot.data,'base64'));await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'dedicated-result.json'),JSON.stringify({first,secondSend:true,persistentDraft:true,italianVoices:voices,speechStart:speech,audioListened:false},null,2));}
+  // Replace the isolated dummy with a truly hand-written document: no generated CSS/script or paper variable.
+  // Inspect rendered pixels, not just computed body CSS (a white iframe canvas can sit beneath it).
+  await writeFile(file,'<!doctype html><html><head><style>html{background:transparent}body{margin:0;min-height:100vh;background:transparent;color:#e6e0f2}.card{margin:60px;padding:24px;background:rgba(36,31,52,.5)}</style></head><body><h1 id="handwritten">Handwritten canvas regression</h1><div class="card">Dark glass</div></body></html>');
+  await until(()=>client.evaluate('!!document.getElementById("handwritten")',true),'handwritten fixture reload');
+  const pixels=[];
+  for(const transparent of [false,true,false]){
+   await uiClient.evaluate('window.lavishApp.preferences({transparent:'+transparent+'})');
+   await until(()=>client.evaluate('document.documentElement.dataset.mbMode==='+JSON.stringify(transparent?'transparent':'dark'),true),'handwritten mode');
+   assert.equal(await client.evaluate('getComputedStyle(document.documentElement).colorScheme',true),'dark','child canvas scheme matches its dark embedding frame');
+   assert.equal(await client.evaluate('getComputedStyle(document.getElementById("artifact")).colorScheme'),'dark');
+   const shot=await client.call('Page.captureScreenshot',{format:'png'});
+   const sample=await client.evaluate(`new Promise((resolve,reject)=>{const image=new Image();image.onerror=()=>reject(Error('Cannot decode screenshot'));image.onload=()=>{const rect=document.getElementById('artifact').getBoundingClientRect(),scale=image.width/innerWidth,canvas=document.createElement('canvas');canvas.width=canvas.height=1;const ctx=canvas.getContext('2d');ctx.drawImage(image,-Math.floor((rect.x+4)*scale),-Math.floor((rect.y+4)*scale));resolve(Array.from(ctx.getImageData(0,0,1,1).data))};image.src=${JSON.stringify('data:image/png;base64,'+shot.data)}})`);
+   pixels.push({transparent,sample});
+   if(transparent)assert(sample.slice(0,3).every(value=>value<128),'glass must not be dark40% composited over a white iframe canvas: '+JSON.stringify(sample));
+   else assert.deepEqual(sample,[31,32,35,255],'opaque blank artifact canvas is #1f2023, never upstream white');
+   if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR)await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'handwritten-'+(transparent?'glass':'opaque')+'.png'),Buffer.from(shot.data,'base64'));
+  }
+  if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR)await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'handwritten-pixels.json'),JSON.stringify(pixels,null,2));
  }catch(error){
   const evidence=process.env.LAVISH_MB_TEST_EVIDENCE_DIR;
   if(evidence){
