@@ -56,7 +56,7 @@ function element(tag) {
   return el;
 }
 
-async function runAddon(storage = new Map()) {
+async function runAddon(storage = new Map(), { pointer = 'fine' } = {}) {
   const listeners = {}, posted = [];
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
@@ -69,6 +69,7 @@ async function runAddon(storage = new Map()) {
     document, posted,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
     crypto: { randomUUID: () => 'token-1' },
+    matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')' }),
     CSS: { supports: (property, value) => property === 'color' && /^(#[0-9a-f]{3,8}|rgb\([\d, ]+\))$/i.test(value) },
     fetch: () => Promise.reject(new Error('offline')),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }
@@ -137,6 +138,9 @@ test('backdrop mode: the sandboxed artifact relays a choice, the host page keeps
   const next = await runAddon(storage);
   next.deliver({ type: 'lavish-mb:ready' });
   assert.deepEqual(next.posted.filter(m => m.type === 'lavish-mb:mode').map(m => m.mode), ['transparent'], 'the next artifact gets the remembered mode');
+  const phone = await runAddon(storage, { pointer: 'coarse' });
+  phone.deliver({ type: 'lavish-mb:ready' });
+  assert.equal(phone.posted.some(m => m.type === 'lavish-mb:mode'), false, 'the phone has no switch: the artifact keeps its dark default');
   const fresh = await runAddon();
   fresh.deliver({ type: 'lavish-mb:ready' });
   assert.equal(fresh.posted.some(m => m.type === 'lavish-mb:mode'), false, 'no choice yet: the artifact keeps its own default');
