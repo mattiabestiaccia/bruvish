@@ -9,7 +9,7 @@ import fs from 'node:fs';import path from 'node:path';import {spawn} from 'node:
 const LAUNCHER='/usr/bin/open';
 // What the app and its core read from the environment; sent explicitly so the request does not depend on
 // LaunchServices passing the caller's environment down.
-const FORWARDED=['LAVISH_APP_CORE_ROOT','BRUVISH_TOOLS_ROOT','LAVISH_AXI_PORT','LAVISH_AXI_STATE_DIR','LAVISH_AXI_HOST','LAVISH_AXI_LINK_HOST','LAVISH_AXI_ALLOWED_HOSTS','LAVISH_MB_REMOTE_CONFIG','LAVISH_APP_TEST_CDP'];
+const FORWARDED=['LAVISH_APP_CORE_ROOT','BRUVISH_TOOLS_ROOT','LAVISH_AXI_PORT','LAVISH_AXI_STATE_DIR','LAVISH_AXI_HOST','LAVISH_AXI_LINK_HOST','LAVISH_AXI_ALLOWED_HOSTS','LAVISH_MB_REMOTE_CONFIG'];
 try{
  if(process.argv.length!==4)throw Error('Usage: lavish-app-open URL absoluteHTMLPath');
  const request=protocol.validate(process.argv[2],process.argv[3],protocol.stateRoot());

@@ -3,7 +3,7 @@ import {makeBundle,acknowledgingApp,runOpener,reviewUrl} from '../test-helpers/o
 function fixture(prefix,script){const dir=fs.mkdtempSync(path.join(os.tmpdir(),prefix)),bundle=makeBundle(dir,script),file=path.join(dir,'dummy.html');fs.writeFileSync(file,'dummy');return {dir,bundle,file};}
 
 test('the app is launched through LaunchServices, outside the caller, with the request in argv',{timeout:25000},()=>{const {dir,bundle,file}=fixture('lavish-launch-',acknowledgingApp());try{
- const result=runOpener(dir,bundle,file,{ELECTRON_RUN_AS_NODE:'1',LAVISH_AXI_PORT:'4390',LAVISH_AXI_HTML_APP_TOKEN:'not-for-the-app'});
+ const result=runOpener(dir,bundle,file,{ELECTRON_RUN_AS_NODE:'1',LAVISH_AXI_PORT:'4390',LAVISH_AXI_HTML_APP_TOKEN:'not-for-the-app',LAVISH_APP_TEST_CDP:'1'});
  assert.equal(result.status,0,result.stderr);
  assert.equal(result.calls.length,1);const [call]=result.calls,open=parseOpen(call.args),log=path.join(result.root,'app.log');
  assert.equal(call.command,'/usr/bin/open');
