@@ -186,7 +186,8 @@ test('runtime bridge relays the mode to the host page, which remembers it for ev
   assert.match(addon, /if \(mode\)\n\s*send\('mode', \{ mode \}\)/);
 });
 
-test('interview questions explain the two-tap answer', async () => {
+test('interview questions explain the two-tap answer and carry no free text field', async () => {
   const html = await renderDocument(doc([card('q', { status: 'waiting', question: { options: [{ value: 'si', label: 'Sì' }, { value: 'no', label: 'No' }] } })]));
-  assert.match(html, /<\/label><p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla\.<\/p><label>Nota/);
+  assert.match(html, /<\/label><p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla\.<\/p><button type="submit">/);
+  assert.doesNotMatch(html, /<textarea|<input(?![^>]*type="radio")/, 'notes go through the annotation tool');
 });

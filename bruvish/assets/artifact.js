@@ -32,8 +32,8 @@
             speechSynthesis.cancel();
             return;
         } const card = button.closest('.card'); const text = [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p')].map(p => p.textContent)].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
-        document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('submit', event => { event.preventDefault(); const values = new FormData(form); const answer = { choice: String(values.get('choice') || ''), note: String(values.get('note') || '') }; const status = form.querySelector('.queue-status'); if (!answer.choice && !answer.note) {
-            status.textContent = 'Scegli una risposta o scrivi una nota.';
+        document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('submit', event => { event.preventDefault(); const values = new FormData(form); const answer = { choice: String(values.get('choice') || '') }; const status = form.querySelector('.queue-status'); if (!answer.choice) {
+            status.textContent = 'Scegli una risposta.';
             return;
         } if (!window.lavish) {
             status.textContent = 'Apri la pagina con Lavish per accodare la risposta.';

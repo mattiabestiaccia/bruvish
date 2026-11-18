@@ -24,6 +24,17 @@
     const brand = document.querySelector('.brand-mark');
     if (brand)
         brand.textContent = 'BRUVISH';
+    // Top left, before the mark: the arrow back to the artifacts index (the catalog home, served at /).
+    const brandBox = document.querySelector('.brand');
+    if (brandBox) {
+        const index = document.createElement('a');
+        index.className = 'mb-index';
+        index.href = '/';
+        index.textContent = '←';
+        index.setAttribute('aria-label', 'Indice degli artefatti');
+        index.setAttribute('title', 'Indice degli artefatti');
+        brandBox.before(index);
+    }
     const panelTitle = document.querySelector('.panel h2'), sendLabel = document.getElementById('send'), endLabel = document.querySelector('#sendAndEnd span'), chatField = document.getElementById('chatInput');
     if (panelTitle)
         panelTitle.textContent = 'Conversazione';

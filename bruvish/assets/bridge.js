@@ -70,11 +70,11 @@
             conflicts[id] = true;
         }
     } initialized = true; draft(); outline(); }
-    // Closed cards (answered and not new) are hidden while the host page asks for it, unless that would hide every card.
+    // Closed cards (answered and not new) are hidden from the start, as the host page's default, and until the host
+    // page asks to show them; never every card. Applied before the load, so the scroll restored on load lands on this layout.
     const closed = el => el.dataset.mbState === 'answered' && !('mbNew' in el.dataset);
-    let hideClosed = false, closedStyle = null;
-    function outline() {
-        const visible = el => el.getClientRects().length;
+    let hideClosed = true, closedStyle = null;
+    function applyClosed() {
         const all = [...document.querySelectorAll('[data-mb-state],.card')];
         const closedCount = all.filter(closed).length, openCount = all.length - closedCount;
         const hiding = hideClosed && closedCount > 0 && openCount > 0;
@@ -84,6 +84,11 @@
             (document.head || document.documentElement).append(closedStyle);
         }
         document.documentElement.dataset.mbClosed = hiding ? 'hide' : 'show';
+        return { all, closedCount, openCount, hiding };
+    }
+    function outline() {
+        const visible = el => el.getClientRects().length;
+        const { all, closedCount, openCount, hiding } = applyClosed();
         // A closed card hidden by that filter stays in the minimap, as a dot, when its place in the page is visible.
         const hiddenClosed = el => hiding && closed(el) && !visible(el) && Boolean(el.parentElement?.getClientRects().length);
         const cards = all.filter(el => visible(el) || hiddenClosed(el));
@@ -203,6 +208,7 @@
         else
             lastTap = event.timeStamp;
     }, true);
+    applyClosed();
     new MutationObserver(records => { if (records.some(r => r.type === 'childList' || r.attributeName === 'hidden' || r.attributeName === 'data-mb-state' || r.attributeName === 'data-mb-new' || r.attributeName === 'open'))
         schedule(); }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'data-mb-state', 'data-mb-new', 'open'] });
     document.fonts?.ready.then(schedule);

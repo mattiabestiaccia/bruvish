@@ -8,7 +8,7 @@ const read = name => readFile(new URL('../assets/' + name, import.meta.url), 'ut
 const [bridge, addon, css, artifactJs] = await Promise.all(['bridge.js', 'chrome-addon.js', 'chrome-addon.css', 'artifact.js'].map(read));
 const tick = () => new Promise(r => setImmediate(r));
 
-function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null } = {}) {
+function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null, handshake = true } = {}) {
   const posted = [], listeners = {}, documentListeners = {}, styles = [];
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
@@ -43,8 +43,10 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
   };
   vm.runInNewContext(bridge, context);
   const deliver = data => listeners.message.forEach(fn => fn({ source: parent, data }));
-  deliver({ type: 'lavish-mb:hello', token: 't' });
-  deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
+  if (handshake) {
+    deliver({ type: 'lavish-mb:hello', token: 't' });
+    deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
+  }
   const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
   return { posted, observed: context.observed, root, dispatch, deliver, styles };
 }
@@ -73,16 +75,16 @@ function element(tag) {
 
 // The upstream bar pieces the addon restyles: brand, annotate switch (track, knob, label), panel title, send buttons.
 function upstreamChrome() {
-  const bar = element('div'), brand = element('span'), annotate = element('button'), track = element('span'), knob = element('span'), label = element('span');
-  brand.className = 'brand-mark'; brand.textContent = 'Lavish';
+  const bar = element('div'), brandBox = element('div'), brand = element('span'), annotate = element('button'), track = element('span'), knob = element('span'), label = element('span');
+  brandBox.className = 'brand'; brand.className = 'brand-mark'; brand.textContent = 'Lavish'; brandBox.append(brand);
   annotate.className = 'annotate-switch';
   annotate.setAttribute('aria-pressed', 'true');
   annotate.setAttribute('title', 'Toggle annotate/explore mode (⌘E / Ctrl+E)');
   track.className = 'switch-track'; knob.className = 'switch-knob'; label.textContent = 'Annotate';
-  track.append(knob); annotate.append(track, label); bar.append(brand, annotate);
+  track.append(knob); annotate.append(track, label); bar.append(brandBox, annotate);
   const title = element('h2'), send = element('button'), end = element('span'), input = element('textarea');
   title.textContent = 'Conversation'; send.textContent = 'Send to Agent'; end.textContent = 'Send & End';
-  return { bar, brand, annotate, title, send, end, input };
+  return { bar, brandBox, brand, annotate, title, send, end, input };
 }
 
 async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null } = {}) {
@@ -92,7 +94,7 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   const body = element('body'), head = element('head');
   const root = { style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
   const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {} };
-  const bySelector = chrome ? { '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {};
+  const bySelector = chrome ? { '.brand': chrome.brandBox, '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {};
   const document = {
     body, head, documentElement: root, getElementById: id => byId[id] ?? null, createElement: element,
     createElementNS: (namespace, tag) => Object.assign(element(tag), { namespace }),
@@ -202,14 +204,16 @@ test('minimap shape and colours follow the approved mock-up; the new lines pulse
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.mb-rail \.mb-new i\{animation:none\}\}/);
 });
 
-test('bridge: closed cards hide only on request and never all of them; the outline reports counts, dots and the theme family', () => {
+test('bridge: closed cards are hidden from the start until the host page asks to show them, never all of them; the outline reports counts, dots and the theme family', () => {
   const palette = { '--card': 'rgba(38,30,51,0.5)', '--line': '#4d4360', '--ink': '#e3e2f5', '--muted': '#a5b1cb', '--title': '#49cbbd', '--field': 'rgba(19,15,27,0.3)' };
   const cards = [{ id: 'a', state: 'waiting', color: '#d6ab32' }, { id: 'b', state: 'answered', color: '#63ca84' }, { id: 'c', state: 'answered', fresh: 'changed', color: '#63ca84' }];
+  const early = runBridge(cards, { palette, handshake: false });
+  assert.deepEqual([early.root.dataset.mbClosed, early.styles.length, early.posted.length], ['hide', 1, 0], 'closed cards hidden as soon as the bridge runs, before the load and any message from the host page');
   const run = runBridge(cards, { palette });
   const last = () => run.posted.filter(m => m.type === 'lavish-mb:outline').at(-1);
   assert.deepEqual({ ...last().palette }, { card: 'rgba(38,30,51,0.5)', line: '#4d4360', ink: '#e3e2f5', muted: '#a5b1cb', title: '#49cbbd', field: 'rgba(19,15,27,0.3)' });
   assert.deepEqual([last().closed, last().open], [1, 2], 'a new or changed answered card is not closed');
-  assert.equal(run.root.dataset.mbClosed, 'show', 'nothing hidden before the host page asks');
+  assert.equal(run.root.dataset.mbClosed, 'hide');
   run.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
   assert.equal(run.root.dataset.mbClosed, 'hide');
   assert.match(run.styles[0].textContent, /:root\[data-mb-closed=hide\] \[data-mb-state=answered\]:not\(\[data-mb-new\]\)\{display:none!important\}/);
@@ -247,10 +251,13 @@ test('bridge: a double tap of the right Option key in the artifact asks for anno
   assert.equal(toggles(), 3, 'a focused radio button is not a text field');
 });
 
-test('addon: BRUVISH mark, Italian panel, annotate as a labelless pencil switch mirrored to aria-checked', async () => {
+test('addon: arrow to the artifacts index, BRUVISH mark, Italian panel, annotate as a labelless pencil switch mirrored to aria-checked', async () => {
   const chrome = upstreamChrome();
   const { head } = await runAddon(new Map(), { chrome });
   assert.equal(chrome.brand.textContent, 'BRUVISH');
+  const index = chrome.bar.children[0];
+  assert.deepEqual([index.tagName, index.className, index.href, index.textContent, index.attributes['aria-label']], ['A', 'mb-index', '/', '←', 'Indice degli artefatti'], 'the arrow to the catalog home comes first, before the mark');
+  assert.equal(chrome.bar.children[1], chrome.brandBox);
   assert.deepEqual([chrome.title.textContent, chrome.send.textContent, chrome.end.textContent, chrome.input.placeholder], ['Conversazione', 'Invia all’agente', 'Invia e chiudi', 'Scrivi all’agente…']);
   assert.equal(head.children[0].href, '/mb-catalog-fonts.css', 'the page fonts reach the frame');
   const annotate = chrome.annotate;

@@ -44,6 +44,8 @@ async function cdp(url) { const ws = new WebSocket(url); await new Promise((r, j
             throw new Error('iframe context unavailable');
     } const r = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true, ...contextId ? { contextId } : {} }, frame ? artifactSession : undefined); if (r.exceptionDetails)
         throw new Error(JSON.stringify(r.exceptionDetails)); return r.result.value; } }; }
+// Font sizes under 13px of every text the user can see inside the given scopes: text nodes, generated content, form fields.
+const SMALL_TEXT = '(selector=>{const out=[],small=(el,size,text)=>{if(size>0&&size<13)out.push([el.getAttribute("class")||el.tagName,text.slice(0,30),size])};for(const scope of document.querySelectorAll(selector)){const walker=document.createTreeWalker(scope,NodeFilter.SHOW_TEXT);for(let n=walker.nextNode();n;n=walker.nextNode()){const el=n.parentElement;if(n.textContent.trim()&&el.checkVisibility())small(el,parseFloat(getComputedStyle(el).fontSize),n.textContent.trim())}for(const el of scope.querySelectorAll("*")){if(!el.checkVisibility())continue;for(const pseudo of ["::before","::after"]){const css=getComputedStyle(el,pseudo);if(css.display!=="none"&&css.content.length>2&&/^["\x27]/.test(css.content))small(el,parseFloat(css.fontSize),css.content)}if(el.matches("textarea,select,input:not([type=checkbox]):not([type=radio])"))small(el,parseFloat(getComputedStyle(el).fontSize),el.value||el.placeholder||"")}}return out})';
 test('real upstream chrome has fixed UI, runtime outline, reliable drafts and native feedback', { timeout: 60000, skip: buildSkip || (!chrome && 'set LAVISH_MB_TEST_CHROME to a Chrome for Testing executable') }, async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'lavish-browser-'));
     let server, browser, client;
@@ -96,6 +98,10 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         // Frame from the approved mock-up: BRUVISH mark, labelless icon switches, closed cards hidden by default (q1 and q5 are answered and not new).
         assert.deepEqual(await client.evaluate('(()=>{const a=document.getElementById("annotation"),c=document.querySelector(".mb-closed-switch");return {brand:document.querySelector(".brand-mark").textContent,role:a.getAttribute("role"),checked:a.getAttribute("aria-checked"),label:a.textContent.trim(),closedShown:getComputedStyle(c).display!=="none",closedChecked:c.getAttribute("aria-checked"),dots:Array.from(document.querySelectorAll(".mb-rail .mb-closed")).map(b=>b.dataset.target),title:document.querySelector(".panel h2").textContent,font:getComputedStyle(document.querySelector(".bar")).fontFamily}})()'),{brand:'BRUVISH',role:'switch',checked:'true',label:'',closedShown:true,closedChecked:'false',dots:['q1','q5'],title:'Conversazione',font:'"Atkinson Hyperlegible Next", system-ui, sans-serif'});
         assert.deepEqual(await client.evaluate('["q1","q5","q0"].map(id=>getComputedStyle(document.getElementById(id)).display)',true),['none','none','block']);
+        // Top left, the arrow back to the artifacts index: it leads to the catalog home of the same server.
+        const index = await client.evaluate('(()=>{const a=document.querySelector(".bar .mb-index");return a&&{text:a.textContent,href:a.href,first:a===document.querySelector(".bar").firstElementChild,label:a.getAttribute("aria-label")}})()');
+        assert.deepEqual(index, { text: '←', href: new URL('/', session.url).href, first: true, label: 'Indice degli artefatti' });
+        assert.equal((await fetch(index.href)).headers.get('x-lavish-catalog'), '1', 'the arrow opens the catalog');
         await client.evaluate('document.querySelector(".mb-closed-switch").click()');
         await until(() => client.evaluate('getComputedStyle(document.getElementById("q1")).display==="block"', true), 'closed cards shown by the switch');
         await until(() => client.evaluate('document.querySelectorAll(".mb-rail .mb-closed").length===0'), 'no dots while the closed cards are shown');
@@ -152,23 +158,24 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(() => client.evaluate('localStorage.getItem("lavish-mb:mode")==="transparent"'), 'mode remembered by the host page');
         assert.deepEqual(await client.evaluate('[getComputedStyle(document.documentElement).backgroundColor,getComputedStyle(document.body).backgroundColor,document.querySelector("[data-mb-mode-switch]").getAttribute("aria-checked")]', true), ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'true']);
         await until(async()=>{try{await matchingCardColors();return true;}catch{return false;}},'card colors in minimap after mode change');
+        // Interview cards carry no free text field: notes go through the annotation tool. The draft is the choice.
+        assert.equal(await client.evaluate('document.querySelectorAll("textarea,[data-mb-question] input:not([type=radio])").length', true), 0);
+        const q0Choice = 'document.querySelector("[data-mb-question=q0] input:checked")?.value';
         await client.evaluate('const choice=document.querySelector("[data-mb-question=q0] input[value=yes]");choice.checked=true;choice.dispatchEvent(new Event("input",{bubbles:true}))', true);
-        await client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]").value="Bozza personale";document.querySelector("[data-mb-field=\\"q0:note\\"]").dispatchEvent(new Event("input",{bubbles:true}))', true);
-        await until(() => client.evaluate('Object.keys(localStorage).some(k=>k.startsWith("lavish-mb:")&&localStorage[k].includes("Bozza personale"))'), 'draft persisted');
+        await until(() => client.evaluate('Object.values(Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith("lavish-mb:v1:")))).some(v=>JSON.parse(v).fields?.["q0:choice"]?.value==="yes")'), 'draft persisted');
         await client.call('Page.reload');
-        await until(() => client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")?.value==="Bozza personale"', true), 'draft restored after reload');
+        await until(async () => await client.evaluate(q0Choice, true) === 'yes', 'draft restored after reload');
         await until(() => client.evaluate('document.documentElement.dataset.mbMode==="transparent"', true), 'mode restored after reload');
-        input.state.answers.q0 = { choice: 'no', note: 'Decisione canonica nuova' };
+        input.state.answers.q0 = { choice: 'no' };
         input.state.revision = 2;
         await writeFile(file, await renderDocument(input));
         await until(() => client.evaluate('document.documentElement.dataset.mbStateVersion==="2"', true), 'live reload');
-        await until(() => client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")?.value==="Decisione canonica nuova"', true), 'canonical preserved');
-        assert.equal(await client.evaluate('document.querySelector("[data-mb-question=q0] input[value=no]").checked', true), true, 'a conflicting radio draft must not replace a new canonical choice');
+        assert.equal(await client.evaluate(q0Choice, true), 'no', 'a conflicting radio draft must not replace a new canonical choice');
         await until(() => client.evaluate('!document.querySelectorAll(".mb-tools button")[0].hidden'), 'conflict visible');
         await client.evaluate('document.querySelectorAll(".mb-tools button")[0].click()');
-        assert((await client.evaluate('document.querySelector(".mb-conflict-dialog").textContent')).includes('Bozza personale'));
-        await client.evaluate('Array.from(document.querySelectorAll(".mb-conflict-dialog [data-field]")).find(row=>row.dataset.field==="q0:note").querySelector("button").click()');
-        await until(() => client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")?.value==="Bozza personale"', true), 'explicit draft restoration');
+        assert.equal(await client.evaluate('document.querySelector(".mb-conflict-dialog [data-field=\\"q0:choice\\"] pre")?.textContent'), 'yes');
+        await client.evaluate('document.querySelector(".mb-conflict-dialog [data-field=\\"q0:choice\\"] button").click()');
+        await until(async () => await client.evaluate(q0Choice, true) === 'yes', 'explicit draft restoration');
         await client.evaluate('document.querySelector(".mb-conflict-dialog > button")?.click()');
         await client.evaluate('document.getElementById("sidebarToggle").click()');
         assert.equal(await client.evaluate('document.body.classList.contains("panel-collapsed")'), true);
@@ -206,15 +213,18 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         poll.stdout.on('data', d => feedback += d);
         await client.evaluate('document.getElementById("send").click()');
         assert.equal(await new Promise(r => poll.on('exit', r)), 0);
-        assert(feedback.includes('Bozza personale'), feedback);
+        assert(/choice\W+yes/.test(feedback), feedback);
         assert(feedback.includes('q0'), feedback);
         // Frame style of the approved mock-up as the browser computes it: agent replies inline without a bubble,
         // the reader's messages on a very light green, the restyled frame text never under 13px.
         await until(() => client.evaluate('document.querySelector(".bubble.user")!==null&&document.querySelector(".bubble.agent .chat-md")!==null'), 'reader and agent messages in the conversation');
-        const conversation = await client.evaluate('(()=>{const agent=getComputedStyle(document.querySelector(".bubble.agent")),user=getComputedStyle(document.querySelector(".bubble.user")).backgroundColor.match(/[0-9.]+/g).map(Number);return {agentBorder:agent.borderTopWidth,agentBackground:agent.backgroundColor,userGreen:user[1]>user[0]&&user[1]>user[2]&&(user.length<4||user[3]>0)}})()');
-        assert.deepEqual(conversation, { agentBorder: '0px', agentBackground: 'rgba(0, 0, 0, 0)', userGreen: true }, JSON.stringify(conversation));
-        const sizes = await client.evaluate('(()=>{const out={};for(const [name,el,pseudo] of [["brand",document.querySelector(".brand-mark")],["title",document.querySelector(".panel h2")],["reply",document.querySelector(".bubble.agent .chat-md")],["author",document.querySelector(".bubble.agent>small:first-child"),"::before"],["composer",document.getElementById("chatInput")],["send",document.getElementById("send")]])out[name]=el?parseFloat(getComputedStyle(el,pseudo).fontSize):null;return out})()');
-        assert(Object.values(sizes).every(size => size >= 13), 'frame text sizes ' + JSON.stringify(sizes));
+        const conversation = await client.evaluate('(()=>{const agent=getComputedStyle(document.querySelector(".bubble.agent")),user=getComputedStyle(document.querySelector(".bubble.user")),green=c=>{const n=c.match(/[0-9.]+/g).map(Number);return n[1]>n[0]&&n[1]>n[2]&&(n.length<4||n[3]>0)};return {agentBorder:agent.borderTopWidth,agentBackground:agent.backgroundColor,userBorders:[user.borderTopWidth,user.borderRightWidth,user.borderBottomWidth],userRule:parseFloat(user.borderLeftWidth)>0&&green(user.borderLeftColor),userGreen:green(user.backgroundColor)}})()');
+        assert.deepEqual(conversation, { agentBorder: '0px', agentBackground: 'rgba(0, 0, 0, 0)', userBorders: ['0px', '0px', '0px'], userRule: true, userGreen: true }, JSON.stringify(conversation));
+        assert.deepEqual(await client.evaluate(SMALL_TEXT + '(".bar,.panel")'), [], 'no frame text under 13px');
+        await client.evaluate('document.getElementById("moreButton").click()');
+        await until(() => client.evaluate('!document.getElementById("moreMenu").hidden'), 'more menu open');
+        assert.deepEqual(await client.evaluate(SMALL_TEXT + '("#moreMenu")'), [], 'no menu text under 13px');
+        await client.evaluate('document.getElementById("moreButton").click()');
         // A first tap on an answer arms it, outlined in the theme accent of the page.
         await client.evaluate('document.querySelector("[data-mb-question=q4] input[value=yes]").click()', true);
         assert.deepEqual(await client.evaluate('(()=>{const label=document.querySelector("[data-mb-question=q4] input[value=yes]").closest("label"),t=document.createElement("i");t.style.color="var(--title)";document.body.append(t);const accent=getComputedStyle(t).color;t.remove();return [label.classList.contains("mb-armed"),getComputedStyle(label).borderTopColor===accent]})()', true), [true, true], 'armed answer in the accent');
