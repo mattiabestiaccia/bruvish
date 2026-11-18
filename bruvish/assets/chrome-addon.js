@@ -203,11 +203,16 @@
             outlineItems = m.items.filter(i => typeof i.id === 'string' && typeof i.title === 'string').slice(0, 400);
             if (typeof m.accent === 'string' && m.accent && CSS.supports('color', m.accent))
                 rail.style.setProperty('--mb-accent', m.accent);
-            // Bar and panel take the theme family of the artifact; anything that is not a colour is ignored.
-            if (m.palette && typeof m.palette === 'object' && root)
+            // Bar and panel take the theme family of the artifact only when it reports all six colours; otherwise theme B, never a mix.
+            if (root) {
+                const palette = m.palette && typeof m.palette === 'object' ? m.palette : {};
+                const complete = PALETTE.every(name => typeof palette[name] === 'string' && palette[name] && CSS.supports('color', palette[name]));
                 for (const name of PALETTE)
-                    if (typeof m.palette[name] === 'string' && m.palette[name] && CSS.supports('color', m.palette[name]))
-                        root.style.setProperty('--mb-' + name, m.palette[name]);
+                    if (complete)
+                        root.style.setProperty('--mb-' + name, palette[name]);
+                    else
+                        root.style.removeProperty('--mb-' + name);
+            }
             closedSwitch.hidden = !(Number(m.closed) > 0 && Number(m.open) > 0);
             renderOutline();
         }

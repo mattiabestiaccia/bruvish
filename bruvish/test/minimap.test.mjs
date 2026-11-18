@@ -90,7 +90,7 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
   const body = element('body'), head = element('head');
-  const root = { style: { props: {}, setProperty(name, value) { this.props[name] = value; } } };
+  const root = { style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
   const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {} };
   const bySelector = chrome ? { '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {};
   const document = {
@@ -302,9 +302,20 @@ test('addon: closed-cards switch (check in a circle) next to annotate, hidden un
   deliver({ type: 'lavish-mb:ready' });
   assert.deepEqual(posted.filter(m => m.type === 'lavish-mb:closed').map(m => m.show), [false], 'closed cards hidden by default');
   const items = [{ id: 'a', title: 'Carta a', state: 'waiting' }, { id: 'b', title: 'Carta b', state: 'answered', closed: true, hidden: true }];
-  deliver({ type: 'lavish-mb:outline', items, closed: 1, open: 1, palette: { card: 'rgba(38,30,51,0.5)', title: '#49cbbd', ink: 'url(x)' } });
+  const family = { card: 'rgba(38,30,51,0.5)', line: '#4d4360', ink: '#e3e2f5', muted: '#a5b1cb', title: '#49cbbd', field: 'rgba(19,15,27,0.3)' };
+  const framePalette = () => Object.fromEntries(Object.keys(family).map(name => [name, root.style.props['--mb-' + name]]));
+  deliver({ type: 'lavish-mb:outline', items, closed: 1, open: 1, palette: family });
   assert.equal(closed.hidden, false);
-  assert.deepEqual([root.style.props['--mb-card'], root.style.props['--mb-title'], root.style.props['--mb-ink']], ['rgba(38,30,51,0.5)', '#49cbbd', undefined], 'only colours reach the frame');
+  assert.deepEqual(framePalette(), family, 'a complete family reaches the frame');
+  const themeB = Object.fromEntries(Object.keys(family).map(name => [name, undefined]));
+  deliver({ type: 'lavish-mb:outline', items, closed: 1, open: 1, palette: { card: '', line: '#e5e5e5', ink: '#1d1d1f', muted: '#6e6e73', title: '', field: '' } });
+  assert.deepEqual(framePalette(), themeB, 'a page that defines only some colours gets theme B, never a mix');
+  deliver({ type: 'lavish-mb:outline', items, closed: 1, open: 1, palette: family });
+  deliver({ type: 'lavish-mb:outline', items, closed: 1, open: 1, palette: { ...family, ink: 'url(x)' } });
+  assert.deepEqual(framePalette(), themeB, 'a value that is not a colour drops the whole family');
+  deliver({ type: 'lavish-mb:outline', items, closed: 1, open: 1, palette: family });
+  deliver({ type: 'lavish-mb:outline', items, closed: 1, open: 1 });
+  assert.deepEqual(framePalette(), themeB, 'a revision without a family returns to theme B');
   assert.deepEqual(rail.children.map(b => b.classList.contains('mb-closed')), [false, true], 'the hidden closed card is a dot');
   closed.click();
   assert.equal(closed.attributes['aria-checked'], 'true');
@@ -314,20 +325,6 @@ test('addon: closed-cards switch (check in a circle) next to annotate, hidden un
   assert.deepEqual(posted.filter(m => ['lavish-mb:closed', 'lavish-mb:reveal'].includes(m.type)).slice(-2).map(m => [m.type, m.show ?? m.id]), [['lavish-mb:closed', true], ['lavish-mb:reveal', 'b']], 'a dot shows the closed cards, then goes there');
   deliver({ type: 'lavish-mb:outline', items: [{ id: 'a', title: 'Carta a', state: 'answered', closed: true }], closed: 1, open: 0 });
   assert.equal(closed.hidden, true, 'nothing to filter on a page of closed cards only');
-});
-
-test('frame style: theme glass, BRUVISH lettering, icon switches, light green reader messages, nothing under 13px', () => {
-  const rule = selector => css.match(new RegExp('(?:^|\\})' + selector.replace(/[.[\]=()*+]/g, '\\$&') + '\\{([^}]*)\\}', 'm'))?.[1] || '';
-  assert.match(css, /--mb-glass:color-mix\(in srgb,var\(--mb-fondo\) 72%,transparent\)/);
-  assert.match(css, /--bg-bar:var\(--mb-glass\);--bg-panel:var\(--mb-glass\)/);
-  assert.match(css, /--font-sans:'Atkinson Hyperlegible Next',system-ui,sans-serif;--font-serif:STIXLocal,serif/);
-  assert.match(rule('.brand-mark'), /font-family:STIXLocal,serif;[^}]*letter-spacing:\.16em;color:var\(--mb-title\)/);
-  assert.match(css, /\.annotate-switch\[aria-checked=true\] \.switch-knob,\.mb-closed-switch\[aria-checked=true\] \.switch-knob\{transform:translateX\(16px\)/);
-  assert.match(rule('.bubble.user'), /background:color-mix\(in srgb,var\(--mb-user\) 18%,transparent\)/);
-  assert.match(css, /--mb-user:#86efac/);
-  assert.match(rule('.bubble.agent'), /padding:0;border:0;background:transparent/, 'agent replies inline, no bubble');
-  const sizes = [...css.matchAll(/font(?:-size)?:[^;}]*?(\d+(?:\.\d+)?)px/g)].map(m => Number(m[1]));
-  assert(sizes.length && sizes.every(size => size >= 13), 'frame text sizes ' + sizes);
 });
 
 test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {

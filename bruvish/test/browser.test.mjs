@@ -208,6 +208,16 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         assert.equal(await new Promise(r => poll.on('exit', r)), 0);
         assert(feedback.includes('Bozza personale'), feedback);
         assert(feedback.includes('q0'), feedback);
+        // Frame style of the approved mock-up as the browser computes it: agent replies inline without a bubble,
+        // the reader's messages on a very light green, the restyled frame text never under 13px.
+        await until(() => client.evaluate('document.querySelector(".bubble.user")!==null&&document.querySelector(".bubble.agent .chat-md")!==null'), 'reader and agent messages in the conversation');
+        const conversation = await client.evaluate('(()=>{const agent=getComputedStyle(document.querySelector(".bubble.agent")),user=getComputedStyle(document.querySelector(".bubble.user")).backgroundColor.match(/[0-9.]+/g).map(Number);return {agentBorder:agent.borderTopWidth,agentBackground:agent.backgroundColor,userGreen:user[1]>user[0]&&user[1]>user[2]&&(user.length<4||user[3]>0)}})()');
+        assert.deepEqual(conversation, { agentBorder: '0px', agentBackground: 'rgba(0, 0, 0, 0)', userGreen: true }, JSON.stringify(conversation));
+        const sizes = await client.evaluate('(()=>{const out={};for(const [name,el,pseudo] of [["brand",document.querySelector(".brand-mark")],["title",document.querySelector(".panel h2")],["reply",document.querySelector(".bubble.agent .chat-md")],["author",document.querySelector(".bubble.agent>small:first-child"),"::before"],["composer",document.getElementById("chatInput")],["send",document.getElementById("send")]])out[name]=el?parseFloat(getComputedStyle(el,pseudo).fontSize):null;return out})()');
+        assert(Object.values(sizes).every(size => size >= 13), 'frame text sizes ' + JSON.stringify(sizes));
+        // A first tap on an answer arms it, outlined in the theme accent of the page.
+        await client.evaluate('document.querySelector("[data-mb-question=q4] input[value=yes]").click()', true);
+        assert.deepEqual(await client.evaluate('(()=>{const label=document.querySelector("[data-mb-question=q4] input[value=yes]").closest("label"),t=document.createElement("i");t.style.color="var(--title)";document.body.append(t);const accent=getComputedStyle(t).color;t.remove();return [label.classList.contains("mb-armed"),getComputedStyle(label).borderTopColor===accent]})()', true), [true, true], 'armed answer in the accent');
         assert.equal(client.errors.length, 0, JSON.stringify(client.errors));
     }
     finally {
