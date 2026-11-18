@@ -2,6 +2,7 @@
     // Backdrop mode: dark (full #1f2023) or transparent. Applied before the body renders.
     // The choice is remembered on the device: here when storage works, otherwise through the
     // Lavish runtime bridge, which forwards it to the host page (the artifact iframe is sandboxed).
+    // Only a pointer-fine device honours a saved choice: without the switch (phone), the default applies.
     const KEY = 'lavish-mb:mode', MODES = ['dark', 'transparent'], root = document.documentElement;
     const stored = () => { try {
         return matchMedia('(pointer: fine)').matches ? localStorage.getItem(KEY) : null;
