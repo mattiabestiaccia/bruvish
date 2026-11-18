@@ -159,9 +159,13 @@ test('the guide check ignores BRUVISH_DESIGN: it is about the installed copy', (
     try {
         const outside = path.join(ws.dir, 'elsewhere.md');
         write(outside, '# Not installed\n');
-        const result = runScript(installCheckout(ws), { ...ws.env, BRUVISH_DESIGN: outside }, 'install');
+        const env = { ...ws.env, BRUVISH_DESIGN: outside };
+        const result = runScript(installCheckout(ws), env, 'install');
         assert.equal(result.status, 0, result.output);
         assert.match(result.stderr, /Warning: lavish-axi design does not print the style guide/);
+        const printed = spawnSync(process.execPath, [path.join(tools(ws), 'current/bin/lavish-axi'), 'design'], { env, encoding: 'utf8' });
+        assert.equal(printed.status, 0, printed.stderr);
+        assert.match(printed.stdout, /# Not installed/, 'the installed command honours BRUVISH_DESIGN');
     } finally {
         rmSync(ws.dir, { recursive: true, force: true });
     }

@@ -41,7 +41,7 @@ writeFileSync('dist/bruvish.mjs', [
     "if (!existsSync(new URL('../node_modules/fake-dep/index.js', import.meta.url))) { console.error('fake-dep missing'); process.exit(1); }",
     "if (process.argv[2] === '--version') console.log(" + JSON.stringify(version) + ');',
     "if (process.argv[2] === 'design') {",
-    "  const guide = new URL('./bruvish-design.md', import.meta.url);",
+    "  const guide = process.env.BRUVISH_DESIGN || new URL('./bruvish-design.md', import.meta.url);",
     "  if (existsSync(guide)) process.stdout.write(readFileSync(guide, 'utf8') + '\\\\n');",
     "  else { console.error('Bruvish style guide missing: fake'); process.exitCode = 1; }",
     '}',
