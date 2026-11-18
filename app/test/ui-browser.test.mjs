@@ -28,6 +28,7 @@ window.lavishApp = {
   select: async id => calls.push(['select',id]),
   close: async id => calls.push(['close',id]),
   chooseFile: async () => calls.push(['choose']),
+  reviewAction: async name => {calls.push(['review-action',name]);if(name==='annotate')reviewState.controls.annotate.checked=!reviewState.controls.annotate.checked;return reviewState;},
   preferences: async settings => Object.assign(libraryPreferences,settings),
   mark: async request => {
     calls.push(['mark',request]);
@@ -113,6 +114,14 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     await until(() => evaluate('!document.getElementById("reviews").classList.contains("grid")'));
     await evaluate('document.querySelector(".review .favorite").click()');
     await until(() => evaluate('document.querySelectorAll(".review").length===0'));
+    await evaluate('window.reviewState={preferences:libraryPreferences,tabs:[{id:"tab1",title:"An unusually long review title to exercise tab overflow"}],active:"tab1",controls:Object.fromEntries(["annotate","closed","panel","more","revisions","warnings"].map(id=>[id,{hidden:false,disabled:false,checked:true,expanded:false,count:id==="warnings"?"3":""}]))};changed(reviewState)');
+    for (const width of [720,1000,1240]) {
+      await call('Emulation.setDeviceMetricsOverride',{width,height:920,deviceScaleFactor:1,mobile:false});
+      assert.deepEqual(await evaluate('(()=>{const bar=document.querySelector(".toolbar").getBoundingClientRect(),group=document.getElementById("toolbar-actions").getBoundingClientRect();return {left:bar.left,width:bar.width,height:bar.height,groupInside:group.right<=bar.right,groupAtRight:bar.right-group.right===8,centered:[...document.querySelectorAll("#toolbar-actions button")].every(b=>{const r=b.getBoundingClientRect();return r.top+r.height/2===bar.height/2})}})()'),{left:0,width,height:40,groupInside:true,groupAtRight:true,centered:true});
+    }
+    await evaluate('document.getElementById("annotate").click()');
+    await until(()=>evaluate('document.getElementById("annotate").getAttribute("aria-checked")==="false"'));
+    assert.deepEqual(await evaluate('calls.at(-1)'),['review-action','annotate']);
   } finally {
     ws?.close();
     if (browser && browser.exitCode===null && browser.signalCode===null) {browser.kill('SIGTERM');await new Promise(r=>browser.once('exit',r));}

@@ -82,7 +82,20 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   }
   // Exercise real application IPC and frame styling without reloading the review.
   const stableView = JSON.parse(reused.stdout).view;
-  assert.deepEqual(await client.evaluate('(()=>{const bar=document.querySelector(".bar"),brand=document.querySelector(".brand");return [bar.getBoundingClientRect().top,bar.getBoundingClientRect().height,getComputedStyle(brand).display]})()'),[0,40,'none'],'review toolbar occupies the app row without a second mark');
+  assert.deepEqual(await client.evaluate('(()=>{const bar=document.querySelector(".bar"),brand=document.querySelector(".brand");return [bar.getBoundingClientRect().height,getComputedStyle(bar).display,getComputedStyle(brand).display]})()'),[0,'contents','none'],'no served toolbar row remains under the full-width app toolbar');
+  const reviewWidth=await client.evaluate('innerWidth');
+  assert.deepEqual(await uiClient.evaluate('[innerWidth,innerHeight,document.querySelector(".toolbar").getBoundingClientRect().width]'),[reviewWidth,40,reviewWidth],'one uninterrupted toolbar spans the entire window');
+  await until(()=>uiClient.evaluate('!document.getElementById("more").disabled&&!document.getElementById("more").hidden'),'review controls mirrored into native toolbar');
+  await uiClient.evaluate('document.getElementById("more").click()');
+  await until(()=>client.evaluate('!document.getElementById("moreMenu").hidden'),'local more button opens the real review menu');
+  assert.equal(await client.evaluate('document.getElementById("moreMenu").getBoundingClientRect().top'),8,'menu is below the app toolbar, inside the review');
+  await uiClient.evaluate('document.getElementById("more").click()');
+  await until(()=>client.evaluate('document.getElementById("moreMenu").hidden'),'local more button closes the review menu');
+  const wasAnnotating=await client.evaluate('document.getElementById("annotation").getAttribute("aria-checked")');
+  await uiClient.evaluate('document.getElementById("annotate").click()');
+  await until(()=>client.evaluate('document.getElementById("annotation").getAttribute("aria-checked")!=='+JSON.stringify(wasAnnotating)),'local annotation switch drives real state');
+  await uiClient.evaluate('document.getElementById("annotate").click()');
+  await until(()=>client.evaluate('document.getElementById("annotation").getAttribute("aria-checked")==='+JSON.stringify(wasAnnotating)),'annotation mode restored');
   assert.deepEqual(await uiClient.evaluate('(()=>{const mark=document.querySelector(".brand"),bar=document.querySelector(".toolbar");return [mark.textContent,getComputedStyle(mark).fontSize,bar.getBoundingClientRect().height,document.getElementById("transparent").getAttribute("role")]})()'),['BRUVISH','15px',40,'switch']);
   // Establish an acknowledged opaque baseline before measuring the toggle.
   await uiClient.evaluate('window.lavishApp.preferences({transparent:false,artifactBackground:true,layout:"list"})');

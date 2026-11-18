@@ -10,6 +10,7 @@
     "core.cjs",
     "catalog.cjs",
     "workspace.cjs",
+    "review-toolbar.cjs",
     "ipc.cjs",
     "preload.cjs",
     "preferences.cjs",

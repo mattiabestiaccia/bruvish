@@ -8,15 +8,14 @@ class Workspace {
     this.window = window; this.toolbar = toolbar; this.createView = createView; this.onChange = onChange;
     this.tabs = new Map(); this.active = null;
   }
-  snapshot() { return {active: this.active, theme: this.tabs.get(this.active)?.theme || null, tabs: [...this.tabs].map(([id, row]) => ({id, title: row.title}))}; }
+  snapshot() { return {active: this.active, theme: this.tabs.get(this.active)?.toolbar?.theme || null, controls: this.tabs.get(this.active)?.toolbar?.controls || null, tabs: [...this.tabs].map(([id, row]) => ({id, title: row.title}))}; }
   changed() { this.onChange(this.snapshot()); }
   layout() {
     const [width, height] = this.window.getContentSize();
-    if (this.active) this.tabs.get(this.active)?.view.setBounds({x: 0, y: 0, width, height});
-    // The real frame controls remain on the right, in the same row as the trusted app toolbar.
-    // Re-adding an existing child raises it above the review, not above native window buttons.
+    // One full-width local toolbar, with the review strictly below it: no overlap or split row.
+    if (this.active) this.tabs.get(this.active)?.view.setBounds({x: 0, y: 40, width, height: Math.max(0, height - 40)});
     if (this.toolbar) {
-      this.toolbar.setBounds({x: 0, y: 0, width: this.active ? Math.max(0, width - 360) : width, height: this.active ? 40 : height});
+      this.toolbar.setBounds({x: 0, y: 0, width, height: this.active ? 40 : height});
       this.window.contentView.addChildView(this.toolbar);
     }
   }

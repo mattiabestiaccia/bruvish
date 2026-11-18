@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('lavishApp', Object.freeze({
   select: id => ipcRenderer.invoke('lavish:select', id),
   close: id => ipcRenderer.invoke('lavish:close', id),
   home: () => ipcRenderer.invoke('lavish:home'),
+  reviewAction: action => ipcRenderer.invoke('lavish:review-action', action),
   fullscreenImage: () => ipcRenderer.invoke('lavish:fullscreen-image'),
   onChange: callback => {const listener = (_event, value) => callback(value);ipcRenderer.on('lavish:changed', listener);return () => ipcRenderer.removeListener('lavish:changed', listener);}
 }));

@@ -8,6 +8,7 @@ const {Workspace} = require('./workspace.cjs');
 const {authorizeUi} = require('./ipc.cjs');
 const {Preferences, imageTypes} = require('./preferences.cjs');
 const {applyWindowAppearance, watchAppearance} = require('./appearance.cjs');
+const {reviewToolbarCSS, readToolbarScript, toolbarActionScript} = require('./review-toolbar.cjs');
 
 const root = stateRoot();
 if (!path.isAbsolute(root)) throw Error('Absolute app state required');
@@ -67,13 +68,13 @@ function drainRequests() {
   }).catch(error => log('Review request ' + entry.id + ' failed: ' + error.message));
 }
 function snapshot() {return {...workspace.snapshot(), preferences: preferences.snapshot(), fullscreen: isFullscreen()};}
-async function syncToolbarTheme() {
+async function syncReviewToolbar() {
   const row = workspace?.tabs.get(workspace.active);
   if (!row || row.view.webContents.isDestroyed()) return;
   try {
-    const theme = await row.view.webContents.executeJavaScript(`(() => {const style=getComputedStyle(document.documentElement);const theme=Object.fromEntries(['--mb-title','--mb-muted','--mb-line','--mb-field','--mb-glass','--mb-on-accent'].map(key=>[key,style.getPropertyValue(key)]));const bar=document.querySelector('.bar');if(bar)theme['--mb-glass']=getComputedStyle(bar).backgroundColor;return theme})()`);
+    const state = await row.view.webContents.executeJavaScript(readToolbarScript);
     if (workspace?.tabs.get(workspace.active) !== row) return;
-    if (JSON.stringify(row.theme) !== JSON.stringify(theme)) {row.theme = theme;notify();}
+    if (JSON.stringify(row.toolbar) !== JSON.stringify(state)) {row.toolbar = state;notify();}
   } catch { /* A reload or a closing tab will be sampled again. */ }
 }
 let backdropState = '';
@@ -138,7 +139,7 @@ function createView() {
   // Main-process CSS on the review's top-level document only. No renderer gains IPC or a preload,
   // and neither a query parameter nor an artifact message can enable this app-only composition.
   view.webContents.on('did-finish-load', () => {
-    void view.webContents.insertCSS(`:root{--bar-h:40px}.bar{height:40px}.bar>.mb-index,.bar>.brand{display:none!important}`).catch(error => log(error.message));
+    void view.webContents.insertCSS(reviewToolbarCSS).catch(error => log(error.message));
   });
   return view;
 }
@@ -157,7 +158,7 @@ async function ensureWindow() {
     for (const name of ['will-navigate', 'will-redirect', 'will-attach-webview']) contents.on(name, event => event.preventDefault());
   }
   workspace.layout();
-  const themeTimer = setInterval(() => {void syncToolbarTheme();}, 500);
+  const themeTimer = setInterval(() => {void syncReviewToolbar();}, 500);
   win.on('resize', () => workspace?.layout());
   win.on('enter-full-screen', () => {fullscreenPolicy();notify();});
   win.on('leave-full-screen', notify);
@@ -207,6 +208,15 @@ function registerIpc() {
       const row = await core.review(request.key);
       if (request.action === 'copy') clipboard.writeText(row.file);
       else {if (!row.available) throw Error('Il file non è più disponibile. Puoi copiarne il percorso.');shell.showItemInFolder(row.file);}
+    },
+    'lavish:review-action': async action => {
+      const script = toolbarActionScript(action);
+      const row = workspace.tabs.get(workspace.active);
+      if (!row) throw Error('Apri una review prima di usare i controlli della cornice.');
+      await row.view.webContents.executeJavaScript(script);
+      row.view.webContents.focus();
+      await syncReviewToolbar();
+      return snapshot();
     },
     'lavish:home': () => workspace.home(),
     'lavish:fullscreen-image': fullscreenImage,

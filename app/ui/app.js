@@ -23,13 +23,28 @@ function renderPreferences(next) {
  $('layout').textContent = preferences.layout === 'grid' ? 'Elenco' : 'Griglia';
  $('reviews').classList.toggle('grid', preferences.layout === 'grid');
 }
+const controlLabels = {annotate:'Annota',closed:'Anche le carte chiuse',panel:'Mostra la conversazione',more:'Altro',revisions:'Revisioni',warnings:'Problemi di impaginazione'};
+function renderReviewControls(controls, active) {
+ $('review-actions').hidden = !active;
+ for (const [id, label] of Object.entries(controlLabels)) {
+  const node = $(id), control = controls?.[id];
+  node.hidden = !control || Boolean(control.hidden);
+  node.disabled = !control || Boolean(control.disabled);
+  node.setAttribute('aria-label', control?.label || label);
+  node.title = control?.title || control?.label || label;
+  if (node.getAttribute('role') === 'switch') node.setAttribute('aria-checked', String(Boolean(control?.checked)));
+  else node.setAttribute('aria-expanded', String(Boolean(control?.expanded)));
+  const badge = node.querySelector('.control-count');
+  if (badge) {const count=Number.parseInt(control?.count,10)||0;badge.textContent=count>99?'99+':String(count);badge.hidden=count<1;}
+ }
+}
 function renderTabs(next) {
  for (const key of ['--mb-title','--mb-muted','--mb-line','--mb-field','--mb-glass','--mb-on-accent']) {
   const value = next.theme?.[key];
   if (typeof value === 'string' && value.trim()) document.documentElement.style.setProperty(key, value);
   else document.documentElement.style.removeProperty(key);
  }
- state = next;renderPreferences(next.preferences);document.body.classList.toggle('fullscreen', Boolean(next.fullscreen));renderFullscreenImage(Boolean(next.fullscreen));document.body.classList.toggle('in-review', Boolean(state.active));$('tabs').replaceChildren();
+ state = next;renderReviewControls(next.controls, next.active);renderPreferences(next.preferences);document.body.classList.toggle('fullscreen', Boolean(next.fullscreen));renderFullscreenImage(Boolean(next.fullscreen));document.body.classList.toggle('in-review', Boolean(state.active));$('tabs').replaceChildren();
  for (const tab of state.tabs) {const item = document.createElement('span');item.className = 'tab' + (tab.id === state.active ? ' active' : '');
   const title = button(tab.title, () => action(() => api.select(tab.id)), 'title');title.title = tab.title;
   const close = button('×', () => action(() => api.close(tab.id)), 'close');close.setAttribute('aria-label', 'Ferma la visualizzazione di ' + tab.title);item.append(title, close);$('tabs').append(item);
@@ -73,4 +88,16 @@ $('layout').addEventListener('click', () => action(() => settings({layout: prefe
 $('transparent').addEventListener('click', () => action(() => settings({transparent: !preferences.transparent})));
 $('refresh').addEventListener('click', () => action(refresh));
 for (const id of ['home', 'index']) $(id).addEventListener('click', () => action(async () => {await api.home();await refresh();}));
+for (const id of Object.keys(controlLabels)) $(id).addEventListener('click', () => action(async () => {renderTabs(await api.reviewAction(id));}));
+// The local toolbar can hold keyboard focus; preserve annotation shortcuts there too.
+let lastOptionTap = -Infinity;
+document.addEventListener('keydown', event => {
+ const typing = event.target?.closest?.('input,textarea,select,[contenteditable="true"]');
+ if (!state.active || typing) {lastOptionTap=-Infinity;return;}
+ if ((event.metaKey||event.ctrlKey) && event.key.toLowerCase()==='e') {event.preventDefault();$('annotate').click();lastOptionTap=-Infinity;return;}
+ if (event.code!=='AltRight'||event.metaKey||event.ctrlKey||event.shiftKey) {lastOptionTap=-Infinity;return;}
+ if (event.repeat) return;
+ if (event.timeStamp-lastOptionTap<=400) {lastOptionTap=-Infinity;$('annotate').click();}
+ else lastOptionTap=event.timeStamp;
+},true);
 api.onChange(renderTabs);void action(async () => {renderTabs(await api.snapshot());await refresh();});
