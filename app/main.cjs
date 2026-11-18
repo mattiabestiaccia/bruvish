@@ -2,7 +2,7 @@ const {app, BrowserWindow, WebContentsView, Menu, dialog, ipcMain, session, shel
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
-const {validate, stateRoot, codeIdentity, coreRoot} = require('./protocol.cjs');
+const {validate, stateRoot, codeIdentity, coreRoot, takeRequests} = require('./protocol.cjs');
 const {createCore} = require('./core.cjs');
 const {Workspace} = require('./workspace.cjs');
 const {authorizeUi} = require('./ipc.cjs');
@@ -35,6 +35,29 @@ function acknowledge(request, data) {
   fs.writeFileSync(file + '.tmp', JSON.stringify({...data, appCode: startupCode, url: request.url,
     file: request.file, profile: path.join(root, 'profile')}), {mode: 0o600});
   fs.renameSync(file + '.tmp', file);
+}
+// LaunchServices gives an app it starts for a sandboxed caller no stdout or stderr, so the app writes
+// its own request diagnostics to app.log in its state directory.
+function log(message) {
+  try {fs.appendFileSync(path.join(root, 'app.log'), `${new Date().toISOString()} ${message}\n`, {mode: 0o600});} catch {}
+}
+// Requests that app/open.mjs leaves in requests/ (see takeRequests in protocol.cjs). Handled at
+// startup, on every change of that folder and on activation, in arrival order through the queue.
+function drainRequests() {
+  let taken;
+  try {taken = takeRequests(root);} catch (error) {log('Cannot read review requests: ' + error.message);return;}
+  for (const entry of taken) void enqueue(async () => {
+    let request;
+    try {
+      if (entry.error) throw Error(entry.error);
+      request = parse([entry.url, entry.file, entry.id]);
+    } catch (error) {
+      log('Refused review request ' + entry.id + ': ' + error.message);
+      acknowledge({id: entry.id, url: entry.url, file: entry.file}, {status: 'error', error: error.message});
+      return;
+    }
+    await openRequest(request);
+  }).catch(error => log('Review request ' + entry.id + ' failed: ' + error.message));
 }
 function snapshot() {return {...workspace.snapshot(), preferences: preferences.snapshot(), fullscreen: isFullscreen()};}
 function notify() {if (win && !win.isDestroyed()) win.webContents.send('lavish:changed', snapshot());}
@@ -164,9 +187,9 @@ else {
     void initialized.then(() => enqueue(async () => {
       if (!data.url) {await ensureWindow();workspace.home();win.show();win.focus();return;}
       await openRequest(parse([data.url, data.file, data.id]));
-    })).catch(error => console.error(error.message));
+    })).catch(error => {console.error(error.message);log(error.message);});
   });
-  app.on('activate', () => {void initialized.then(() => enqueue(async () => {await ensureWindow();win.show();win.focus();}));});
+  app.on('activate', () => {void initialized.then(() => {drainRequests();return enqueue(async () => {await ensureWindow();win.show();win.focus();});});});
   app.on('window-all-closed', () => {if (process.platform !== 'darwin') app.quit();});
   initialized = app.whenReady().then(async () => {
     if (codeIdentity(path.join(coreDirectory, 'app')) !== startupCode) throw Error('Questa app non corrisponde al sorgente Lavish mantenuto. Ricostruisci e aggiorna il bundle prima di riaprirla.');
@@ -191,5 +214,9 @@ else {
     fs.writeFileSync(path.join(root, 'instance.json'), JSON.stringify({pid: process.pid, appCode: startupCode, executable: process.execPath}), {mode: 0o600});
     app.on('will-quit', () => {try {const file = path.join(root, 'instance.json');if (JSON.parse(fs.readFileSync(file)).pid === process.pid) fs.unlinkSync(file);} catch {}});
     await ensureWindow();if (first) await enqueue(() => openRequest(first));
-  }).catch(error => {dialog.showErrorBox('Lavish non può avviarsi', error.message);app.quit();});
+    const requests = path.join(root, 'requests');
+    fs.mkdirSync(requests, {recursive: true, mode: 0o700});
+    fs.watch(requests, () => drainRequests()).on('error', error => log('Request watcher stopped: ' + error.message));
+    drainRequests();
+  }).catch(error => {log('Startup failed: ' + error.message);dialog.showErrorBox('Lavish non può avviarsi', error.message);app.quit();});
 }

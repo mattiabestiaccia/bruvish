@@ -12,4 +12,23 @@ function validate(url,file,root){const u=new URL(url);if(u.protocol!=='http:'||!
 function stateRoot(){return process.env.LAVISH_APP_STATE_DIR||path.join(os.homedir(),'.local/state/lavish-mb/app-personal');}
 function codeFiles(directory){const names=JSON.parse(fs.readFileSync(path.join(directory,'package.json'),'utf8')).lavishFiles;if(!Array.isArray(names)||!names.length||new Set(names).size!==names.length||names.some(name=>typeof name!=='string'||path.isAbsolute(name)||name.split('/').some(part=>!part||part==='.'||part==='..')))throw Error('Invalid app file inventory');return names;}
 function codeIdentity(directory){const crypto=require('node:crypto');return crypto.createHash('sha256').update(JSON.stringify(codeFiles(directory).map(name=>[name,crypto.createHash('sha256').update(fs.readFileSync(path.join(directory,name))).digest('hex')]))).digest('hex');}
-module.exports={toolsRoot,coreRoot,engineVersion,engineApp,validate,stateRoot,codeIdentity,codeFiles};
+// Review requests from app/open.mjs. The opener runs inside the service's Seatbelt profile, and LaunchServices
+// ignores the arguments, environment and stdio of a sandboxed caller, so a request cannot travel in argv:
+// the opener leaves it in <root>/requests/<id>.request.json (written to a .tmp file, then renamed) and asks
+// LaunchServices only to start or activate the app. The app takes each file once: it reads and deletes it
+// before handling it. The acknowledgement stays <root>/requests/<id>.json.
+const requestFile=/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.request\.json$/;
+function requestPath(root,id){return path.join(root,'requests',id+'.request.json');}
+function takeRequests(root){
+ const directory=path.join(root,'requests');let names;try{names=fs.readdirSync(directory);}catch(error){if(error.code==='ENOENT')return [];throw error;}
+ const taken=[];
+ for(const name of names.sort()){
+  const match=requestFile.exec(name);if(!match)continue;
+  const file=path.join(directory,name);let text;
+  try{text=fs.readFileSync(file,'utf8');fs.unlinkSync(file);}catch(error){if(error.code==='ENOENT')continue;throw error;}
+  let data;try{data=JSON.parse(text);}catch{data=null;}
+  taken.push(data&&typeof data.url==='string'&&typeof data.file==='string'?{id:match[1],url:data.url,file:data.file}:{id:match[1],error:'Malformed review request'});
+ }
+ return taken;
+}
+module.exports={toolsRoot,coreRoot,engineVersion,engineApp,validate,stateRoot,codeIdentity,codeFiles,requestPath,takeRequests};

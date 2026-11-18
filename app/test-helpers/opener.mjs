@@ -30,22 +30,22 @@ export function makeBundle(dir, script) {
     return bundle;
 }
 
-// An app that acknowledges the request in argv the way main.cjs does, with `appCode`, and reports
-// what it received from its environment.
+// An app that takes its requests from the state directory with protocol.cjs, as main.cjs does,
+// acknowledges them with `appCode` and reports what it received from its environment.
 export function acknowledgingApp(appCode = protocol.codeIdentity(source)) {
-    return `const fs=require('node:fs'),path=require('node:path');const [url,file,id]=process.argv.slice(-3),root=process.env.LAVISH_APP_STATE_DIR;
-console.log('fixture app started for '+id);
-const ack=path.join(root,'requests',id+'.json');
-fs.writeFileSync(ack+'.tmp',JSON.stringify({status:'opened',surface:'dedicated-electron',pid:process.pid,appCode:${JSON.stringify(appCode)},url,file,profile:path.join(root,'profile'),
-  environment:Object.fromEntries(['ELECTRON_RUN_AS_NODE','LAVISH_AXI_PORT','LAVISH_AXI_HTML_APP_TOKEN'].map(name=>[name,process.env[name]??null]))}));
-fs.renameSync(ack+'.tmp',ack);`;
+    return `const fs=require('node:fs'),path=require('node:path'),protocol=require(${JSON.stringify(path.join(source, 'protocol.cjs'))});const root=process.env.LAVISH_APP_STATE_DIR;
+for(const request of protocol.takeRequests(root)){
+const ack=path.join(root,'requests',request.id+'.json');
+fs.writeFileSync(ack+'.tmp',JSON.stringify({status:'opened',surface:'dedicated-electron',pid:process.pid,appCode:${JSON.stringify(appCode)},url:request.url,file:request.file,profile:path.join(root,'profile'),
+  argv:process.argv.slice(2),environment:Object.fromEntries(['ELECTRON_RUN_AS_NODE','LAVISH_AXI_PORT'].map(name=>[name,process.env[name]??null]))}));
+fs.renameSync(ack+'.tmp',ack);}`;
 }
 
 export function runOpener(dir, bundle, file, env = {}) {
     const root = path.join(dir, 'state'), record = path.join(dir, 'open-calls.jsonl');
     fs.mkdirSync(root, { recursive: true });
     const result = spawnSync(process.execPath, [opener, reviewUrl, file], {
-        env: { ...process.env, NODE_OPTIONS: '--import=' + fakeLaunchServices, FAKE_OPEN_RECORD: record, LAVISH_APP_BUNDLE: bundle, LAVISH_APP_STATE_DIR: root, LAVISH_APP_ACK_TIMEOUT_MS: '5000', ...env },
+        env: { ...process.env, NODE_OPTIONS: '--import=' + fakeLaunchServices, FAKE_OPEN_RECORD: record, FAKE_APP_STATE_DIR: root, LAVISH_APP_BUNDLE: bundle, LAVISH_APP_STATE_DIR: root, LAVISH_APP_ACK_TIMEOUT_MS: '5000', ...env },
         encoding: 'utf8', timeout: 20000
     });
     const calls = fs.existsSync(record) ? fs.readFileSync(record, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : [];
