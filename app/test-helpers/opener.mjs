@@ -31,13 +31,12 @@ export function makeBundle(dir, script) {
 }
 
 // An app that takes its requests from the state directory with protocol.cjs, as main.cjs does,
-// acknowledges them with `appCode` and reports what it received from its environment.
+// and acknowledges them with `appCode`.
 export function acknowledgingApp(appCode = protocol.codeIdentity(source)) {
     return `const fs=require('node:fs'),path=require('node:path'),protocol=require(${JSON.stringify(path.join(source, 'protocol.cjs'))});const root=process.env.LAVISH_APP_STATE_DIR;
 for(const request of protocol.takeRequests(root)){
 const ack=path.join(root,'requests',request.id+'.json');
-fs.writeFileSync(ack+'.tmp',JSON.stringify({status:'opened',surface:'dedicated-electron',pid:process.pid,appCode:${JSON.stringify(appCode)},url:request.url,file:request.file,profile:path.join(root,'profile'),
-  argv:process.argv.slice(2),environment:Object.fromEntries(['ELECTRON_RUN_AS_NODE','LAVISH_AXI_PORT'].map(name=>[name,process.env[name]??null]))}));
+fs.writeFileSync(ack+'.tmp',JSON.stringify({status:'opened',surface:'dedicated-electron',pid:process.pid,appCode:${JSON.stringify(appCode)},url:request.url,file:request.file,profile:path.join(root,'profile')}));
 fs.renameSync(ack+'.tmp',ack);}`;
 }
 
