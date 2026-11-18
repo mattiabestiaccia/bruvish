@@ -87,8 +87,9 @@
         return { all, closedCount, openCount, hiding };
     }
     // A reveal or an annotation the host page asks for inside a hidden closed card shows the closed cards first, as the
-    // minimap dot does. Capture phase: this runs before the SDK's own listener for the same message, which then finds
-    // the element laid out.
+    // minimap dot does, then brings the element into view. The message is dispatched at the window, where Chrome runs
+    // the listeners in registration order whatever their phase: the SDK, loaded before this bridge, has already handled
+    // it while the card had no layout box, so its scroll did nothing. Its reveal marker follows the element.
     addEventListener('message', event => {
         const m = event.data || {};
         if (event.source !== parent || !['lavish:revealElement', 'lavish:annotateElement'].includes(m.type) || typeof m.selector !== 'string' || document.documentElement.dataset.mbClosed !== 'hide')
@@ -104,7 +105,8 @@
         hideClosed = false;
         applyClosed();
         send('show-closed');
-    }, true);
+        target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    });
     function outline() {
         const visible = el => el.getClientRects().length;
         const { all, closedCount, openCount, hiding } = applyClosed();

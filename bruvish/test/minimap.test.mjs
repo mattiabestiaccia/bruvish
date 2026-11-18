@@ -9,7 +9,7 @@ const [bridge, addon, css, artifactJs] = await Promise.all(['bridge.js', 'chrome
 const tick = () => new Promise(r => setImmediate(r));
 
 function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null, handshake = true } = {}) {
-  const posted = [], listeners = {}, documentListeners = {}, styles = [];
+  const posted = [], listeners = {}, documentListeners = {}, styles = [], scrolls = [];
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
   // A closed card (answered, not new) has no boxes while the injected rule hides it.
@@ -19,7 +19,9 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
       id: c.id, dataset: { mbState: c.state, ...c.fresh !== undefined ? { mbNew: c.fresh } : {} }, color: c.color,
       getClientRects: () => hiddenByRule(node) ? [] : [1], getBoundingClientRect: () => ({ top: 100 * i }),
       parentElement: { getClientRects: () => [1] }, closest: selector => selector === '[data-mb-state]' ? node : null,
-      matches: () => false, querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null
+      matches: () => false, querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null,
+      // Records whether the element had a layout box when it was scrolled to: a scroll without one does nothing.
+      scrollIntoView: options => scrolls.push([node.id, node.getClientRects().length > 0, options?.block])
     };
     return node;
   });
@@ -49,7 +51,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
   }
   const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
-  return { posted, observed: context.observed, root, dispatch, deliver, styles };
+  return { posted, observed: context.observed, root, dispatch, deliver, styles, scrolls };
 }
 
 function element(tag) {
@@ -237,7 +239,7 @@ test('bridge: closed cards are hidden from the start until the host page asks to
   assert.equal(allClosed.root.dataset.mbClosed, 'show', 'a page of closed cards only is never emptied');
 });
 
-test('bridge: a reveal or an annotation inside a hidden closed card shows the closed cards first and tells the host page', () => {
+test('bridge: a reveal or an annotation inside a hidden closed card shows the closed cards, tells the host page and brings the element into view', () => {
   const cards = [{ id: 'a', state: 'waiting', color: '#d6ab32' }, { id: 'b', state: 'answered', color: '#63ca84' }];
   const run = runBridge(cards);
   const requests = () => run.posted.filter(m => m.type === 'lavish-mb:show-closed').length;
@@ -245,15 +247,16 @@ test('bridge: a reveal or an annotation inside a hidden closed card shows the cl
   run.deliver({ type: 'lavish:revealElement', selector: 'div[' });
   run.deliver({ type: 'lavish:revealElement', selector: '#missing' });
   run.deliver({ type: 'lavish:revealElement', selector: 7 });
-  assert.deepEqual([run.root.dataset.mbClosed, requests()], ['hide', 0], 'an open card, a bad selector or no element change nothing');
+  assert.deepEqual([run.root.dataset.mbClosed, requests(), run.scrolls], ['hide', 0, []], 'an open card, a bad selector or no element change nothing');
+  // In Chrome the SDK, registered first, has already scrolled to the element while it had no box: the bridge scrolls again once it has one.
   run.deliver({ type: 'lavish:revealElement', selector: '#b' });
-  assert.deepEqual([run.root.dataset.mbClosed, requests()], ['show', 1], 'shown before the SDK handles the same message');
+  assert.deepEqual([run.root.dataset.mbClosed, requests(), run.scrolls], ['show', 1, [['b', true, 'center']]], 'shown, then brought into view with its box');
   run.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
   run.deliver({ type: 'lavish:annotateElement', selector: '#b' });
-  assert.deepEqual([run.root.dataset.mbClosed, requests()], ['show', 2]);
+  assert.deepEqual([run.root.dataset.mbClosed, requests(), run.scrolls.length], ['show', 2, 2]);
   run.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
   run.deliver({ type: 'lavish:queuedAnchors', selector: '#b' });
-  assert.deepEqual([run.root.dataset.mbClosed, requests()], ['hide', 2], 'other SDK messages leave the filter alone');
+  assert.deepEqual([run.root.dataset.mbClosed, requests(), run.scrolls.length], ['hide', 2, 2], 'other SDK messages leave the filter alone');
 });
 
 test('bridge: a double tap of the right Option key in the artifact asks for annotation mode, except while typing or with a key in between', () => {
