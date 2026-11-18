@@ -32,13 +32,21 @@
             speechSynthesis.cancel();
             return;
         } const card = button.closest('.card'); const text = [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p')].map(p => p.textContent)].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
-        document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('submit', event => { event.preventDefault(); const values = new FormData(form); const answer = { choice: String(values.get('choice') || ''), note: String(values.get('note') || '') }; const status = form.querySelector('.queue-status'); if (!answer.choice && !answer.note) {
-            status.textContent = 'Scegli una risposta o scrivi una nota.';
+        document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('submit', event => { event.preventDefault(); const values = new FormData(form); const answer = { choice: String(values.get('choice') || '') }; const status = form.querySelector('.queue-status'); if (!answer.choice) {
+            status.textContent = 'Scegli una risposta.';
             return;
         } if (!window.lavish) {
             status.textContent = 'Apri la pagina con Lavish per accodare la risposta.';
             return;
-        } window.lavish.queuePrompt('Risposta per ' + form.dataset.mbQuestion, { tag: 'choice', text: 'Risposta: ' + form.dataset.mbQuestion, element: form, queueKey: 'answer:' + form.dataset.mbQuestion, data: { question: form.dataset.mbQuestion, answer } }); status.textContent = 'Risposta aggiunta alla coda. Usa Send to Agent nel pannello Lavish.'; }));
+        } window.lavish.queuePrompt('Risposta per ' + form.dataset.mbQuestion, { tag: 'choice', text: 'Risposta: ' + form.dataset.mbQuestion, element: form, queueKey: 'answer:' + form.dataset.mbQuestion, data: { question: form.dataset.mbQuestion, answer } }); status.textContent = 'Risposta aggiunta alla coda. Inviala dal pannello con «Invia all’agente».'; form.querySelector('.mb-armed')?.classList.remove('mb-armed'); armed = null; }));
+        // Answer in two taps: the first tap on an option selects it, a second tap on the same option queues it
+        // (the same submit as the button). Keyboard: Space on the selected option is the second tap.
+        let armed = null;
+        document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('click', event => { const input = event.target; if (!(input instanceof HTMLInputElement) || input.type !== 'radio' || !input.checked)
+            return; if (armed === input) {
+            form.requestSubmit();
+            return;
+        } document.querySelectorAll('.mb-armed').forEach(option => option.classList.remove('mb-armed')); armed = input; input.closest('label')?.classList.add('mb-armed'); }));
     };
     if (document.readyState === 'loading')
         document.addEventListener('DOMContentLoaded', init);

@@ -49,7 +49,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   const env=runtimeEnvironment({...process.env,...isolatedEnvironment(dir),LAVISH_AXI_PORT:String(port),LAVISH_AXI_STATE_DIR:path.join(dir,'server'),LAVISH_AXI_IDLE_TIMEOUT_MS:'60000',LAVISH_AXI_TELEMETRY:'off',LAVISH_APP_STATE_DIR:path.join(dir,'app'),LAVISH_APP_TEST_CDP:'1',LAVISH_APP_ACK_TIMEOUT_MS:'120000',LAVISH_APP_CORE_ROOT:root});
   server=spawn(process.execPath,[builtServer,'server','--port',String(port)],{env,stdio:'ignore'});
   await until(async()=> (await fetch(base+'/health')).ok,'server');
-  const file=path.join(dir,'automation-dummy.html');await writeFile(file,await renderDocument({title:'Lavish app dummy',guide:'Accoda e invia.',sections:[{id:'questions',title:'Domande',cards:[{id:'q0',title:'Prova',status:'waiting',paragraphs:Array.from({length:35},(_,i)=>['Paragrafo dummy '+i+'. Testo per verificare il mantenimento della posizione nella pagina.']),question:{options:[{value:'yes',label:'Sì'}]}}]}]}));
+  const file=path.join(dir,'automation-dummy.html');await writeFile(file,await renderDocument({title:'Lavish app dummy',guide:'Accoda e invia.',sections:[{id:'questions',title:'Domande',cards:[{id:'q0',title:'Prova',status:'waiting',paragraphs:Array.from({length:35},(_,i)=>['Paragrafo dummy '+i+'. Testo per verificare il mantenimento della posizione nella pagina.']),question:{options:[1,2,3].map(i=>({value:'giro-'+i,label:'Giro '+i}))}}]}]}));
   const response=await fetch(base+'/api/sessions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({file,noGate:true})});const session=await response.json();assert(response.ok,JSON.stringify(session));
   let bootstrapDebugPort;
   if(process.env.LAVISH_APP_BUNDLE){const bundle=process.env.LAVISH_APP_BUNDLE;const info=JSON.parse(await readFile(bundle+'.lavish-build.json','utf8'));await rm(path.join(dir,'app/profile/DevToolsActivePort'),{force:true});const bare=spawn(path.join(bundle,'Contents/MacOS',info.executable),[],{env,stdio:'ignore'});bare.unref();appPid=bare.pid;bootstrapDebugPort=await until(async()=>Number((await readFile(path.join(dir,'app/profile/DevToolsActivePort'),'utf8')).split('\n')[0]),'landing CDP');await until(async()=>{const ps=await(await fetch('http://127.0.0.1:'+bootstrapDebugPort+'/json/list')).json();return ps.some(p=>p.url.startsWith('file:')&&p.url.endsWith('/ui/index.html'));},'landing without arguments');}
@@ -61,17 +61,19 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await uiClient.evaluate('document.getElementById("home").click()');await until(()=>uiClient.evaluate('Array.from(document.querySelectorAll(".review .path")).some(n=>n.textContent==='+JSON.stringify(file)+')'),'native catalog reads canonical state');
   await uiClient.evaluate('Array.from(document.querySelectorAll(".review")).find(n=>n.querySelector(".path").textContent==='+JSON.stringify(file)+').querySelector("button").click()');await until(()=>uiClient.evaluate('document.body.classList.contains("in-review")'),'catalog opens through canonical CLI');
   const again=await execute(process.execPath,[adapter,session.url,file],{env});assert.equal(again.code,0,again.stderr);assert.equal(JSON.parse(again.stdout).pid,first.pid);assert.equal(JSON.parse(again.stdout).window,first.window);
-  await until(()=>client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")!==null',true),'artifact');
-  await client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]").value="bozza persistente";document.querySelector("[data-mb-field=\\"q0:note\\"]").dispatchEvent(new Event("input",{bubbles:true}))',true);
-  await until(()=>client.evaluate('Object.keys(localStorage).some(k=>k.startsWith("lavish-mb:")&&localStorage[k].includes("bozza persistente"))'),'draft storage');
+  // Interview cards have no free text field: the draft is the chosen answer.
+  const choice='document.querySelector("[data-mb-question=q0] input:checked")?.value';
+  const choose=value=>'(()=>{const option=document.querySelector("[data-mb-question=q0] input[value='+value+']");if(!option)return false;option.checked=true;option.dispatchEvent(new Event("input",{bubbles:true}));return true})()';
+  await until(()=>client.evaluate(choose('giro-3'),true),'artifact');
+  await until(()=>client.evaluate('Object.entries(localStorage).some(([k,v])=>k.startsWith("lavish-mb:v1:")&&JSON.parse(v).fields?.["q0:choice"]?.value==="giro-3")'),'draft storage');
   await client.evaluate('document.querySelector("details")?.setAttribute("open","");scrollTo(0,400)',true);const scrollBefore=await client.evaluate('scrollY',true);assert(scrollBefore>0,'dummy must actually scroll');
-  const reused=await execute(process.execPath,[adapter,session.url,file],{env});assert.equal(reused.code,0,reused.stderr);assert.equal(JSON.parse(reused.stdout).view,first.view);assert.equal(JSON.parse(reused.stdout).reused,true);assert.equal(await client.evaluate('scrollY',true),scrollBefore,'duplicate open preserves scroll');assert.equal(await client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")?.value',true),'bozza persistente');
-  await client.call('Page.reload');await until(()=>client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")?.value==="bozza persistente"',true),'draft reload');
+  const reused=await execute(process.execPath,[adapter,session.url,file],{env});assert.equal(reused.code,0,reused.stderr);assert.equal(JSON.parse(reused.stdout).view,first.view);assert.equal(JSON.parse(reused.stdout).reused,true);assert.equal(await client.evaluate('scrollY',true),scrollBefore,'duplicate open preserves scroll');assert.equal(await client.evaluate(choice,true),'giro-3');
+  await client.call('Page.reload');await until(async()=>await client.evaluate(choice,true)==='giro-3','draft reload');
   // Two feedback rounds through the ordinary CLI: a tracked poll, the native Send, then a reply.
   const cli=(...args)=>execute(process.execPath,[builtCli,...args],{env});
   for(let i=1;i<=2;i++){
-   const text='risposta giro '+i;
-   await until(()=>client.evaluate('(()=>{const field=document.querySelector("[data-mb-field=\\"q0:note\\"]"),form=document.querySelector("[data-mb-question=q0]");if(!field||!form||!window.lavish)return false;field.value='+JSON.stringify(text)+';field.dispatchEvent(new Event("input",{bubbles:true}));form.requestSubmit();return true})()',true),'form ready before send');
+   const text='giro-'+i;
+   await until(()=>client.evaluate('window.lavish&&'+choose(text)+'&&(document.querySelector("[data-mb-question=q0]").requestSubmit(),true)',true),'form ready before send');
    const poll=cli('poll',file,'--timeout-ms','60000');
    await until(()=>client.evaluate('!document.getElementById("send").disabled'),'send enabled');await client.evaluate('document.getElementById("send").click()');
    const feedback=await poll;assert.equal(feedback.code,0,feedback.stderr);assert(feedback.stdout.includes(text),feedback.stdout);
@@ -85,7 +87,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await until(()=>uiClient.evaluate('!document.body.classList.contains("transparent")'),'opaque baseline acknowledged');
   await until(()=>client.evaluate('!document.getElementById("lavish-private-app-background")',true),'opaque artifact baseline');
   const beforeToggle = await client.evaluate('scrollY',true);
-  const draftBeforeToggle = await client.evaluate(`document.querySelector('[data-mb-field="q0:note"]')?.value`,true);
+  const draftBeforeToggle = await client.evaluate(choice,true);
   const backgroundBeforeToggle = await client.evaluate('getComputedStyle(document.body).backgroundColor',true);
   await uiClient.evaluate('document.getElementById("transparent").click()');
   await uiClient.evaluate('window.lavishApp.snapshot()');
@@ -95,7 +97,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   const bodyAlpha = await client.evaluate(`(() => {const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');ctx.fillStyle=getComputedStyle(document.body).backgroundColor;ctx.fillRect(0,0,1,1);return ctx.getImageData(0,0,1,1).data[3]})()`,true);
   assert(bodyAlpha > 0 && bodyAlpha < 128,'artifact body has a translucent background');
   assert.equal(await client.evaluate('scrollY',true),beforeToggle,'appearance toggle preserves scroll');
-  assert.equal(await client.evaluate('document.querySelector("[data-mb-field=\\"q0:note\\"]")?.value',true),draftBeforeToggle);
+  assert.equal(await client.evaluate(choice,true),draftBeforeToggle);
   await uiClient.evaluate('document.getElementById("artifact-background").click()');
   await uiClient.evaluate('window.lavishApp.snapshot()');
   await until(()=>client.evaluate('!document.getElementById("lavish-private-app-background")',true),'original artifact background restored');
