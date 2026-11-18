@@ -33,6 +33,14 @@ class Workspace {
       return {window: this.window.id, view: previous.view.webContents.id, reused: true};
     }
     const view = this.createView(request.url);
+    // A tab only ever shows its own review: the frame's arrow to the catalog (/) goes to the app's own home.
+    for (const name of ['will-navigate', 'will-redirect']) view.webContents.on(name, (event, target) => {
+      let url = null;
+      try { url = new URL(target); } catch { }
+      if (url && reviewIdentity(target) === reviewIdentity(request.url)) return;
+      event.preventDefault();
+      if (url?.origin === new URL(request.url).origin && url.pathname === '/' && this.active === request.file && this.tabs.get(request.file)?.view === view) this.home();
+    });
     try { await view.webContents.loadURL(request.url); }
     catch (error) { closeView(view); throw error; }
     if (view.webContents.getURL() !== request.url) {closeView(view);throw Error('Review navigation did not match the requested URL.');}

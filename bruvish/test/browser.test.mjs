@@ -58,7 +58,7 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         server = spawn(process.execPath, [builtServer, 'server', '--port', String(port)], { env: { ...env, NODE_OPTIONS: '--import=' + new URL('../test-helpers/fake-opener.mjs', import.meta.url).pathname, TEST_OPENED: opened }, stdio: ['ignore', 'pipe', 'pipe'] });
         server.stderr.on('data', d => serverErrors += d);
         await until(async () => { const r = await fetch('http://127.0.0.1:' + port + '/health'); return r.ok; }, 'server start ' + serverErrors);
-        const input = { title: 'Intervista dummy', guide: 'Accoda una risposta; inviala dal pannello.', state: { revision: 1, answers: {}, comments: [] }, sections: [{ id: 'scelte', title: 'Le scelte', cards: Array.from({ length: 8 }, (_, i) => ({ id: 'q' + i, title: 'Scelta ' + i, status: ['waiting','answered','info','blocked'][i % 4], metadata: 'Fonte: intervista', clarification: 'Chiarimento agente', paragraphs: [['Prima frase.', 'Seconda frase.'], ['Altro paragrafo.']], question: { options: [{ value: 'yes', label: 'Sì' }, { value: 'no', label: 'No' }] } })) }] };
+        const input = { title: 'Intervista dummy', guide: 'Accoda una risposta; inviala dal pannello.', state: { revision: 1, answers: {}, comments: [] }, sections: [{ id: 'scelte', title: 'Le scelte', cards: Array.from({ length: 8 }, (_, i) => ({ id: 'q' + i, title: 'Scelta ' + i, status: ['waiting','answered','info','blocked'][i % 4], metadata: 'Fonte: intervista', clarification: 'Chiarimento agente', paragraphs: [['Prima frase.', 'Seconda frase.'], ['Altro paragrafo.']], question: { options: [{ value: 'yes', label: 'Sì', recommended: true }, { value: 'no', label: 'No' }] } })) }] };
         const file = path.join(dir, 'dummy.html');
         // A previous revision without q7 and with another q3 title: q7 is new, q3 changed (data-mb-new).
         const previous = await renderDocument({ ...input, sections: [{ ...input.sections[0], cards: input.sections[0].cards.slice(0, 7).map(card => card.id === 'q3' ? { ...card, title: 'Prima versione' } : card) }] });
@@ -107,6 +107,15 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(() => client.evaluate('document.querySelectorAll(".mb-rail .mb-closed").length===0'), 'no dots while the closed cards are shown');
         await client.evaluate('document.querySelector(".mb-closed-switch").click()');
         await until(() => client.evaluate('getComputedStyle(document.getElementById("q1")).display==="none"', true), 'closed cards hidden again');
+        // An official reveal (edit of a queued note, the Revisions drawer) into a hidden closed card shows the closed cards first, then reaches it.
+        await client.evaluate('document.getElementById("artifact").contentWindow.postMessage({type:"lavish:revealElement",selector:"#q5"},"*")');
+        await until(() => client.evaluate('(()=>{const el=document.getElementById("q5"),r=el.getBoundingClientRect();return getComputedStyle(el).display==="block"&&r.bottom>0&&r.top<innerHeight})()', true), 'closed card shown and brought into view');
+        assert.equal(await client.evaluate('document.querySelector(".mb-closed-switch").getAttribute("aria-checked")'), 'true', 'the closed switch follows');
+        await client.evaluate('document.querySelector(".mb-closed-switch").click()');
+        await until(() => client.evaluate('getComputedStyle(document.getElementById("q5")).display==="none"', true), 'closed cards hidden after the reveal');
+        await client.evaluate('scrollTo(0,0)', true);
+        // The recommended answer is brighter (the theme accent), and nothing is preselected.
+        assert.deepEqual(await client.evaluate('(()=>{const t=document.createElement("i");t.style.color="var(--title)";document.body.append(t);const accent=getComputedStyle(t).color;t.remove();const [yes,no]=["yes","no"].map(v=>document.querySelector("[data-mb-question=q0] input[value="+v+"]"));return {recommended:getComputedStyle(yes.closest("label")).color===accent,other:getComputedStyle(no.closest("label")).color!==accent,checked:yes.checked||no.checked}})()', true), { recommended: true, other: true, checked: false });
         // A double tap of the right Option key toggles annotation mode, in the frame and inside the artifact.
         const altRight = async () => { for (const type of ['rawKeyDown', 'keyUp']) await client.call('Input.dispatchKeyEvent', { type, key: 'Alt', code: 'AltRight', location: 2, windowsVirtualKeyCode: 18, modifiers: type === 'rawKeyDown' ? 1 : 0 }); };
         await client.evaluate('document.activeElement?.blur();document.body.focus()');
@@ -224,6 +233,11 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await client.evaluate('document.getElementById("moreButton").click()');
         await until(() => client.evaluate('!document.getElementById("moreMenu").hidden'), 'more menu open');
         assert.deepEqual(await client.evaluate(SMALL_TEXT + '("#moreMenu")'), [], 'no menu text under 13px');
+        // Italian frame: none of the official English texts of the upstream template stays in bar, panel or menu.
+        const english = ['Attach images', 'Reload artifact', 'Copy DOM snapshot', 'Export standalone HTML', 'Publish link', 'End session', 'Editing', 'Queued', 'Hide conversation', 'Show conversation', 'More', 'Revisions', 'Layout issues'];
+        const shown = await client.evaluate('(()=>{const out=[];for(const scope of document.querySelectorAll(".bar,.panel")){const walker=document.createTreeWalker(scope,NodeFilter.SHOW_TEXT);for(let n=walker.nextNode();n;n=walker.nextNode())if(n.textContent.trim()&&n.parentElement.checkVisibility())out.push(n.textContent.trim());for(const el of scope.querySelectorAll("[aria-label],[title]"))out.push(el.getAttribute("aria-label")||"",el.getAttribute("title")||"")}return out})()');
+        assert.deepEqual(shown.filter(text => english.some(word => text === word || text.startsWith(word + ' '))), [], 'official texts in Italian');
+        assert(shown.includes('Chiudi la sessione') && shown.includes('Allega immagini') && shown.includes('Nascondi la conversazione'), JSON.stringify(shown));
         await client.evaluate('document.getElementById("moreButton").click()');
         // A first tap on an answer arms it, outlined in the theme accent of the page.
         await client.evaluate('document.querySelector("[data-mb-question=q4] input[value=yes]").click()', true);

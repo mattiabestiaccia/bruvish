@@ -86,6 +86,25 @@
         document.documentElement.dataset.mbClosed = hiding ? 'hide' : 'show';
         return { all, closedCount, openCount, hiding };
     }
+    // A reveal or an annotation the host page asks for inside a hidden closed card shows the closed cards first, as the
+    // minimap dot does. Capture phase: this runs before the SDK's own listener for the same message, which then finds
+    // the element laid out.
+    addEventListener('message', event => {
+        const m = event.data || {};
+        if (event.source !== parent || !['lavish:revealElement', 'lavish:annotateElement'].includes(m.type) || typeof m.selector !== 'string' || document.documentElement.dataset.mbClosed !== 'hide')
+            return;
+        let target = null;
+        try {
+            target = document.querySelector(m.selector);
+        }
+        catch { }
+        const card = target?.closest('[data-mb-state]');
+        if (!card || !closed(card))
+            return;
+        hideClosed = false;
+        applyClosed();
+        send('show-closed');
+    }, true);
     function outline() {
         const visible = el => el.getClientRects().length;
         const { all, closedCount, openCount, hiding } = applyClosed();

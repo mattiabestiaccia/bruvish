@@ -191,3 +191,12 @@ test('interview questions explain the two-tap answer and carry no free text fiel
   assert.match(html, /<\/label><p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla\.<\/p><button type="submit">/);
   assert.doesNotMatch(html, /<textarea|<input(?![^>]*type="radio")/, 'notes go through the annotation tool');
 });
+
+test('a recommended interview option is marked for a brighter colour and never preselected; options without the field render as before', async () => {
+  const options = [{ value: 'si', label: 'Sì', recommended: true }, { value: 'no', label: 'No' }, { value: 'forse', label: 'Forse', recommended: 'yes' }];
+  const labels = html => [...html.matchAll(/<label class="([^"]+)"><input [^>]*value="(\w+)"([^>]*)>/g)].map(m => [m[2], m[1], m[3].includes('checked')]);
+  const open = await renderDocument(doc([card('q', { status: 'waiting', question: { options } })]));
+  assert.deepEqual(labels(open), [['si', 'option mb-recommended', false], ['no', 'option', false], ['forse', 'option', false]], 'only recommended: true counts, and it is not checked');
+  const answered = await renderDocument(doc([card('q', { status: 'waiting', question: { options } })], { state: { revision: 1, answers: { q: { choice: 'no' } }, comments: [] } }));
+  assert.deepEqual(labels(answered).map(([value, , checked]) => [value, checked]), [['si', false], ['no', true], ['forse', false]], 'the saved answer stays the only checked option');
+});

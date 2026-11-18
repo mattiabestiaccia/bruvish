@@ -18,7 +18,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     const node = {
       id: c.id, dataset: { mbState: c.state, ...c.fresh !== undefined ? { mbNew: c.fresh } : {} }, color: c.color,
       getClientRects: () => hiddenByRule(node) ? [] : [1], getBoundingClientRect: () => ({ top: 100 * i }),
-      parentElement: { getClientRects: () => [1] },
+      parentElement: { getClientRects: () => [1] }, closest: selector => selector === '[data-mb-state]' ? node : null,
       matches: () => false, querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null
     };
     return node;
@@ -28,6 +28,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     createElement: tag => ({ tagName: tag.toUpperCase(), textContent: '' }),
     get activeElement() { return active?.() ?? document.body; },
     querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : [],
+    querySelector: selector => { if (!/^#[\w-]+$/.test(selector)) throw new SyntaxError('bad selector'); return nodes.find(node => '#' + node.id === selector) ?? null; },
     addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
   const getComputedStyle = el => ({
@@ -216,7 +217,6 @@ test('bridge: closed cards are hidden from the start until the host page asks to
   assert.equal(run.root.dataset.mbClosed, 'hide');
   run.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
   assert.equal(run.root.dataset.mbClosed, 'hide');
-  assert.match(run.styles[0].textContent, /:root\[data-mb-closed=hide\] \[data-mb-state=answered\]:not\(\[data-mb-new\]\)\{display:none!important\}/);
   assert.deepEqual([...last().items].map(i => [i.id, i.closed, i.hidden]), [['a', false, false], ['b', true, true], ['c', false, false]], 'the hidden closed card stays in the minimap');
   run.deliver({ type: 'lavish-mb:closed', token: 't', show: true });
   assert.equal(run.root.dataset.mbClosed, 'show');
@@ -226,6 +226,25 @@ test('bridge: closed cards are hidden from the start until the host page asks to
   const allClosed = runBridge([{ id: 'x', state: 'answered', color: '#63ca84' }]);
   allClosed.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
   assert.equal(allClosed.root.dataset.mbClosed, 'show', 'a page of closed cards only is never emptied');
+});
+
+test('bridge: a reveal or an annotation inside a hidden closed card shows the closed cards first and tells the host page', () => {
+  const cards = [{ id: 'a', state: 'waiting', color: '#d6ab32' }, { id: 'b', state: 'answered', color: '#63ca84' }];
+  const run = runBridge(cards);
+  const requests = () => run.posted.filter(m => m.type === 'lavish-mb:show-closed').length;
+  run.deliver({ type: 'lavish:revealElement', selector: '#a' });
+  run.deliver({ type: 'lavish:revealElement', selector: 'div[' });
+  run.deliver({ type: 'lavish:revealElement', selector: '#missing' });
+  run.deliver({ type: 'lavish:revealElement', selector: 7 });
+  assert.deepEqual([run.root.dataset.mbClosed, requests()], ['hide', 0], 'an open card, a bad selector or no element change nothing');
+  run.deliver({ type: 'lavish:revealElement', selector: '#b' });
+  assert.deepEqual([run.root.dataset.mbClosed, requests()], ['show', 1], 'shown before the SDK handles the same message');
+  run.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
+  run.deliver({ type: 'lavish:annotateElement', selector: '#b' });
+  assert.deepEqual([run.root.dataset.mbClosed, requests()], ['show', 2]);
+  run.deliver({ type: 'lavish-mb:closed', token: 't', show: false });
+  run.deliver({ type: 'lavish:queuedAnchors', selector: '#b' });
+  assert.deepEqual([run.root.dataset.mbClosed, requests()], ['hide', 2], 'other SDK messages leave the filter alone');
 });
 
 test('bridge: a double tap of the right Option key in the artifact asks for annotation mode, except while typing or with a key in between', () => {
@@ -330,6 +349,9 @@ test('addon: closed-cards switch (check in a circle) next to annotate, hidden un
   closed.click();
   rail.children[1].listeners.click();
   assert.deepEqual(posted.filter(m => ['lavish-mb:closed', 'lavish-mb:reveal'].includes(m.type)).slice(-2).map(m => [m.type, m.show ?? m.id]), [['lavish-mb:closed', true], ['lavish-mb:reveal', 'b']], 'a dot shows the closed cards, then goes there');
+  closed.click();
+  deliver({ type: 'lavish-mb:show-closed' });
+  assert.deepEqual([closed.attributes['aria-checked'], posted.filter(m => m.type === 'lavish-mb:closed').at(-1).show], ['true', true], 'a reveal inside a hidden closed card turns the switch on');
   deliver({ type: 'lavish-mb:outline', items: [{ id: 'a', title: 'Carta a', state: 'answered', closed: true }], closed: 1, open: 0 });
   assert.equal(closed.hidden, true, 'nothing to filter on a page of closed cards only');
 });

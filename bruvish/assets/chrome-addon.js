@@ -44,6 +44,71 @@
         endLabel.textContent = 'Invia e chiudi';
     if (chatField)
         chatField.placeholder = 'Scrivi all’agente…';
+    // The other official texts of bar, panel and the ended card, in Italian, also when the official code writes them
+    // later. Exact strings only; the reader's and the agent's own words (messages, drafts, anchors, paths) are never touched.
+    const UNSENT_STAY = 'Le risposte non inviate restano nella scheda o nella finestra in cui le hai scritte: continuare da un’altra finestra non le porta con sé.';
+    const ITALIAN = new Map([
+        ['Attach images', 'Allega immagini'], ['Queued', 'In coda'], ['Sending\u2026', 'Invio…'],
+        ['Edit queued prompt', 'Modifica il messaggio in coda'], ['Remove queued prompt', 'Togli il messaggio in coda'],
+        ['Your agent is not listening. If this persists, ask your agent to poll for updates from Lavish.', 'L’agente non è in ascolto. Se continua, chiedigli di tornare ad ascoltare Lavish.'],
+        ['This review is open in another Lavish tab. Unsent answers stay in the tab or window where you entered them; taking over in another window does not bring them along.', 'Questa revisione è aperta in un’altra scheda di Lavish. ' + UNSENT_STAY],
+        ['Take over here', 'Continua qui'],
+        ['Nothing queued in this tab. Unsent answers stay in the tab or window where you entered them; taking over in another window does not bring them along.', 'Niente in coda in questa scheda. ' + UNSENT_STAY],
+        ['Nothing to send. To end without feedback, use End session in the More menu (⋮).', 'Niente da inviare. Per chiudere senza riscontro, usa «Chiudi la sessione» nel menu Altro (⋮).'],
+        ['Still trying to send. Your feedback is saved in this tab. Keep this tab open while Lavish catches up, and check that the server is running.', 'Sto ancora provando a inviare. Il riscontro è salvato in questa scheda: tienila aperta mentre Lavish recupera e controlla che il server sia acceso.'],
+        ['Could not send. Your feedback is still queued in this tab. Check that Lavish is running, then click Send to Agent to retry.', 'Invio non riuscito. Il riscontro è ancora in coda in questa scheda. Controlla che Lavish sia acceso, poi premi «Invia all’agente» per riprovare.'],
+        ['Could not send. Your terminal feedback is still queued in this tab. Check that Lavish is running, then click Send & End to retry the same batch.', 'Invio non riuscito. Il riscontro finale è ancora in coda in questa scheda. Controlla che Lavish sia acceso, poi premi «Invia e chiudi» per riprovare lo stesso invio.'],
+        ['No agent is listening', 'Nessun agente in ascolto'], ['Delivering', 'In consegna'], ['Agent is busy; delivered on its next poll', 'L’agente è occupato: lo riceverà al prossimo ascolto'],
+        ['Unsent annotation', 'Annotazione non inviata'],
+        ['The artifact removed or replaced what this note was attached to, so Lavish could not keep it open. Your text is kept here:', 'L’artefatto ha tolto o sostituito ciò a cui era legata questa nota, quindi Lavish non ha potuto tenerla aperta. Il tuo testo resta qui:'],
+        ['Image expired', 'Immagine scaduta'],
+        ['Session ended', 'Sessione chiusa'], ['Agent is working…', 'L’agente sta lavorando…'], ['External listener active', 'Ascolto esterno attivo'], ['Agent listening', 'Agente in ascolto'], ['Agent not listening', 'Agente non in ascolto'],
+        ['Session ended.', 'Sessione chiusa.'], ['Return to your agent to continue.', 'Torna all’agente per continuare.'],
+        ['Revisions', 'Revisioni'], ['Layout issues', 'Problemi di impaginazione'], ['Select all', 'Seleziona tutto'], ['Queue selected fixes', 'Accoda le correzioni scelte'],
+        ['Queueing sends a repair request with your next feedback. An issue is marked resolved only after a newer artifact load and a complete check at the same viewport no longer finds it.', 'Accodare manda una richiesta di correzione con il prossimo riscontro. Un problema risulta risolto solo quando, dopo un nuovo caricamento dell’artefatto, un controllo completo alla stessa larghezza non lo trova più.'],
+        ['The agent declares these in the artifact itself. Reveal flashes the next block it marked for that revision; nothing about the page is restyled, so the saved file still looks the way it does here.', 'Le dichiara l’agente nell’artefatto. «Mostra» fa lampeggiare il blocco successivo che ha segnato per quella revisione; la pagina non viene ristilizzata, quindi il file salvato resta come lo vedi qui.'],
+        ['Reveal', 'Mostra'], ['Dismiss', 'Ignora'], ['No unresolved layout issues.', 'Nessun problema di impaginazione aperto.'], ['Queued for send', 'In coda per l’invio'],
+        ['More', 'Altro'], ['Editing', 'In modifica'], ['Copy', 'Copia'], ['Copied', 'Copiato'], ['Reload artifact', 'Ricarica l’artefatto'], ['Copy DOM snapshot', 'Copia l’istantanea del DOM'],
+        ['Export standalone HTML', 'Esporta HTML autonomo'], ['Publish link', 'Pubblica un link'], ['End session', 'Chiudi la sessione']
+    ]);
+    const ITALIAN_RULES = [
+        [/^(Show|Hide) conversation(?: \((\d+) queued\)| \((new reply)\))?$/, m => (m[1] === 'Show' ? 'Mostra' : 'Nascondi') + ' la conversazione' + (m[2] ? ' (' + m[2] + ' in coda)' : m[3] ? ' (nuova risposta)' : '')],
+        [/^(\d+) queued$/, m => m[1] + ' in coda'],
+        [/^Copy path · ([^]*)$/, m => 'Copia il percorso · ' + m[1]]
+    ];
+    function italian(text) { const core = text.trim(); if (!core)
+        return text; const exact = ITALIAN.get(core); if (exact !== undefined)
+        return text.replace(core, exact); for (const [rule, write] of ITALIAN_RULES) {
+        const match = rule.exec(core);
+        if (match)
+            return text.replace(core, write(match));
+    } return text; }
+    const OWN_WORDS = '.chat-md,.bubble-text,.note-draft,.anchor,.menu-file-text';
+    function localizeText(node) { if (node.parentElement?.closest(OWN_WORDS))
+        return; const value = italian(node.nodeValue); if (value !== node.nodeValue)
+        node.nodeValue = value; }
+    function localizeElement(el) { if (el.closest(OWN_WORDS))
+        return; for (const name of ['aria-label', 'title', 'placeholder']) {
+        const value = el.getAttribute(name);
+        const it = value && italian(value);
+        if (it && it !== value)
+            el.setAttribute(name, it);
+    } }
+    function localize(node) { if (node.nodeType === Node.TEXT_NODE)
+        return localizeText(node); if (node.nodeType !== Node.ELEMENT_NODE)
+        return; localizeElement(node); const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT); for (let n = walker.nextNode(); n; n = walker.nextNode())
+        n.nodeType === Node.TEXT_NODE ? localizeText(n) : localizeElement(n); }
+    for (const scope of ['.bar', '.panel', '#endedOverlay'].map(selector => document.querySelector(selector)).filter(Boolean)) {
+        localize(scope);
+        new MutationObserver(records => { for (const record of records) {
+            if (record.type === 'childList')
+                record.addedNodes.forEach(localize);
+            else if (record.type === 'characterData')
+                localizeText(record.target);
+            else
+                localizeElement(record.target);
+        } }).observe(scope, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['aria-label', 'title', 'placeholder'] });
+    }
     const SVG = 'http://www.w3.org/2000/svg';
     const PENCIL = [['path', { d: 'M10.4 2.8l2.8 2.8-7.5 7.5-3.4.6.6-3.4z' }], ['path', { d: 'M8.9 4.3l2.8 2.8' }]];
     const CHECK_IN_CIRCLE = [['circle', { cx: '8', cy: '8', r: '5.7' }], ['path', { d: 'M5.4 8.1l1.8 1.8 3.4-3.6' }]];
@@ -201,6 +266,8 @@
                 send('mode', { mode });
             send('closed', { show: showClosed });
         }
+        if (m.type === 'lavish-mb:show-closed' && !showClosed)
+            setShowClosed(true);
         if (m.type === 'lavish-mb:annotate-toggle')
             annotate?.click();
         if (m.type === 'lavish-mb:mode' && MODES.includes(m.mode)) {

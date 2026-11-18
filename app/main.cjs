@@ -105,14 +105,10 @@ function fullscreenImage() {
   if (stat.size > 40 * 1024 * 1024) throw Error('L’immagine a schermo intero supera 40 MB.');
   return `data:${imageTypes[path.extname(file).toLowerCase()]};base64,${fs.readFileSync(file).toString('base64')}`;
 }
-function createView(url) {
+function createView() {
   const view = new WebContentsView({webPreferences: {sandbox: true, nodeIntegration: false,
     contextIsolation: true, webSecurity: true}});
-  const origin = new URL(url).origin;
   view.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
-  for (const name of ['will-navigate', 'will-redirect']) view.webContents.on(name, (event, target) => {
-    try {if (new URL(target).origin !== origin) event.preventDefault();} catch {event.preventDefault();}
-  });
   view.webContents.on('will-attach-webview', event => event.preventDefault());
   watchAppearance(view, () => preferences.snapshot());
   return view;
