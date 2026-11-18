@@ -106,6 +106,8 @@
         [/^(\d+) selected$/, m => m[1] + (m[1] === '1' ? ' scelto' : ' scelti')],
         [/^(Seen|Working|Done)(?:: (not yet)| (\d{1,2}[:.]\d{2}(?:\s?[AaPp]\.?[Mm]\.?)?))$/, m => RECEIPT_STEPS[m[1]] + (m[2] ? ': non ancora' : ' ' + m[3])],
         [/^Copy path · ([^]*)$/, m => 'Copia il percorso · ' + m[1]],
+        [/^(Retry|Remove) ([^]*)$/, m => (m[1] === 'Retry' ? 'Riprova ' : 'Togli ') + m[2]],
+        [/^(\d+) more images?$/, m => m[1] === '1' ? '1 altra immagine' : m[1] + ' altre immagini'],
         [/^Exported with (?:(\d+) unresolved assets?)?(?: and )?(?:(\d+) notices?)?$/, m => 'Esportato con ' + [m[1] && plural(m[1], 'risorsa non risolta', 'risorse non risolte'), m[2] && plural(m[2], 'avviso', 'avvisi')].filter(Boolean).join(' e ')],
         [/^Reveal (\d+)\/(\d+)$/, m => 'Mostra ' + m[1] + '/' + m[2]],
         [/^Reveal the next block changed in ([^]*)$/, m => 'Mostra il blocco successivo cambiato in ' + m[1]],
@@ -114,7 +116,6 @@
         [/^([^]*) on ([^]*) (is queued to send|is already queued for a fix)$/, m => m[1] + ' su ' + m[2] + (m[3] === 'is queued to send' ? ' è in coda per l’invio' : ' ha già una correzione in coda')],
         [/^Dismiss ([^]*) for this artifact revision$/, m => 'Ignora ' + m[1] + ' per questa revisione dell’artefatto'],
         [/^([^]*) cannot be dismissed while (queued to send|a fix is queued)$/, m => m[1] + ' non si può ignorare mentre ' + (m[2] === 'queued to send' ? 'è in coda per l’invio' : 'c’è una correzione in coda')],
-        [/^(Retry|Remove) ([^]*)$/, m => (m[1] === 'Retry' ? 'Riprova ' : 'Togli ') + m[2]],
         [/^Image is larger than the ([^]*) limit$/, m => 'L’immagine supera il limite di ' + m[1]],
         [/^Unsupported file type\. Use ([^]*)\.$/, m => 'Tipo di file non supportato. Usa ' + m[1].replace(/,? or /, ' o ') + '.'],
         [/^Upload limit reached for this session \(([^]*)\)\.$/, m => 'Limite di caricamento raggiunto per questa sessione (' + m[1] + ').'],
@@ -128,11 +129,11 @@
         if (match)
             return text.replace(core, () => write(match));
     } return text; }
-    const OWN_WORDS = '.chat-md,.bubble-text,.note-draft,.anchor,.menu-file-text,.revision-label,.revision-summary,.warning-chip,.warning-title,.warning-explanation,.warning-target,.chat-attachment-copy strong';
+    const OWN_WORDS = '.chat-md,.bubble-text,.note-draft,.anchor,.menu-file-text,.revision-label,.revision-summary,.warning-chip,.warning-title,.warning-explanation,.warning-target,.chat-attachment-copy strong,.revision-time,.ended-copy,.panel-summary.is-unread';
     function localizeText(node) { if (node.parentElement?.closest(OWN_WORDS) || node.parentElement?.tagName === 'TEXTAREA')
         return; const value = italian(node.nodeValue); if (value !== node.nodeValue)
         node.nodeValue = value; }
-    function localizeElement(el) { if (el.closest(OWN_WORDS))
+    function localizeElement(el) { if (el.closest(OWN_WORDS) || el.classList.contains('bubble-attachment'))
         return; for (const name of ['aria-label', 'title', 'placeholder']) {
         const value = el.getAttribute(name);
         const it = value && italian(value);

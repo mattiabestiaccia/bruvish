@@ -58,7 +58,7 @@ function element(tag) {
     nodeType: 1, tagName: tag.toUpperCase(), dataset: {}, attributes: {}, children: [], listeners: {}, hidden: false, textContent: '', parent: null,
     get parentElement() { return this.parent; },
     closest(selector) {
-      const simple = (node, token) => token === node.tagName.toLowerCase() || (token.startsWith('.') && node.classList.contains(token.slice(1)));
+      const simple = (node, token) => token === node.tagName.toLowerCase() || (token.startsWith('.') && token.slice(1).split('.').every(name => node.classList.contains(name)));
       const matches = (node, part) => { const [ancestor, own] = part.trim().split(/\s+/).length > 1 ? part.trim().split(/\s+/) : [null, part.trim()]; if (!simple(node, own)) return false; if (!ancestor) return true; for (let up = node.parent; up; up = up.parent) if (simple(up, ancestor)) return true; return false; };
       for (let node = this; node; node = node.parent) if (selector.split(',').some(part => matches(node, part))) return node; return null;
     },
@@ -395,14 +395,26 @@ test('addon: official panel texts turn Italian, also when written later, and the
   const chipCopy = box('span', 'chat-attachment-copy', panel);
   const fileName = text('Copy', box('strong', '', chipCopy));
   const retry = box('button', '', panel, { 'aria-label': 'Retry Copy.png' });
+  const thumbnail = box('img', 'bubble-attachment', panel, { title: 'Remove background.png' });
+  const expired = box('span', 'bubble-attachment bubble-attachment-expired', panel, { title: 'Select area on map.png' });
+  const expiredText = text('Image expired', expired);
+  const more = box('span', 'bubble-attachment-more', panel, { title: '2 more images' });
+  const unread = box('div', 'panel-summary is-unread', panel);
+  const unreadText = text('Copy', unread);
+  const summary = text('2 queued', box('div', 'panel-summary', panel));
+  const revisionTime = text('Done 10:30', box('span', 'revision-time', panel));
+  const endedPath = text('Remove me.html', box('p', 'ended-copy', panel));
   const later = text('Cancel', box('button', 'queued-edit-cancel', panel));
   observers.find(o => o.target === panel).fn([{ type: 'childList', addedNodes: [later] }]);
-  observers.find(o => o.target === panel).fn([...written, revealRevision, revealWarning, dismissWarning, chipCopy, retry].map(node => ({ type: 'childList', addedNodes: [node] })));
+  observers.find(o => o.target === panel).fn([...written, revealRevision, revealWarning, dismissWarning, chipCopy, retry, thumbnail, expired, more, unread, summary.parentElement, revisionTime.parentElement, endedPath.parentElement].map(node => ({ type: 'childList', addedNodes: [node] })));
   assert.deepEqual(written.map(node => node.nodeValue), ['L’agente sta lavorando…', 'Esportazione…', 'Esportato con 2 risorse non risolte e 1 avviso', 'Esportato con 1 avviso', 'Esportazione non riuscita: riprova', 'Mostra 2/3', 'Caricamento…',
     'Non inviato: più di 4 immagini in un messaggio; un’immagine non è più disponibile. Togli o correggi l’immagine, poi invia di nuovo.', 'Tipo di file non supportato. Usa PNG, JPEG o WEBP.', 'Puoi allegare fino a 1 immagine.']);
   assert.deepEqual([revealRevision, revealWarning, dismissWarning, retry].map(el => el.attributes['aria-label']),
     ['Mostra il blocco successivo cambiato in Working draft', 'Mostra Text overflow on .card nell’artefatto', 'Ignora Text overflow per questa revisione dell’artefatto', 'Riprova Copy.png'], 'the agent\'s label, the server\'s title and the file name stay verbatim');
   assert.equal(fileName.nodeValue, 'Copy', 'an attachment file name is the reader\'s');
+  assert.deepEqual([thumbnail.attributes.title, expired.attributes.title, expiredText.nodeValue, more.attributes.title], ['Remove background.png', 'Select area on map.png', 'Immagine scaduta', '2 altre immagini'], 'thumbnail titles are file names; the official words around them still turn Italian');
+  assert.deepEqual([unreadText.nodeValue, summary.nodeValue], ['Copy', '2 in coda'], 'the unread reply preview is the agent\'s words, the other summaries are official');
+  assert.deepEqual([revisionTime.nodeValue, endedPath.nodeValue], ['Done 10:30', 'Remove me.html'], 'a revision time from the agent and the session file path stay verbatim');
   assert.equal(later.nodeValue, 'Annulla', 'text the official code writes later');
 });
 
