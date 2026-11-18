@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync, readlinkSync, rmSync, unlinkSync } from 'node:fs';
+import { copyFileSync, readFileSync, readdirSync, readlinkSync, rmSync, unlinkSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import protocol from '../../app/protocol.cjs';
@@ -141,7 +141,8 @@ test('install requires that the installed lavish-axi design prints the guide: wi
         assert.equal(printed.status, 0, printed.stderr);
         assert.equal(printed.stdout.trim(), '# Style guide');
 
-        commitChange(ws, repo, 'bruvish/note.md', 'third\n');
+        const third = `0.1.96-${commitChange(ws, repo, 'bruvish/note.md', 'third\n')}`;
+        assert.equal(runScript(repo, ws.env, 'install', '--no-switch').status, 0);
         rmSync(path.join(repo, 'bruvish/DESIGN.md'));
         result = runScript(repo, ws.env, 'install');
         assert.equal(result.status, 1, result.output);
@@ -151,7 +152,19 @@ test('install requires that the installed lavish-axi design prints the guide: wi
         assert.doesNotMatch(result.stdout, /Installed /);
         assert.equal(link(ws, 'current'), second);
         assert.equal(link(ws, 'previous'), first);
-        assert.deepEqual(readdirSync(tools(ws)).sort(), [first, second, 'current', 'previous'].sort(), 'no folder, not even a staging one, is left');
+        assert.deepEqual(readdirSync(tools(ws)).sort(), [first, second, third, 'current', 'previous'].sort(), 'no folder, not even a staging one, is left');
+
+        // A folder installed without the guide before this check (same commit, same build) is refused too.
+        rmSync(path.join(tools(ws), third, 'dist/bruvish-design.md'));
+        copyFileSync(path.join(repo, 'dist/bruvish-manifest.json'), path.join(tools(ws), third, 'dist/bruvish-manifest.json'));
+        result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /lavish-axi design of this build does not print the style guide/);
+        assert.match(result.stderr, /bruvish\/DESIGN\.placeholder\.md/);
+        assert.doesNotMatch(result.stdout, /already installed and verified/);
+        assert.equal(link(ws, 'current'), second);
+        assert.equal(link(ws, 'previous'), first);
+        assert.deepEqual(readdirSync(tools(ws)).sort(), [first, second, third, 'current', 'previous'].sort());
     } finally {
         rmSync(ws.dir, { recursive: true, force: true });
     }
