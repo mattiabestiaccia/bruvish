@@ -27,8 +27,8 @@ if (args[0] === 'install' && args.includes('--prod')) {
 `;
 
 // Stands in for scripts/bruvish-build.js: a command that needs its production dependency and
-// prints the version, and a manifest in the same shape as the real one. Like the real build, the
-// untracked style guide bruvish/DESIGN.md, when present, becomes dist/bruvish-design.md.
+// prints the version and the style guide (or the missing-guide error), and a manifest in the
+// same shape as the real one. Like the real build, the untracked style guide bruvish/DESIGN.md, when present, becomes dist/bruvish-design.md.
 const FAKE_BRUVISH_BUILD = `import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -37,9 +37,14 @@ const sha = (data) => createHash('sha256').update(data).digest('hex');
 mkdirSync('dist', { recursive: true });
 writeFileSync('dist/bruvish.mjs', [
     '#!/usr/bin/env node',
-    "import { existsSync } from 'node:fs';",
+    "import { existsSync, readFileSync } from 'node:fs';",
     "if (!existsSync(new URL('../node_modules/fake-dep/index.js', import.meta.url))) { console.error('fake-dep missing'); process.exit(1); }",
     "if (process.argv[2] === '--version') console.log(" + JSON.stringify(version) + ');',
+    "if (process.argv[2] === 'design') {",
+    "  const guide = new URL('./bruvish-design.md', import.meta.url);",
+    "  if (existsSync(guide)) process.stdout.write(readFileSync(guide, 'utf8') + '\\\\n');",
+    "  else { console.error('Bruvish style guide missing: fake'); process.exitCode = 1; }",
+    '}',
     '',
 ].join('\\n'));
 chmodSync('dist/bruvish.mjs', 0o755);

@@ -27,6 +27,8 @@ export const INSTALL_USAGE = `Usage: bruvish/scripts/install [--no-switch]
 
 Builds this checkout (clean, committed), installs it into <tools root>/bruvish/<version>-<sha7>,
 verifies it, then points the current link at it and keeps the previous one as previous.
+It also asks the installed lavish-axi for the style guide (lavish-axi design): if the guide is
+missing it warns, with the remedy, and still installs.
 If that folder already holds another build of the same commit (for example a regenerated
 bruvish/DESIGN.md), it installs into <version>-<sha7>-<first 6 characters of the build identity>
 and leaves the existing folder alone. <tools root> is ~/tools, or $BRUVISH_TOOLS_ROOT.
@@ -111,6 +113,19 @@ export function verifyInstallation(directory) {
     throw new Stop(`${directory}: bin/lavish-axi --version did not print ${version}${detail ? `: ${detail}` : ""}`);
   }
   return { manifest, version };
+}
+
+// The installed command, asked for the artifact style guide the way an agent does. The guide is
+// personal and optional, so its absence is a warning that says how to fix it, not a failed install.
+// BRUVISH_DESIGN is dropped from the environment: the check is about the installation itself.
+export function checkDesignGuide(directory) {
+  const env = { ...process.env };
+  delete env.BRUVISH_DESIGN;
+  const command = path.join(directory, "bin/lavish-axi");
+  const result = spawnSync(process.execPath, [command, "design"], { env, encoding: "utf8", timeout: 30_000 });
+  if (result.status === 0 && result.stdout.trim() !== "") return { present: true };
+  const detail = (result.stderr || result.error?.message || "").trim().split("\n")[0].slice(0, 300);
+  return { present: false, detail };
 }
 
 function readLink(root, name) {
@@ -206,7 +221,7 @@ function installName(tools, built) {
   return name;
 }
 
-function install(root, { switchCurrent }, log) {
+function install(root, { switchCurrent }, log, warn) {
   ensureClean(root);
   run("pnpm", ["run", "build"], root);
   const built = checkBuild(root);
@@ -230,6 +245,16 @@ function install(root, { switchCurrent }, log) {
       rmSync(staging, { recursive: true, force: true });
     }
     log(`Installed ${target} (build ${built.manifest.identity}).`);
+  }
+
+  const guide = checkDesignGuide(target);
+  if (guide.present) {
+    log("lavish-axi design prints the style guide.");
+  } else {
+    warn(
+      `Warning: lavish-axi design does not print the style guide in ${target}${guide.detail ? ` (${guide.detail})` : ""}.\n` +
+        "Agents would write artifact HTML without it. Generate bruvish/DESIGN.md as described in bruvish/DESIGN.placeholder.md, then rerun this script: it installs a new build beside this one.",
+    );
   }
 
   if (!switchCurrent) {
@@ -283,7 +308,7 @@ export function installMain(argv, { root = defaultRoot, log = console.log, error
     }
     const unknown = argv.filter((arg) => arg !== "--no-switch");
     if (unknown.length > 0) throw new Stop(`Unexpected argument: ${unknown[0]}\n${INSTALL_USAGE}`);
-    return install(root, { switchCurrent: !argv.includes("--no-switch") }, log);
+    return install(root, { switchCurrent: !argv.includes("--no-switch") }, log, error);
   }, error);
 }
 

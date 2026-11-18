@@ -125,6 +125,48 @@ test('another build of the same commit (a regenerated style guide) installs besi
     }
 });
 
+test('install checks that the installed lavish-axi design prints the guide, and warns with the remedy when it does not', () => {
+    const ws = workspace('bruvish-install-');
+    try {
+        const repo = installCheckout(ws);
+        // No guide: the install still succeeds, and says what is missing and how to fix it.
+        let result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 0, result.output);
+        const first = link(ws, 'current');
+        assert.match(result.stderr, /Warning: lavish-axi design does not print the style guide/);
+        assert.match(result.stderr, /Bruvish style guide missing/);
+        assert.match(result.stderr, /bruvish\/DESIGN\.placeholder\.md/);
+        assert.doesNotMatch(result.stdout, /prints the style guide/);
+
+        // With the guide: no warning, and the installed command prints it.
+        write(path.join(repo, 'bruvish/DESIGN.md'), '# Style guide\n');
+        result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 0, result.output);
+        assert.doesNotMatch(result.stderr, /style guide/);
+        assert.match(result.stdout, /lavish-axi design prints the style guide\./);
+        const printed = spawnSync(process.execPath, [path.join(tools(ws), 'current/bin/lavish-axi'), 'design'], { env: ws.env, encoding: 'utf8' });
+        assert.equal(printed.status, 0, printed.stderr);
+        assert.match(printed.stdout, /# Style guide/);
+        assert.notEqual(link(ws, 'current'), first, 'the guide makes another build of the same commit');
+        assert.equal(link(ws, 'previous'), first);
+    } finally {
+        rmSync(ws.dir, { recursive: true, force: true });
+    }
+});
+
+test('the guide check ignores BRUVISH_DESIGN: it is about the installed copy', () => {
+    const ws = workspace('bruvish-install-');
+    try {
+        const outside = path.join(ws.dir, 'elsewhere.md');
+        write(outside, '# Not installed\n');
+        const result = runScript(installCheckout(ws), { ...ws.env, BRUVISH_DESIGN: outside }, 'install');
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stderr, /Warning: lavish-axi design does not print the style guide/);
+    } finally {
+        rmSync(ws.dir, { recursive: true, force: true });
+    }
+});
+
 test('BRUVISH_TOOLS_ROOT replaces ~/tools', () => {
     const ws = workspace('bruvish-install-');
     try {

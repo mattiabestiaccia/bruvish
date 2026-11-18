@@ -3,3 +3,8 @@
 /DESIGN.md
 /stile.locale.md
 /.impeccable/
+
+# style-sync-ai: file locali di Impeccable
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json
+.impeccable/config.local.json
