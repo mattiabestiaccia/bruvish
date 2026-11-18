@@ -55,7 +55,9 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
 function element(tag) {
   const classes = new Set();
   const el = {
-    tagName: tag.toUpperCase(), dataset: {}, attributes: {}, children: [], listeners: {}, hidden: false, textContent: '', parent: null,
+    nodeType: 1, tagName: tag.toUpperCase(), dataset: {}, attributes: {}, children: [], listeners: {}, hidden: false, textContent: '', parent: null,
+    get parentElement() { return this.parent; },
+    closest(selector) { for (let node = this; node; node = node.parent) if (selector.split(',').some(part => part.trim() === node.tagName.toLowerCase() || node.classList.contains(part.trim().replace(/^\./, '')))) return node; return null; },
     style: { props: {}, setProperty(name, value) { this.props[name] = value; } },
     classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name), toggle: (name, on) => on ? classes.add(name) : classes.delete(name) },
     setAttribute(name, value) { this.attributes[name] = String(value); },
@@ -88,18 +90,20 @@ function upstreamChrome() {
   return { bar, brandBox, brand, annotate, title, send, end, input };
 }
 
-async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null } = {}) {
+async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null } = {}) {
   const listeners = {}, posted = [], documentListeners = {}, observers = [];
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
   const body = element('body'), head = element('head');
   const root = { style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
   const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {} };
-  const bySelector = chrome ? { '.brand': chrome.brandBox, '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {};
+  const bySelector = { ...chrome ? { '.brand': chrome.brandBox, '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {}, ...panel ? { '.panel': panel } : {} };
+  const descendants = node => (node.children || []).flatMap(child => [child, ...descendants(child)]);
   const document = {
     body, head, documentElement: root, getElementById: id => byId[id] ?? null, createElement: element,
     createElementNS: (namespace, tag) => Object.assign(element(tag), { namespace }),
     querySelector: selector => bySelector[selector] ?? null,
+    createTreeWalker: scope => { const nodes = descendants(scope); let i = 0; return { nextNode: () => nodes[i++] ?? null }; },
     get activeElement() { return active?.() ?? body; },
     addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
@@ -110,6 +114,7 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
     matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')' }),
     CSS: { supports: (property, value) => property === 'color' && /^(#[0-9a-f]{3,8}|rgba?\([\d., ]+\))$/i.test(value) },
     MutationObserver: class { constructor(fn) { this.fn = fn; observers.push(this); } observe(target) { this.target = target; } },
+    Node: { ELEMENT_NODE: 1, TEXT_NODE: 3 }, NodeFilter: { SHOW_ELEMENT: 1, SHOW_TEXT: 4 },
     fetch: () => Promise.reject(new Error('offline')),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }
   };
@@ -120,7 +125,7 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   // Upstream sets aria-pressed again on every toggle; the observer then mirrors it.
   const upstreamToggle = pressed => { chrome.annotate.setAttribute('aria-pressed', String(pressed)); observers.filter(o => o.target === chrome.annotate).forEach(o => o.fn()); };
   const rail = body.children.find(el => el.className === 'mb-rail');
-  return { body, head, root, rail, deliver, posted, key, upstreamToggle };
+  return { body, head, root, rail, deliver, posted, key, upstreamToggle, observers };
 }
 
 test('bridge: each minimap entry carries the novelty of its card and the outline carries the theme accent', () => {
@@ -354,6 +359,26 @@ test('addon: closed-cards switch (check in a circle) next to annotate, hidden un
   assert.deepEqual([closed.attributes['aria-checked'], posted.filter(m => m.type === 'lavish-mb:closed').at(-1).show], ['true', true], 'a reveal inside a hidden closed card turns the switch on');
   deliver({ type: 'lavish-mb:outline', items: [{ id: 'a', title: 'Carta a', state: 'answered', closed: true }], closed: 1, open: 0 });
   assert.equal(closed.hidden, true, 'nothing to filter on a page of closed cards only');
+});
+
+test('addon: official panel texts turn Italian, also when written later, and the reader\'s own words never change', async () => {
+  const text = (value, parent) => { const node = { nodeType: 3, nodeValue: value, parentElement: parent }; parent.children.push(node); return node; };
+  const box = (tag, className, parent, attributes = {}) => { const el = element(tag); el.className = className; Object.assign(el.attributes, attributes); if (parent) parent.append(el); return el; };
+  const panel = box('aside', 'panel');
+  const status = text('Queued ', box('small', '', panel));
+  const editor = box('textarea', 'queued-edit-input', panel, { 'aria-label': 'Edit queued prompt' });
+  const draft = text('Copy', editor);
+  const message = text('Copy', box('div', 'bubble-text', panel));
+  const path = box('button', 'menu-file', panel, { title: "Copy path · /tmp/a$&b$'.html" });
+  const receipt = box('span', 'receipt-step', panel, { 'aria-label': 'Seen 10:30 AM', title: 'Done: not yet' });
+  const selected = text('3 selected', box('span', 'warnings-selected', panel));
+  const { observers } = await runAddon(new Map(), { panel });
+  assert.deepEqual([status.nodeValue, editor.attributes['aria-label'], path.attributes.title, receipt.attributes['aria-label'], receipt.attributes.title, selected.nodeValue],
+    ['In coda ', 'Modifica il messaggio in coda', "Copia il percorso · /tmp/a$&b$'.html", 'Visto 10:30 AM', 'Fatto: non ancora', '3 scelti'], 'a path keeps its characters as they are');
+  assert.deepEqual([draft.nodeValue, message.nodeValue], ['Copy', 'Copy'], 'a queued note being edited and a sent message are the reader\'s words');
+  const later = text('Cancel', box('button', 'queued-edit-cancel', panel));
+  observers.find(o => o.target === panel).fn([{ type: 'childList', addedNodes: [later] }]);
+  assert.equal(later.nodeValue, 'Annulla', 'text the official code writes later');
 });
 
 test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {

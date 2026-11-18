@@ -69,22 +69,34 @@
         ['The agent declares these in the artifact itself. Reveal flashes the next block it marked for that revision; nothing about the page is restyled, so the saved file still looks the way it does here.', 'Le dichiara l’agente nell’artefatto. «Mostra» fa lampeggiare il blocco successivo che ha segnato per quella revisione; la pagina non viene ristilizzata, quindi il file salvato resta come lo vedi qui.'],
         ['Reveal', 'Mostra'], ['Dismiss', 'Ignora'], ['No unresolved layout issues.', 'Nessun problema di impaginazione aperto.'], ['Queued for send', 'In coda per l’invio'],
         ['More', 'Altro'], ['Editing', 'In modifica'], ['Copy', 'Copia'], ['Copied', 'Copiato'], ['Reload artifact', 'Ricarica l’artefatto'], ['Copy DOM snapshot', 'Copia l’istantanea del DOM'],
-        ['Export standalone HTML', 'Esporta HTML autonomo'], ['Publish link', 'Pubblica un link'], ['End session', 'Chiudi la sessione']
+        ['Export standalone HTML', 'Esporta HTML autonomo'], ['Publish link', 'Pubblica un link'], ['End session', 'Chiudi la sessione'],
+        ['Cancel', 'Annulla'], ['Save', 'Salva'], ['None selected', 'Nessuno scelto'],
+        ['This browser refused to store it, so copy it before you reload this page.', 'Questo browser non ha voluto salvarlo: copialo prima di ricaricare la pagina.'],
+        ['The Lavish server this page was connected to is no longer running. Reloading will work once it is running again.', 'Il server di Lavish a cui era collegata questa pagina non è più acceso. Il ricaricamento funzionerà quando sarà di nuovo acceso.'],
+        ['Lavish was updated. This page is running the previous version.', 'Lavish è stato aggiornato. Questa pagina usa ancora la versione precedente.'],
+        ['Lavish was restarted to pick up a local build. This page is running the copy the previous server sent.', 'Lavish è stato riavviato con una build locale. Questa pagina usa la copia mandata dal server precedente.'],
+        ['Lavish was stopped. Reload after you start it again.', 'Lavish è stato fermato. Ricarica dopo averlo riavviato.'],
+        ['Lavish is still not running. Start it again, then use Check and reload.', 'Lavish non è ancora acceso. Riavvialo, poi usa «Controlla e ricarica».'],
+        ['Lavish did not answer the check, so this page cannot tell whether it is running. Try again in a moment.', 'Lavish non ha risposto al controllo, quindi questa pagina non sa se è acceso. Riprova fra un momento.'],
+        ['Check and reload', 'Controlla e ricarica']
     ]);
+    const RECEIPT_STEPS = { Seen: 'Visto', Working: 'In lavorazione', Done: 'Fatto' };
     const ITALIAN_RULES = [
         [/^(Show|Hide) conversation(?: \((\d+) queued\)| \((new reply)\))?$/, m => (m[1] === 'Show' ? 'Mostra' : 'Nascondi') + ' la conversazione' + (m[2] ? ' (' + m[2] + ' in coda)' : m[3] ? ' (nuova risposta)' : '')],
         [/^(\d+) queued$/, m => m[1] + ' in coda'],
+        [/^(\d+) selected$/, m => m[1] + (m[1] === '1' ? ' scelto' : ' scelti')],
+        [/^(Seen|Working|Done)(?:: (not yet)| (.+))$/, m => RECEIPT_STEPS[m[1]] + (m[2] ? ': non ancora' : ' ' + m[3])],
         [/^Copy path · ([^]*)$/, m => 'Copia il percorso · ' + m[1]]
     ];
     function italian(text) { const core = text.trim(); if (!core)
         return text; const exact = ITALIAN.get(core); if (exact !== undefined)
-        return text.replace(core, exact); for (const [rule, write] of ITALIAN_RULES) {
+        return text.replace(core, () => exact); for (const [rule, write] of ITALIAN_RULES) {
         const match = rule.exec(core);
         if (match)
-            return text.replace(core, write(match));
+            return text.replace(core, () => write(match));
     } return text; }
     const OWN_WORDS = '.chat-md,.bubble-text,.note-draft,.anchor,.menu-file-text';
-    function localizeText(node) { if (node.parentElement?.closest(OWN_WORDS))
+    function localizeText(node) { if (node.parentElement?.closest(OWN_WORDS) || node.parentElement?.tagName === 'TEXTAREA')
         return; const value = italian(node.nodeValue); if (value !== node.nodeValue)
         node.nodeValue = value; }
     function localizeElement(el) { if (el.closest(OWN_WORDS))
