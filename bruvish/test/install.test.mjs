@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync, readlinkSync, rmSync, unlinkSync } from 'node:fs';
+import { copyFileSync, readFileSync, readdirSync, readlinkSync, rmSync, unlinkSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import protocol from '../../app/protocol.cjs';
@@ -104,22 +104,91 @@ test('another build of the same commit (a regenerated style guide) installs besi
         assert.equal(runScript(repo, ws.env, 'install').status, 0);
         const firstManifest = readFileSync(path.join(tools(ws), first, 'dist/bruvish-manifest.json'), 'utf8');
 
-        write(path.join(repo, 'bruvish/DESIGN.md'), '# Style guide\n');
+        write(path.join(repo, 'bruvish/DESIGN.md'), '# Style guide, regenerated\n');
         let result = runScript(repo, ws.env, 'install');
         assert.equal(result.status, 0, result.output);
         const identity = JSON.parse(readFileSync(path.join(repo, 'dist/bruvish-manifest.json'), 'utf8')).identity;
         const second = `${first}-${identity.slice(0, 6)}`;
-        assert.ok(exists(tools(ws), second, 'dist/bruvish-design.md'));
+        assert.equal(readFileSync(path.join(tools(ws), second, 'dist/bruvish-design.md'), 'utf8'), '# Style guide, regenerated\n');
         assert.equal(link(ws, 'current'), second);
         assert.equal(link(ws, 'previous'), first);
         assert.equal(readFileSync(path.join(tools(ws), first, 'dist/bruvish-manifest.json'), 'utf8'), firstManifest, 'the existing folder is untouched');
-        assert.ok(!exists(tools(ws), first, 'dist/bruvish-design.md'));
+        assert.equal(readFileSync(path.join(tools(ws), first, 'dist/bruvish-design.md'), 'utf8'), '# Style guide\n');
 
         result = runScript(repo, ws.env, 'install');
         assert.equal(result.status, 0, result.output);
         assert.match(result.stdout, /already installed and verified/);
         assert.equal(link(ws, 'current'), second);
         assert.equal(link(ws, 'previous'), first);
+    } finally {
+        rmSync(ws.dir, { recursive: true, force: true });
+    }
+});
+
+test('install requires that the installed lavish-axi design prints the guide: without it nothing is installed and the links stay', () => {
+    const ws = workspace('bruvish-install-');
+    try {
+        const repo = installCheckout(ws);
+        const first = `0.1.96-${git(repo, ws.env, 'rev-parse', 'HEAD').slice(0, 7)}`;
+        assert.equal(runScript(repo, ws.env, 'install').status, 0);
+        const second = `0.1.96-${commitChange(ws, repo, 'bruvish/note.md', 'second\n')}`;
+        let result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 0, result.output);
+        assert.match(result.stdout, /lavish-axi design prints the style guide\./);
+        assert.equal(link(ws, 'current'), second);
+        assert.equal(link(ws, 'previous'), first);
+        const printed = spawnSync(process.execPath, [path.join(tools(ws), 'current/bin/lavish-axi'), 'design'], { env: ws.env, encoding: 'utf8' });
+        assert.equal(printed.status, 0, printed.stderr);
+        assert.equal(printed.stdout.trim(), '# Style guide');
+
+        const third = `0.1.96-${commitChange(ws, repo, 'bruvish/note.md', 'third\n')}`;
+        assert.equal(runScript(repo, ws.env, 'install', '--no-switch').status, 0);
+        rmSync(path.join(repo, 'bruvish/DESIGN.md'));
+        result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /lavish-axi design of this build does not print the style guide/);
+        assert.match(result.stderr, /Bruvish style guide missing/);
+        assert.match(result.stderr, /bruvish\/DESIGN\.placeholder\.md/);
+        assert.doesNotMatch(result.stdout, /Installed /);
+        assert.equal(link(ws, 'current'), second);
+        assert.equal(link(ws, 'previous'), first);
+        assert.deepEqual(readdirSync(tools(ws)).sort(), [first, second, third, 'current', 'previous'].sort(), 'no folder, not even a staging one, is left');
+
+        // A folder installed without the guide before this check (same commit, same build) is refused too.
+        rmSync(path.join(tools(ws), third, 'dist/bruvish-design.md'));
+        copyFileSync(path.join(repo, 'dist/bruvish-manifest.json'), path.join(tools(ws), third, 'dist/bruvish-manifest.json'));
+        result = runScript(repo, ws.env, 'install');
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /lavish-axi design of this build does not print the style guide/);
+        assert.match(result.stderr, /bruvish\/DESIGN\.placeholder\.md/);
+        assert.doesNotMatch(result.stdout, /already installed and verified/);
+        assert.equal(link(ws, 'current'), second);
+        assert.equal(link(ws, 'previous'), first);
+        assert.deepEqual(readdirSync(tools(ws)).sort(), [first, second, third, 'current', 'previous'].sort());
+    } finally {
+        rmSync(ws.dir, { recursive: true, force: true });
+    }
+});
+
+test('the guide check ignores BRUVISH_DESIGN: it is about the installed copy', () => {
+    const ws = workspace('bruvish-install-');
+    try {
+        const repo = installCheckout(ws);
+        const outside = path.join(ws.dir, 'elsewhere.md');
+        write(outside, '# Not installed\n');
+        const env = { ...ws.env, BRUVISH_DESIGN: outside };
+        assert.equal(runScript(repo, env, 'install').status, 0);
+        const first = link(ws, 'current');
+        const printed = spawnSync(process.execPath, [path.join(tools(ws), 'current/bin/lavish-axi'), 'design'], { env, encoding: 'utf8' });
+        assert.equal(printed.status, 0, printed.stderr);
+        assert.match(printed.stdout, /# Not installed/, 'the installed command honours BRUVISH_DESIGN');
+
+        commitChange(ws, repo, 'bruvish/note.md', 'second\n');
+        rmSync(path.join(repo, 'bruvish/DESIGN.md'));
+        const result = runScript(repo, env, 'install');
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /does not print the style guide/);
+        assert.equal(link(ws, 'current'), first);
     } finally {
         rmSync(ws.dir, { recursive: true, force: true });
     }

@@ -27,6 +27,8 @@ export const INSTALL_USAGE = `Usage: bruvish/scripts/install [--no-switch]
 
 Builds this checkout (clean, committed), installs it into <tools root>/bruvish/<version>-<sha7>,
 verifies it, then points the current link at it and keeps the previous one as previous.
+Before that it asks the installed lavish-axi for the style guide (lavish-axi design): without the
+guide it installs nothing, leaves current and previous alone, and says how to generate it.
 If that folder already holds another build of the same commit (for example a regenerated
 bruvish/DESIGN.md), it installs into <version>-<sha7>-<first 6 characters of the build identity>
 and leaves the existing folder alone. <tools root> is ~/tools, or $BRUVISH_TOOLS_ROOT.
@@ -111,6 +113,22 @@ export function verifyInstallation(directory) {
     throw new Stop(`${directory}: bin/lavish-axi --version did not print ${version}${detail ? `: ${detail}` : ""}`);
   }
   return { manifest, version };
+}
+
+// The installed command, asked for the artifact style guide the way an agent does. A build whose
+// lavish-axi design does not print the guide is refused before it becomes visible or current.
+// BRUVISH_DESIGN is dropped from the environment: the check is about the installation itself.
+function requireDesignGuide(directory) {
+  const env = { ...process.env };
+  delete env.BRUVISH_DESIGN;
+  const command = path.join(directory, "bin/lavish-axi");
+  const result = spawnSync(process.execPath, [command, "design"], { env, encoding: "utf8", timeout: 30_000 });
+  if (result.status === 0 && result.stdout.trim() !== "") return;
+  const detail = (result.stderr || result.error?.message || "").trim().split("\n")[0].slice(0, 300);
+  throw new Stop(
+    `lavish-axi design of this build does not print the style guide${detail ? ` (${detail})` : ""}.\n` +
+      "Agents would write artifact HTML without it. Generate bruvish/DESIGN.md as described in bruvish/DESIGN.placeholder.md, then rerun this script, which rebuilds. Nothing was installed and current is unchanged.",
+  );
 }
 
 function readLink(root, name) {
@@ -216,6 +234,7 @@ function install(root, { switchCurrent }, log) {
   const target = path.join(tools, name);
 
   if (existsSync(target)) {
+    requireDesignGuide(target);
     log(`${target} is already installed and verified.`);
   } else {
     const staging = path.join(tools, `.${name}.tmp-${process.pid}`);
@@ -225,12 +244,15 @@ function install(root, { switchCurrent }, log) {
       if (staged.manifest.identity !== built.manifest.identity) {
         throw new Stop("The staged build differs from the build");
       }
+      requireDesignGuide(staging);
       renameSync(staging, target);
     } finally {
       rmSync(staging, { recursive: true, force: true });
     }
     log(`Installed ${target} (build ${built.manifest.identity}).`);
   }
+
+  log("lavish-axi design prints the style guide.");
 
   if (!switchCurrent) {
     log(`current is unchanged (${readLink(tools, "current") ?? "none"}); rerun without --no-switch to switch.`);

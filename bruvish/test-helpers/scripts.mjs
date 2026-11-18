@@ -27,19 +27,24 @@ if (args[0] === 'install' && args.includes('--prod')) {
 `;
 
 // Stands in for scripts/bruvish-build.js: a command that needs its production dependency and
-// prints the version, and a manifest in the same shape as the real one. Like the real build, the
-// untracked style guide bruvish/DESIGN.md, when present, becomes dist/bruvish-design.md.
+// prints the version and the style guide (or the missing-guide error), and a manifest in the
+// same shape as the real one. Like the real build, the untracked style guide bruvish/DESIGN.md, when present, becomes dist/bruvish-design.md, and a stale copy is removed when it is not.
 const FAKE_BRUVISH_BUILD = `import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
 const sha = (data) => createHash('sha256').update(data).digest('hex');
 mkdirSync('dist', { recursive: true });
 writeFileSync('dist/bruvish.mjs', [
     '#!/usr/bin/env node',
-    "import { existsSync } from 'node:fs';",
+    "import { existsSync, readFileSync } from 'node:fs';",
     "if (!existsSync(new URL('../node_modules/fake-dep/index.js', import.meta.url))) { console.error('fake-dep missing'); process.exit(1); }",
     "if (process.argv[2] === '--version') console.log(" + JSON.stringify(version) + ');',
+    "if (process.argv[2] === 'design') {",
+    "  const guide = process.env.BRUVISH_DESIGN || new URL('./bruvish-design.md', import.meta.url);",
+    "  if (existsSync(guide)) process.stdout.write(readFileSync(guide, 'utf8') + '\\\\n');",
+    "  else { console.error('Bruvish style guide missing: fake'); process.exitCode = 1; }",
+    '}',
     '',
 ].join('\\n'));
 chmodSync('dist/bruvish.mjs', 0o755);
@@ -48,7 +53,7 @@ const names = ['cli.mjs', 'server.mjs', 'bruvish.mjs'];
 if (existsSync('bruvish/DESIGN.md')) {
     copyFileSync('bruvish/DESIGN.md', 'dist/bruvish-design.md');
     names.push('bruvish-design.md');
-}
+} else rmSync('dist/bruvish-design.md', { force: true });
 for (const name of names) outputs[name] = sha(readFileSync('dist/' + name));
 if (process.env.FAKE_BUILD_CORRUPT) outputs['bruvish.mjs'] = '0'.repeat(64);
 const git = (args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
@@ -118,7 +123,8 @@ export function copyFromRepo(target, files) {
     }
 }
 
-// A committed checkout with the install and rollback scripts and a fake build.
+// A committed checkout with the install and rollback scripts, a fake build and, untracked as in a real
+// copy, the style guide bruvish/DESIGN.md that install requires.
 export function installCheckout(ws, version = '0.1.96') {
     const repo = path.join(ws.dir, 'checkout');
     mkdirSync(repo);
@@ -133,6 +139,7 @@ export function installCheckout(ws, version = '0.1.96') {
     copyFromRepo(repo, ['bruvish/lib/install.mjs', 'bruvish/scripts/install', 'bruvish/scripts/rollback', 'app/protocol.cjs']);
     git(repo, ws.env, 'add', '-A');
     git(repo, ws.env, 'commit', '-q', '-m', 'carry');
+    write(path.join(repo, 'bruvish/DESIGN.md'), '# Style guide\n');
     return repo;
 }
 
