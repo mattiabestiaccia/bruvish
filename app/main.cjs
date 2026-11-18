@@ -2,7 +2,7 @@ const {app, BrowserWindow, WebContentsView, Menu, dialog, ipcMain, session, shel
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
-const {validate, stateRoot, codeIdentity, coreRoot} = require('./protocol.cjs');
+const {validate, stateRoot, codeIdentity, coreRoot, takeRequests} = require('./protocol.cjs');
 const {createCore} = require('./core.cjs');
 const {Workspace} = require('./workspace.cjs');
 const {authorizeUi} = require('./ipc.cjs');
@@ -14,6 +14,15 @@ if (!path.isAbsolute(root)) throw Error('Absolute app state required');
 const startupCode = codeIdentity(__dirname);
 if (process.env.LAVISH_APP_TEST_CDP === '1') app.commandLine.appendSwitch('remote-debugging-port', '0');
 fs.mkdirSync(root, {recursive: true, mode: 0o700});
+// LaunchServices gives an app it starts for a sandboxed caller no stdout or stderr, so the app writes its
+// own log to app.log in its state directory: Chromium's log (Electron reads these switches again once this
+// script has run, and passes them to the GPU and renderer processes) and the request diagnostics of log().
+const logFile = path.join(root, 'app.log');
+fs.closeSync(fs.openSync(logFile, 'a', 0o600));
+app.commandLine.appendSwitch('enable-logging');
+app.commandLine.appendSwitch('log-file', logFile);
+// WARNING and above only: errors and crashes stay, the artifacts' console messages (INFO) do not.
+app.commandLine.appendSwitch('log-level', '1');
 app.setName('Lavish');
 app.setPath('userData', path.join(root, 'profile'));
 app.setPath('sessionData', path.join(root, 'profile'));
@@ -35,6 +44,27 @@ function acknowledge(request, data) {
   fs.writeFileSync(file + '.tmp', JSON.stringify({...data, appCode: startupCode, url: request.url,
     file: request.file, profile: path.join(root, 'profile')}), {mode: 0o600});
   fs.renameSync(file + '.tmp', file);
+}
+function log(message) {
+  try {fs.appendFileSync(logFile, `${new Date().toISOString()} ${message}\n`, {mode: 0o600});} catch {}
+}
+// Requests that app/open.mjs leaves in requests/ (see takeRequests in protocol.cjs). Handled at
+// startup and on every change of that folder, in arrival order through the queue.
+function drainRequests() {
+  let taken;
+  try {taken = takeRequests(root);} catch (error) {log('Cannot read review requests: ' + error.message);return;}
+  for (const entry of taken) void enqueue(async () => {
+    let request;
+    try {
+      if (entry.error) throw Error(entry.error);
+      request = parse([entry.url, entry.file, entry.id]);
+    } catch (error) {
+      log('Refused review request ' + entry.id + ': ' + error.message);
+      acknowledge({id: entry.id, url: entry.url, file: entry.file}, {status: 'error', error: error.message});
+      return;
+    }
+    await openRequest(request);
+  }).catch(error => log('Review request ' + entry.id + ' failed: ' + error.message));
 }
 function snapshot() {return {...workspace.snapshot(), preferences: preferences.snapshot(), fullscreen: isFullscreen()};}
 function notify() {if (win && !win.isDestroyed()) win.webContents.send('lavish:changed', snapshot());}
@@ -164,7 +194,7 @@ else {
     void initialized.then(() => enqueue(async () => {
       if (!data.url) {await ensureWindow();workspace.home();win.show();win.focus();return;}
       await openRequest(parse([data.url, data.file, data.id]));
-    })).catch(error => console.error(error.message));
+    })).catch(error => {console.error(error.message);log(error.message);});
   });
   app.on('activate', () => {void initialized.then(() => enqueue(async () => {await ensureWindow();win.show();win.focus();}));});
   app.on('window-all-closed', () => {if (process.platform !== 'darwin') app.quit();});
@@ -191,5 +221,9 @@ else {
     fs.writeFileSync(path.join(root, 'instance.json'), JSON.stringify({pid: process.pid, appCode: startupCode, executable: process.execPath}), {mode: 0o600});
     app.on('will-quit', () => {try {const file = path.join(root, 'instance.json');if (JSON.parse(fs.readFileSync(file)).pid === process.pid) fs.unlinkSync(file);} catch {}});
     await ensureWindow();if (first) await enqueue(() => openRequest(first));
-  }).catch(error => {dialog.showErrorBox('Lavish non può avviarsi', error.message);app.quit();});
+    const requests = path.join(root, 'requests');
+    fs.mkdirSync(requests, {recursive: true, mode: 0o700});
+    fs.watch(requests, () => drainRequests()).on('error', error => log('Request watcher stopped: ' + error.message));
+    drainRequests();
+  }).catch(error => {log('Startup failed: ' + error.message);dialog.showErrorBox('Lavish non può avviarsi', error.message);app.quit();});
 }
