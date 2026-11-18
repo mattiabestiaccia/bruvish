@@ -8,10 +8,11 @@ test('takeRequests takes each pending request once and leaves acknowledgements a
  fs.writeFileSync(protocol.requestPath(root,ids[0]),JSON.stringify({url:'http://127.0.0.1:4388/session/abcdef1234567890',file:'/tmp/a.html'}));
  fs.writeFileSync(protocol.requestPath(root,ids[2]),'{not json');
  const kept=[ids[0]+'.json',ids[1]+'.request.json.tmp','notes.request.json'];for(const name of kept)fs.writeFileSync(path.join(dir,name),'{}');
+ fs.utimesSync(protocol.requestPath(root,ids[2]),1000,1000);fs.utimesSync(protocol.requestPath(root,ids[1]),2000,2000);fs.utimesSync(protocol.requestPath(root,ids[0]),2000,2000);
  assert.deepEqual(protocol.takeRequests(root),[
+  {id:ids[2],error:'Malformed review request'},
   {id:ids[0],url:'http://127.0.0.1:4388/session/abcdef1234567890',file:'/tmp/a.html'},
-  {id:ids[1],url:'http://127.0.0.1:4388/session/1234567890abcdef',file:'/tmp/b.html'},
-  {id:ids[2],error:'Malformed review request'}]);
+  {id:ids[1],url:'http://127.0.0.1:4388/session/1234567890abcdef',file:'/tmp/b.html'}],'oldest first; equal times by name');
  assert.deepEqual(fs.readdirSync(dir).sort(),kept.sort());
  assert.deepEqual(protocol.takeRequests(root),[],'a request is taken only once');
 }finally{fs.rmSync(root,{recursive:true,force:true});}});

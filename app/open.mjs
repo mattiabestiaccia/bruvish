@@ -21,7 +21,7 @@ try{
  launcher.on('close',(code,signal)=>{launched=true;if(code!==0)error=Error('macOS could not launch '+path.basename(bundle)+': '+(stderr.trim().slice(-1000)||'open exited with '+(signal||'code '+code))+'. Opening is not confirmed and no alternative browser was opened.');});
  const end=Date.now()+timeout;let result;
  try{while(Date.now()<end){if(error)throw error;try{result=JSON.parse(fs.readFileSync(ack,'utf8'));break;}catch(e){if(e.code!=='ENOENT')throw e;}await new Promise(r=>setTimeout(r,50));}}
- // A request the app has not taken is withdrawn, so a later start or activation never opens it.
+ // A request the app has not taken is withdrawn, so the app never opens it later.
  finally{if(!result)fs.rmSync(pending,{force:true});if(!launched){launcher.stderr.destroy();launcher.unref();}}
  if(!result)throw Error('Lavish has not acknowledged the loaded review yet and was left running. It may be waiting for macOS consent: complete that dialog, then retry this opening; inspect app.log if needed. Opening is not confirmed and no alternative browser was opened.');
  fs.unlinkSync(ack);if(result.appCode!==appCode)throw Error('Running Lavish app code differs from maintained source. Quit and reopen it explicitly; no existing app was stopped.');if(result.status!=='opened'||result.url!==request.url||result.file!==request.file||result.profile!==path.join(request.root,'profile'))throw Error(result.error||'App acknowledgement does not match request');

@@ -16,14 +16,21 @@ function codeIdentity(directory){const crypto=require('node:crypto');return cryp
 // ignores the arguments, environment and stdio of a sandboxed caller, so a request cannot travel in argv:
 // the opener leaves it in <root>/requests/<id>.request.json (written to a .tmp file, then renamed) and asks
 // LaunchServices only to start or activate the app. The app takes each file once: it reads and deletes it
-// before handling it. The acknowledgement stays <root>/requests/<id>.json.
+// before handling it, in arrival order (file modification time, then name). The acknowledgement stays
+// <root>/requests/<id>.json.
 const requestFile=/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.request\.json$/;
 function requestPath(root,id){return path.join(root,'requests',id+'.request.json');}
 function takeRequests(root){
  const directory=path.join(root,'requests');let names;try{names=fs.readdirSync(directory);}catch(error){if(error.code==='ENOENT')return [];throw error;}
- const taken=[];
- for(const name of names.sort()){
+ const pending=[];
+ for(const name of names){
   const match=requestFile.exec(name);if(!match)continue;
+  let stat;try{stat=fs.statSync(path.join(directory,name));}catch(error){if(error.code==='ENOENT')continue;throw error;}
+  pending.push({name,match,time:stat.mtimeMs});
+ }
+ pending.sort((a,b)=>a.time-b.time||(a.name<b.name?-1:a.name>b.name?1:0));
+ const taken=[];
+ for(const {name,match} of pending){
   const file=path.join(directory,name);let text;
   try{text=fs.readFileSync(file,'utf8');fs.unlinkSync(file);}catch(error){if(error.code==='ENOENT')continue;throw error;}
   let data;try{data=JSON.parse(text);}catch{data=null;}

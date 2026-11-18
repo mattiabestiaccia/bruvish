@@ -14,6 +14,13 @@ if (!path.isAbsolute(root)) throw Error('Absolute app state required');
 const startupCode = codeIdentity(__dirname);
 if (process.env.LAVISH_APP_TEST_CDP === '1') app.commandLine.appendSwitch('remote-debugging-port', '0');
 fs.mkdirSync(root, {recursive: true, mode: 0o700});
+// LaunchServices gives an app it starts for a sandboxed caller no stdout or stderr, so the app writes its
+// own log to app.log in its state directory: Chromium's log (Electron reads these switches again once this
+// script has run, and passes them to the GPU and renderer processes) and the request diagnostics of log().
+const logFile = path.join(root, 'app.log');
+fs.closeSync(fs.openSync(logFile, 'a', 0o600));
+app.commandLine.appendSwitch('enable-logging');
+app.commandLine.appendSwitch('log-file', logFile);
 app.setName('Lavish');
 app.setPath('userData', path.join(root, 'profile'));
 app.setPath('sessionData', path.join(root, 'profile'));
@@ -36,13 +43,11 @@ function acknowledge(request, data) {
     file: request.file, profile: path.join(root, 'profile')}), {mode: 0o600});
   fs.renameSync(file + '.tmp', file);
 }
-// LaunchServices gives an app it starts for a sandboxed caller no stdout or stderr, so the app writes
-// its own request diagnostics to app.log in its state directory.
 function log(message) {
-  try {fs.appendFileSync(path.join(root, 'app.log'), `${new Date().toISOString()} ${message}\n`, {mode: 0o600});} catch {}
+  try {fs.appendFileSync(logFile, `${new Date().toISOString()} ${message}\n`, {mode: 0o600});} catch {}
 }
 // Requests that app/open.mjs leaves in requests/ (see takeRequests in protocol.cjs). Handled at
-// startup, on every change of that folder and on activation, in arrival order through the queue.
+// startup and on every change of that folder, in arrival order through the queue.
 function drainRequests() {
   let taken;
   try {taken = takeRequests(root);} catch (error) {log('Cannot read review requests: ' + error.message);return;}
@@ -189,7 +194,7 @@ else {
       await openRequest(parse([data.url, data.file, data.id]));
     })).catch(error => {console.error(error.message);log(error.message);});
   });
-  app.on('activate', () => {void initialized.then(() => {drainRequests();return enqueue(async () => {await ensureWindow();win.show();win.focus();});});});
+  app.on('activate', () => {void initialized.then(() => enqueue(async () => {await ensureWindow();win.show();win.focus();}));});
   app.on('window-all-closed', () => {if (process.platform !== 'darwin') app.quit();});
   initialized = app.whenReady().then(async () => {
     if (codeIdentity(path.join(coreDirectory, 'app')) !== startupCode) throw Error('Questa app non corrisponde al sorgente Lavish mantenuto. Ricostruisci e aggiorna il bundle prima di riaprirla.');
