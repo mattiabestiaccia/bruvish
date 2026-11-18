@@ -201,7 +201,10 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(() => client.evaluate('scrollY>1000', true), 'outline scroll');
         await until(() => client.evaluate('document.querySelector(".mb-rail .current")?.dataset.target==="q7"'), 'outline position');
         // The minimap is the only cursor: no native scrollbar in the artifact nor on the minimap, yet the page still scrolls by keys and wheel.
-        assert.deepEqual(await client.evaluate('[getComputedStyle(document.documentElement).scrollbarWidth,innerWidth-document.documentElement.clientWidth,matchMedia("(pointer: fine)").matches]', true), ['none', 0, true]);
+        // Waited, not read once: the bridge hides the scrollbar only after its outline pass, and the upstream chrome may be
+        // swapping the artifact document (live reload, load recovery), when it has no root element yet.
+        const artifactScrollbar = 'document.documentElement&&[getComputedStyle(document.documentElement).scrollbarWidth,innerWidth-document.documentElement.clientWidth,matchMedia("(pointer: fine)").matches]';
+        await until(async () => { const state = JSON.stringify(await client.evaluate(artifactScrollbar, true)); if (state !== JSON.stringify(['none', 0, true])) throw new Error(state); return true; }, 'no native scrollbar in the artifact');
         assert.equal(await client.evaluate('getComputedStyle(document.querySelector(".mb-rail")).scrollbarWidth'), 'none');
         await client.evaluate('window.focus()', true);
         await client.call('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Home', code: 'Home', windowsVirtualKeyCode: 36 });
