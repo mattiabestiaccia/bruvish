@@ -94,7 +94,7 @@ let lastOptionTap = -Infinity;
 document.addEventListener('keydown', event => {
  const typing = event.target?.closest?.('input,textarea,select,[contenteditable="true"]');
  if (!state.active || typing) {lastOptionTap=-Infinity;return;}
- if ((event.metaKey||event.ctrlKey) && event.key.toLowerCase()==='e') {event.preventDefault();$('annotate').click();lastOptionTap=-Infinity;return;}
+ if ((event.metaKey||event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase()==='i') {event.preventDefault();$('annotate').click();lastOptionTap=-Infinity;return;}
  if (event.code!=='AltRight'||event.metaKey||event.ctrlKey||event.shiftKey) {lastOptionTap=-Infinity;return;}
  if (event.repeat) return;
  if (event.timeStamp-lastOptionTap<=400) {lastOptionTap=-Infinity;$('annotate').click();}

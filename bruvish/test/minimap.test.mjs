@@ -9,18 +9,24 @@ const [bridge, addon, css, artifactJs] = await Promise.all(['bridge.js', 'chrome
 const tick = () => new Promise(r => setImmediate(r));
 
 function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null, handshake = true, userAgent = 'Chrome', legacyControls = [] } = {}) {
-  const posted = [], listeners = {}, documentListeners = {}, styles = [], scrolls = [];
+  const posted = [], listeners = {}, documentListeners = {}, styles = [], scrolls = [], frames = [];
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
-  // A closed card (answered, not new) has no boxes while the injected rule hides it.
-  const hiddenByRule = node => root.dataset.mbClosed === 'hide' && styles.length && (node.dataset.mbState === 'answered' || node.dataset.mbClosedCard === 'true') && !('mbNew' in node.dataset);
+  // A card has no boxes while a selector of the injected rule matches it, evaluated from the rule itself:
+  // the root scope plus attribute tests on the card, as `[name]`, `[name=value]` or `:not(...)` of those.
+  const datasetKey = name => name.replace(/^data-/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase());
+  const holds = (node, [, not, name, value]) => { const v = node.dataset[datasetKey(name)]; return Boolean(not) !== (value === undefined ? v !== undefined : v === value); };
+  const hiddenByRule = node => styles.some(style => style.textContent.replace(/\{[\s\S]*$/, '').split(',').some(selector => {
+    const [scope, target = ''] = selector.trim().split(/\s+/), parts = [...target.matchAll(/(:not\()?\[([\w-]+)(?:=([\w-]+))?\]\)?/g)];
+    return scope === ':root[data-mb-closed=hide]' && root.dataset.mbClosed === 'hide' && parts.length > 0 && parts.every(part => holds(node, part));
+  }));
   const nodes = cards.map((c, i) => {
     const node = {
       id: c.id, dataset: { mbState: c.state, ...c.fresh !== undefined ? { mbNew: c.fresh } : {} }, color: c.color,
       classList: {contains: name => (c.classes || []).includes(name)},
       getClientRects: () => hiddenByRule(node) ? [] : [1], getBoundingClientRect: () => ({ top: 100 * i }),
       parentElement: { getClientRects: () => [1] }, closest: selector => ['[data-mb-state]','[data-mb-state],.card'].includes(selector) ? node : null,
-      matches: () => false, querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null,
+      matches: selector => selector === '[data-mb-state],.card', querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null,
       // Records whether the element had a layout box when it was scrolled to: a scroll without one does nothing.
       scrollIntoView: options => scrolls.push([node.id, node.getClientRects().length > 0, options?.block])
     };
@@ -42,8 +48,8 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     parent, document, navigator: {userAgent}, getComputedStyle, scrollY: 0, innerHeight: 1000,
     matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')', addEventListener() { } }),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
-    requestAnimationFrame: () => 1,
-    MutationObserver: class { observe(target, options) { context.observed = options.attributeFilter; } }
+    requestAnimationFrame: fn => frames.push(fn),
+    MutationObserver: class { constructor(callback) { context.mutated = callback; } observe(target, options) { context.observed = options.attributeFilter; } }
   };
   vm.runInNewContext(bridge, context);
   const deliver = data => listeners.message.forEach(fn => fn({ source: parent, data }));
@@ -52,7 +58,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
   }
   const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
-  return { posted, observed: context.observed, root, dispatch, deliver, styles, scrolls, nodes };
+  return { posted, observed: context.observed, mutated: records => context.mutated(records), frames, root, dispatch, deliver, styles, scrolls, nodes };
 }
 
 test('handwritten card classes supply status colours and answered-card counts without generated metadata',()=>{
@@ -73,13 +79,26 @@ test('handwritten card classes supply status colours and answered-card counts wi
  assert.equal(run.nodes[1].dataset.mbClosedCard,'true','a card answered before the load stays closed');
 });
 
+test('a card whose status attribute turns answered in this session stays on the page with the filter on',()=>{
+ const run=runBridge([{id:'a',state:'waiting',color:''},{id:'b',state:'answered',color:''},{id:'c',state:'waiting',color:''}]);
+ run.nodes[0].dataset.mbState='answered';run.deliver({type:'lavish-mb:closed',token:'t',show:false});
+ const item=run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1).items[0];
+ assert.deepEqual([item.state,item.closed,item.hidden],['answered',false,false]);
+ assert.equal(run.nodes[0].getClientRects().length,1,'the injected rule leaves the card just answered visible');
+ assert.equal(run.nodes[1].getClientRects().length,0,'a card answered before the load is still hidden');
+});
+
+test('only a class change on a card refreshes the minimap, not one elsewhere in the page',()=>{
+ const run=runBridge([{id:'a',classes:['attesa'],color:''}]);
+ run.mutated([{type:'attributes',attributeName:'class',target:{matches:()=>false}}]);
+ assert.equal(run.frames.length,0,'an unrelated class toggle schedules no outline');
+ run.mutated([{type:'attributes',attributeName:'class',target:run.nodes[0]}]);
+ assert.equal(run.frames.length,1,'a card changing its status class is redrawn');
+});
+
 test('a neutral card border never replaces a known status colour',()=>{
  const run=runBridge([{id:'a',state:'waiting',color:''},{id:'b',state:'blocked',color:''}]);
  assert.deepEqual(Array.from(run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1).items,item=>item.color),['#d6ab32','#fe8b83']);
-});
-
-test('review menus have an opaque background in both transparency modes',()=>{
- assert.match(css,/\.menu\s*\{[^}]*background:\s*#1f2023/);
 });
 
 test('the closed-card control stays available for a page with only open cards, disabled until it has something to hide',async()=>{

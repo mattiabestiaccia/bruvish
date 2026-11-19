@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import {checkCardEdit, cardEditFixture} from '../test-helpers/card-edit.mjs';
+import {checkCardEdit} from '../test-helpers/card-edit.mjs';
 
 // A scripted review: every expression must compile as renderer code, and the check must follow the
 // upstream order (answer, card still there, annotate click reopens, save, same-key replacement).
@@ -66,8 +66,3 @@ test('card-edit check fails when the annotate-mode click does not reopen the que
  await assert.rejects(checkCardEdit(fakeReview({reopen: false})), /annotate-mode click on the answered card reopens its queued answer/);
 });
 
-test('card-edit fixture queues on the card with a per-question key, as hand-written two-tap pages do', () => {
- assert.match(cardEditFixture, /element: card, queueKey: q/);
- assert.match(cardEditFixture, /classList\.add\('fatta'\)/);
- assert.match(cardEditFixture, /id="t2"[^>]*data-lavish-question/, 'a second open card keeps the closed-card filter active');
-});

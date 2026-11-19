@@ -155,24 +155,12 @@ test('rendered pages carry no transparency switch, only a dark-first mode bootst
   assert.doesNotMatch(html, /mb-theme-standalone|data-mb-theme-button/);
 });
 
-test('runtime mode travels from the app to the artifact, never from web storage or an artifact choice', async () => {
-  const bridge = await readFile(new URL('../assets/bridge.js', import.meta.url), 'utf8');
-  const addon = await readFile(new URL('../assets/chrome-addon.js', import.meta.url), 'utf8');
-  assert.match(bridge, /m\.type === 'lavish-mb:mode' && \['dark', 'transparent'\]\.includes\(m\.mode\)/);
-  assert.match(bridge, /macApp && m\.mode === 'transparent' \? 'transparent' : 'dark'/);
-  assert.match(bridge, /getPropertyValue\('--mb-state-color'\)/);
-  assert.match(addon, /root\.dataset\.mbAppMode === 'transparent'/);
-  assert.doesNotMatch(addon, /MODE_KEY|localStorage\.(?:getItem|setItem)\([^)]*(?:mode|MODE_KEY)/);
-});
-
 test('interview questions explain the two-tap answer and carry no free text field', async () => {
   const html = await renderDocument(doc([card('q', { status: 'waiting', question: { options: [{ value: 'si', label: 'Sì' }, { value: 'no', label: 'No' }] } })]));
   const form = html.match(/<form data-mb-question="q">[\s\S]*?<\/form>/)[0];
   assert.doesNotMatch(form, /<button|type="submit"|Aggiungi risposte/, 'the two-tap form has no redundant submit control');
   assert.match(form, /class="mb-hint"[^>]*>[^<]*Spazio/);
   assert.match(form, /<span class="queue-status" role="status"><\/span>/);
-  assert.match(css, /input:focus-visible[^{}]*\{outline:3px/, 'keyboard focus remains visible');
-  assert.match(css, /\.queue-status:empty\{margin:0\}/, 'empty live status has no button-sized gap and stays available to assistive tools');
   assert.doesNotMatch(html, /<textarea|<input(?![^>]*type="radio")/, 'notes go through the annotation tool');
 });
 

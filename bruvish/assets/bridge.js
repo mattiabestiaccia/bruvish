@@ -99,7 +99,7 @@
         const hiding = hideClosed && closedCount > 0 && openCount > 0;
         if (hiding && !closedStyle) {
             closedStyle = document.createElement('style');
-            closedStyle.textContent = ':root[data-mb-closed=hide] [data-mb-state=answered]:not([data-mb-new]),:root[data-mb-closed=hide] [data-mb-closed-card=true]{display:none!important}';
+            closedStyle.textContent = ':root[data-mb-closed=hide] [data-mb-closed-card=true]{display:none!important}';
             (document.head || document.documentElement).append(closedStyle);
         }
         document.documentElement.dataset.mbClosed = hiding ? 'hide' : 'show';
@@ -249,7 +249,7 @@
             lastTap = event.timeStamp;
     }, true);
     applyClosed();
-    new MutationObserver(records => { if (records.some(r => r.type === 'childList' || r.attributeName === 'hidden' || r.attributeName === 'data-mb-state' || r.attributeName === 'data-mb-new' || r.attributeName === 'open' || r.attributeName === 'class'))
+    new MutationObserver(records => { if (records.some(r => r.type === 'childList' || r.attributeName === 'hidden' || r.attributeName === 'data-mb-state' || r.attributeName === 'data-mb-new' || r.attributeName === 'open' || r.attributeName === 'class' && r.target.matches?.('[data-mb-state],.card')))
         schedule(); }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'data-mb-state', 'data-mb-new', 'open', 'class'] });
     document.fonts?.ready.then(schedule);
 })();

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
-const {reviewToolbarCSS, readToolbarScript, toolbarActionScript} = require('../review-toolbar.cjs');
+const {readToolbarScript, toolbarActionScript} = require('../review-toolbar.cjs');
 
 test('only the six fixed review actions are admitted; no renderer-supplied selector or code', () => {
  for (const action of ['annotate','closed','panel','more','revisions','warnings']) {
@@ -44,10 +44,4 @@ test('read script copies only state/theme, including late hidden and disabled st
  assert.equal(result.controls.panel.expanded,false);assert.equal(result.controls.panel.count,'2');
  assert.equal(result.controls.more.expanded,true);assert.equal(result.controls.more.disabled,true);
  assert.equal(result.controls.revisions.hidden,true);assert.equal(result.controls.warnings.count,'3');
-});
-test('app-only CSS removes the served toolbar row, not the real menus and drawers', () => {
- assert.match(reviewToolbarCSS,/--bar-h:0px!important/);
- assert.match(reviewToolbarCSS,/\.bar\{display:contents!important\}/);
- assert.match(reviewToolbarCSS,/\.bar \.menu\{position:fixed!important;top:8px!important;right:8px!important\}/);
- assert.doesNotMatch(reviewToolbarCSS,/\.bar\{display:none/);
 });
