@@ -138,7 +138,7 @@ function createView() {
   watchAppearance(view, () => preferences.snapshot());
   // Main-process CSS on the review's top-level document only. No renderer gains IPC or a preload,
   // and neither a query parameter nor an artifact message can enable this app-only composition.
-  view.webContents.on('did-finish-load', () => {
+  view.webContents.on('dom-ready', () => {
     void view.webContents.insertCSS(reviewToolbarCSS).catch(error => log(error.message));
   });
   return view;
