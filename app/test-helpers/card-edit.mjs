@@ -1,9 +1,8 @@
 // Native check: a hand-written two-tap answer queued on its card can be changed from that card.
 // The upstream ways are the queued bubble, a click on the anchored element in annotate mode, and a
-// newer answer with the same queueKey. Used by app-live.test.mjs; self-contained so historical
-// archives can run the same check.
+// newer answer with the same queueKey. Used by app-live.test.mjs.
 
-export const cardEditFixture = `<!doctype html><html lang="it" data-lavish-annotate="off"><head><meta charset="utf-8"><style>
+const cardEditFixture = `<!doctype html><html lang="it" data-lavish-annotate="off"><head><meta charset="utf-8"><style>
 html{background:transparent}body{margin:0;background:transparent;color:#e6e0f2;font:16px system-ui,sans-serif}
 .card{margin:40px;padding:28px;background:rgba(36,31,52,.5);border:1px solid #4a4462;border-radius:10px}
 .opz{font:inherit;padding:8px 14px;margin-right:10px}

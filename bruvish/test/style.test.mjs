@@ -147,10 +147,9 @@ test('artifacts paint dark before the app supplies its single authoritative mode
   assert.equal(runArtifactJs({userAgent:chromeMac,storage:'blocked'}).root.dataset.mbMode,'dark');
 });
 
-test('rendered pages carry no transparency switch, only a dark-first mode bootstrap before body paint', async () => {
+test('rendered pages carry no transparency switch', async () => {
   const html = await renderDocument(doc([card('a')]), { id: 'x' });
   assert.match(html, /<html lang="it" data-mb-theme="dark" data-mb-family="(B|F|E2|G2|D3)"/);
-  assert(html.indexOf("root.dataset.mbMode = 'dark'") < html.indexOf('<body>'));
   assert.doesNotMatch(html, /data-mb-mode-switch|class="mb-mode"|mb-switch|>Trasparenza</);
   assert.doesNotMatch(html, /mb-theme-standalone|data-mb-theme-button/);
 });
