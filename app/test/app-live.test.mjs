@@ -102,6 +102,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   const reviewWidth=await client.evaluate('innerWidth');
   assert.deepEqual(await uiClient.evaluate('[innerWidth,innerHeight,document.querySelector(".toolbar").getBoundingClientRect().width]'),[reviewWidth,40,reviewWidth],'one uninterrupted toolbar spans the entire window');
   await until(()=>uiClient.evaluate('!document.getElementById("more").disabled&&!document.getElementById("more").hidden'),'review controls mirrored into native toolbar');
+  await until(()=>uiClient.evaluate('(()=>{const b=document.getElementById("closed");return !b.hidden&&b.disabled&&b.title==="Nessuna carta chiusa da nascondere"})()'),'closed-card switch present but disabled on a page with nothing to hide');
   await uiClient.evaluate('document.getElementById("more").click()');
   await until(()=>client.evaluate('!document.getElementById("moreMenu").hidden'),'local more button opens the real review menu');
   assert.equal(await client.evaluate('document.getElementById("moreMenu").getBoundingClientRect().top'),8,'menu is below the app toolbar, inside the review');
@@ -181,6 +182,10 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await until(()=>client.evaluate('document.querySelector(".fatta").getClientRects().length>0',true),'native closed switch shows answered cards');
   await uiClient.evaluate('document.getElementById("closed").click()');
   await until(()=>client.evaluate('document.querySelector(".fatta").getClientRects().length===0',true),'native closed switch hides answered cards again');
+  // A card the reviewer answers now stays on the page, so the answer can still be changed there.
+  await client.evaluate('(()=>{const card=document.querySelector(".attesa");card.id="live-answer";card.classList.replace("attesa","fatta")})()',true);
+  await until(()=>client.evaluate('document.querySelector(".mb-rail button i")&&getComputedStyle(document.querySelector(".mb-rail button i")).backgroundColor==="rgb(99, 202, 132)"'),'live answer turns its rail line green');
+  assert.equal(await client.evaluate('document.getElementById("live-answer").getClientRects().length>0',true),true,'a card answered in this session is never hidden by the closed-card filter');
   const pixels=[];
   for(const transparent of [false,true,false]){
    await uiClient.evaluate('window.lavishApp.preferences({transparent:'+transparent+'})');

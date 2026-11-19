@@ -78,10 +78,19 @@
     // Closed cards (answered and not new) are hidden from the start, as the host page's default, and until the host
     // page asks to show them; never every card. Applied before the load, so the scroll restored on load lands on this layout.
     // Generated metadata wins; handwritten reviews can retain their established status classes.
+    // Only a card that was already answered when the page first showed it is closed: a card the reviewer
+    // answers now (a handwritten page moving it to its answered class) stays on the page with its new colour,
+    // so the answer just given can still be seen and changed there. A reload starts from the page as written.
     const stateColors = {waiting:'#d6ab32',answered:'#63ca84',info:'#6bb5ff',blocked:'#fe8b83'};
     const stateClasses = {attesa:'waiting',fatta:'answered',bloccata:'blocked',waiting:'waiting',answered:'answered',info:'info',blocked:'blocked'};
     const cardState = el => Object.hasOwn(stateColors,el.dataset.mbState) ? el.dataset.mbState : Object.entries(stateClasses).find(([name])=>el.classList?.contains(name))?.[1] || 'info';
-    const closed = el => cardState(el) === 'answered' && !('mbNew' in el.dataset);
+    const answeredAtLoad = new WeakMap();
+    const closed = el => {
+        const answered = cardState(el) === 'answered' && !('mbNew' in el.dataset);
+        if (!answeredAtLoad.has(el))
+            answeredAtLoad.set(el, answered);
+        return answered && answeredAtLoad.get(el);
+    };
     let hideClosed = true, closedStyle = null;
     function applyClosed() {
         const all = [...document.querySelectorAll('[data-mb-state],.card')];

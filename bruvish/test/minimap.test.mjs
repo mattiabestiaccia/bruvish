@@ -63,9 +63,14 @@ test('handwritten card classes supply status colours and answered-card counts wi
  assert.deepEqual([outline.closed,outline.open],[1,3]);
  assert.equal(outline.items[1].hidden,true,'handwritten answered cards participate in the existing filter');
  assert(run.observed.includes('class'),'legacy state changes must refresh rail and closed control');
- cards[0].classes=['fatta'];run.deliver({type:'lavish-mb:closed',token:'t',show:true});
+ cards[0].classes=['fatta'];run.deliver({type:'lavish-mb:closed',token:'t',show:false});
  const changed=run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1);
- assert.deepEqual([changed.items[0].state,changed.items[0].color,changed.closed],['answered','#63ca84',2],'a new answer changes state without stale generated metadata');
+ assert.deepEqual([changed.items[0].state,changed.items[0].color],['answered','#63ca84'],'a new answer changes state without stale generated metadata');
+ // The reviewer must be able to change an answer just given: only cards already answered when the page
+ // loaded are closed, so a card answered in this session stays on the page with the filter on.
+ assert.deepEqual([changed.items[0].closed,changed.items[0].hidden,changed.closed,changed.open],[false,false,1,3],'a card answered in this session stays visible and open');
+ assert.equal(run.nodes[0].dataset.mbClosedCard,undefined,'the hiding rule never matches the card just answered');
+ assert.equal(run.nodes[1].dataset.mbClosedCard,'true','a card answered before the load stays closed');
 });
 
 test('a neutral card border never replaces a known status colour',()=>{
@@ -77,10 +82,15 @@ test('review menus have an opaque background in both transparency modes',()=>{
  assert.match(css,/\.menu\s*\{[^}]*background:\s*#1f2023/);
 });
 
-test('the closed-card control stays available for a page with only open cards',async()=>{
+test('the closed-card control stays available for a page with only open cards, disabled until it has something to hide',async()=>{
  const chrome=upstreamChrome();const run=await runAddon(new Map(),{chrome});
+ const closed=chrome.bar.children.find(el=>el.className==='mb-closed-switch');
  run.deliver({type:'lavish-mb:outline',items:[{id:'a',state:'waiting'}],closed:0,open:1});
- assert.equal(chrome.bar.children.find(el=>el.className==='mb-closed-switch').hidden,false);
+ assert.deepEqual([closed.hidden,closed.disabled,closed.attributes.title],[false,true,'Nessuna carta chiusa da nascondere'],'with nothing to hide the switch says so instead of doing nothing');
+ run.deliver({type:'lavish-mb:outline',items:[{id:'a',state:'waiting'},{id:'b',state:'answered',closed:true,hidden:true}],closed:1,open:1});
+ assert.deepEqual([closed.hidden,closed.disabled,closed.attributes.title],[false,false,'Anche le chiuse (1)'],'the count of closed cards is visible in the tooltip');
+ run.deliver({type:'lavish-mb:outline',items:[{id:'b',state:'answered',closed:true}],closed:1,open:0});
+ assert.equal(closed.disabled,true,'a page of closed cards only is never emptied, so the switch has no effect there');
 });
 
 function element(tag) {

@@ -341,7 +341,12 @@
                     else
                         root.style.removeProperty('--mb-' + name);
             }
-            closedSwitch.hidden = !(Number(m.closed) + Number(m.open) > 0);
+            // Present whenever the page has cards; disabled, and saying why, while the filter has nothing to hide
+            // (no closed card, or only closed cards, which bridge.js never hides all of).
+            const closedCount = Number(m.closed) || 0, openCount = Number(m.open) || 0;
+            closedSwitch.hidden = !(closedCount + openCount > 0);
+            closedSwitch.disabled = !(closedCount > 0 && openCount > 0);
+            closedSwitch.setAttribute('title', closedSwitch.disabled ? 'Nessuna carta chiusa da nascondere' : 'Anche le chiuse (' + closedCount + ')');
             renderOutline();
         }
         if (m.type === 'lavish-mb:position') {
