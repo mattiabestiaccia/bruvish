@@ -3,15 +3,9 @@
     const iframe = document.getElementById('artifact');
     if (!iframe)
         return;
-    // Backdrop mode chosen in an artifact (dark/transparent), remembered for every artifact on this device.
-    const MODE_KEY = 'lavish-mb:mode', MODES = ['dark', 'transparent'];
-    let mode = null;
-    try {
-        const saved = localStorage.getItem(MODE_KEY);
-        if (MODES.includes(saved) && matchMedia('(pointer: fine)').matches)
-            mode = saved;
-    }
-    catch { }
+    // One authority: the native app supplies its toolbar preference on this top-level document.
+    // Browsers and phones have no app value and stay dark; legacy web-storage modes are ignored.
+    let mode = 'dark';
     let token = '', theme = 'dark', contentZoom = 1, storageKey = '', storageAvailable = false, record = { fields: {}, conflicts: [] }, outlineItems = [];
     // Frame style from the approved frame mock-up: page fonts, BRUVISH mark, icon switches, Italian panel.
     const root = document.documentElement;
@@ -38,10 +32,17 @@
     const panelTitle = document.querySelector('.panel h2'), sendLabel = document.getElementById('send'), endLabel = document.querySelector('#sendAndEnd span'), chatField = document.getElementById('chatInput');
     if (panelTitle)
         panelTitle.textContent = 'Conversazione';
-    if (sendLabel)
-        sendLabel.textContent = 'Invia all’agente';
-    if (endLabel)
-        endLabel.textContent = 'Invia e chiudi';
+    if (sendLabel) {
+        sendLabel.setAttribute('aria-label', 'Invia all’agente');
+        sendLabel.setAttribute('title', 'Invia all’agente');
+        sendLabel.replaceChildren();
+    }
+    const endButton = endLabel?.parentElement;
+    if (endButton) {
+        endButton.setAttribute('aria-label', 'Invia e chiudi');
+        endButton.setAttribute('title', 'Invia e chiudi');
+        endLabel?.remove();
+    }
     if (chatField)
         chatField.placeholder = 'Scrivi all’agente…';
     // The other official texts of bar, panel and the ended card, in Italian, also when the official code writes them
@@ -50,7 +51,7 @@
     const ITALIAN = new Map([
         ['Attach images', 'Allega immagini'], ['Queued', 'In coda'], ['Sending\u2026', 'Invio…'],
         ['Edit queued prompt', 'Modifica il messaggio in coda'], ['Remove queued prompt', 'Togli il messaggio in coda'],
-        ['Your agent is not listening. If this persists, ask your agent to poll for updates from Lavish.', 'L’agente non è in ascolto. Se continua, chiedigli di tornare ad ascoltare Lavish.'],
+        ['Your agent is not listening. If this persists, ask your agent to poll for updates from Lavish.', 'Agente non in ascolto'],
         ['This review is open in another Lavish tab. Unsent answers stay in the tab or window where you entered them; taking over in another window does not bring them along.', 'Questa revisione è aperta in un’altra scheda di Lavish. ' + UNSENT_STAY],
         ['Take over here', 'Continua qui'],
         ['Nothing queued in this tab. Unsent answers stay in the tab or window where you entered them; taking over in another window does not bring them along.', 'Niente in coda in questa scheda. ' + UNSENT_STAY],
@@ -164,6 +165,8 @@
             shape.setAttribute(name, value);
         svg.append(shape);
     } return svg; }
+    if (sendLabel)
+        sendLabel.append(icon([['path', { d: 'M2 8h11M8 3l5 5-5 5' }]]));
     // A switch with no visible label: track and knob, the meaning drawn in the knob.
     function iconSwitch(button, label, shapes) {
         button.setAttribute('role', 'switch');
@@ -195,7 +198,7 @@
         new MutationObserver(mirror).observe(annotate, { attributes: true, attributeFilter: ['aria-pressed'] });
     }
     // Closed cards (answered and not new) are hidden by default; the switch shows them. Only shown while the
-    // artifact has both closed and open cards (bridge.js never hides every card).
+    // artifact has cards, even before its first answer (bridge.js never hides every card).
     let showClosed = false;
     const closedSwitch = document.createElement('button');
     closedSwitch.type = 'button';
@@ -244,6 +247,12 @@
     document.body.append(tools);
     const send = (type, data = {}) => { if (token)
         iframe.contentWindow?.postMessage({ type: 'lavish-mb:' + type, version: 1, token, ...data }, '*'); };
+    const syncAppMode = () => {
+        mode = root.dataset.mbAppMode === 'transparent' ? 'transparent' : 'dark';
+        send('mode', { mode });
+    };
+    syncAppMode();
+    new MutationObserver(syncAppMode).observe(root, { attributes: true, attributeFilter: ['data-mb-app-mode'] });
     function button(label, fn) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); tools.append(b); return b; }
     // The panel only appears while it has something to say: a draft notice or conflicting drafts.
     const conflictButton = button('Bozze in conflitto', showConflicts);
@@ -308,21 +317,13 @@
             send('restore', { fields: record.fields || {} });
             send('theme', { theme });
             send('zoom', { zoom: contentZoom });
-            if (mode)
-                send('mode', { mode });
+            send('mode', { mode });
             send('closed', { show: showClosed });
         }
         if (m.type === 'lavish-mb:show-closed' && !showClosed)
             setShowClosed(true);
         if (m.type === 'lavish-mb:annotate-toggle')
             annotate?.click();
-        if (m.type === 'lavish-mb:mode' && MODES.includes(m.mode)) {
-            mode = m.mode;
-            try {
-                localStorage.setItem(MODE_KEY, mode);
-            }
-            catch { }
-        }
         if (m.type === 'lavish-mb:outline' && Array.isArray(m.items)) {
             outlineItems = m.items.filter(i => typeof i.id === 'string' && typeof i.title === 'string').slice(0, 400);
             if (typeof m.accent === 'string' && m.accent && CSS.supports('color', m.accent))
@@ -337,7 +338,12 @@
                     else
                         root.style.removeProperty('--mb-' + name);
             }
-            closedSwitch.hidden = !(Number(m.closed) > 0 && Number(m.open) > 0);
+            // Present whenever the page has cards; disabled, and saying why, while the filter has nothing to hide
+            // (no closed card, or only closed cards, which bridge.js never hides all of).
+            const closedCount = Number(m.closed) || 0, openCount = Number(m.open) || 0;
+            closedSwitch.hidden = !(closedCount + openCount > 0);
+            closedSwitch.disabled = !(closedCount > 0 && openCount > 0);
+            closedSwitch.setAttribute('title', closedSwitch.disabled ? 'Nessuna carta chiusa da nascondere' : 'Anche le chiuse (' + closedCount + ')');
             renderOutline();
         }
         if (m.type === 'lavish-mb:position') {

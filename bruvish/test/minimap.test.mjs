@@ -8,18 +8,25 @@ const read = name => readFile(new URL('../assets/' + name, import.meta.url), 'ut
 const [bridge, addon, css, artifactJs] = await Promise.all(['bridge.js', 'chrome-addon.js', 'chrome-addon.css', 'artifact.js'].map(read));
 const tick = () => new Promise(r => setImmediate(r));
 
-function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null, handshake = true } = {}) {
-  const posted = [], listeners = {}, documentListeners = {}, styles = [], scrolls = [];
+function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null, handshake = true, userAgent = 'Chrome', legacyControls = [] } = {}) {
+  const posted = [], listeners = {}, documentListeners = {}, styles = [], scrolls = [], frames = [];
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
-  // A closed card (answered, not new) has no boxes while the injected rule hides it.
-  const hiddenByRule = node => root.dataset.mbClosed === 'hide' && styles.length && node.dataset.mbState === 'answered' && !('mbNew' in node.dataset);
+  // A card has no boxes while a selector of the injected rule matches it, evaluated from the rule itself:
+  // the root scope plus attribute tests on the card, as `[name]`, `[name=value]` or `:not(...)` of those.
+  const datasetKey = name => name.replace(/^data-/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase());
+  const holds = (node, [, not, name, value]) => { const v = node.dataset[datasetKey(name)]; return Boolean(not) !== (value === undefined ? v !== undefined : v === value); };
+  const hiddenByRule = node => styles.some(style => style.textContent.replace(/\{[\s\S]*$/, '').split(',').some(selector => {
+    const [scope, target = ''] = selector.trim().split(/\s+/), parts = [...target.matchAll(/(:not\()?\[([\w-]+)(?:=([\w-]+))?\]\)?/g)];
+    return scope === ':root[data-mb-closed=hide]' && root.dataset.mbClosed === 'hide' && parts.length > 0 && parts.every(part => holds(node, part));
+  }));
   const nodes = cards.map((c, i) => {
     const node = {
       id: c.id, dataset: { mbState: c.state, ...c.fresh !== undefined ? { mbNew: c.fresh } : {} }, color: c.color,
+      classList: {contains: name => (c.classes || []).includes(name)},
       getClientRects: () => hiddenByRule(node) ? [] : [1], getBoundingClientRect: () => ({ top: 100 * i }),
-      parentElement: { getClientRects: () => [1] }, closest: selector => selector === '[data-mb-state]' ? node : null,
-      matches: () => false, querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null,
+      parentElement: { getClientRects: () => [1] }, closest: selector => ['[data-mb-state]','[data-mb-state],.card'].includes(selector) ? node : null,
+      matches: selector => selector === '[data-mb-state],.card', querySelector: () => ({ textContent: 'Carta ' + c.id, tagName: 'H3' }), getAttribute: () => null,
       // Records whether the element had a layout box when it was scrolled to: a scroll without one does nothing.
       scrollIntoView: options => scrolls.push([node.id, node.getClientRects().length > 0, options?.block])
     };
@@ -29,7 +36,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     documentElement: root, body: {}, head: { append: style => styles.push(style) },
     createElement: tag => ({ tagName: tag.toUpperCase(), textContent: '' }),
     get activeElement() { return active?.() ?? document.body; },
-    querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : [],
+    querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : selector === '.mb-mode,[data-mb-mode-switch]' ? legacyControls : [],
     querySelector: selector => { if (!/^#[\w-]+$/.test(selector)) throw new SyntaxError('bad selector'); return nodes.find(node => '#' + node.id === selector) ?? null; },
     addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
@@ -38,11 +45,11 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     borderLeftColor: 'rgb(1, 2, 3)', color: 'rgb(4, 5, 6)'
   });
   const context = {
-    parent, document, getComputedStyle, scrollY: 0, innerHeight: 1000,
+    parent, document, navigator: {userAgent}, getComputedStyle, scrollY: 0, innerHeight: 1000,
     matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')', addEventListener() { } }),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
-    requestAnimationFrame: () => 1,
-    MutationObserver: class { observe(target, options) { context.observed = options.attributeFilter; } }
+    requestAnimationFrame: fn => frames.push(fn),
+    MutationObserver: class { constructor(callback) { context.mutated = callback; } observe(target, options) { context.observed = options.attributeFilter; } }
   };
   vm.runInNewContext(bridge, context);
   const deliver = data => listeners.message.forEach(fn => fn({ source: parent, data }));
@@ -51,8 +58,59 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
   }
   const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
-  return { posted, observed: context.observed, root, dispatch, deliver, styles, scrolls };
+  return { posted, observed: context.observed, mutated: records => context.mutated(records), frames, root, dispatch, deliver, styles, scrolls, nodes };
 }
+
+test('handwritten card classes supply status colours and answered-card counts without generated metadata',()=>{
+ const cards=[{id:'a',classes:['attesa'],color:''},{id:'b',classes:['fatta'],color:''},{id:'c',classes:['info'],color:''},{id:'d',classes:['bloccata'],color:''}];
+ const run=runBridge(cards);
+ const outline=run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1);
+ assert.deepEqual(Array.from(outline.items,item=>[item.state,item.color]),[['waiting','#d6ab32'],['answered','#63ca84'],['info','#6bb5ff'],['blocked','#fe8b83']]);
+ assert.deepEqual([outline.closed,outline.open],[1,3]);
+ assert.equal(outline.items[1].hidden,true,'handwritten answered cards participate in the existing filter');
+ assert(run.observed.includes('class'),'legacy state changes must refresh rail and closed control');
+ cards[0].classes=['fatta'];run.deliver({type:'lavish-mb:closed',token:'t',show:false});
+ const changed=run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1);
+ assert.deepEqual([changed.items[0].state,changed.items[0].color],['answered','#63ca84'],'a new answer changes state without stale generated metadata');
+ // The reviewer must be able to change an answer just given: only cards already answered when the page
+ // loaded are closed, so a card answered in this session stays on the page with the filter on.
+ assert.deepEqual([changed.items[0].closed,changed.items[0].hidden,changed.closed,changed.open],[false,false,1,3],'a card answered in this session stays visible and open');
+ assert.equal(run.nodes[0].dataset.mbClosedCard,undefined,'the hiding rule never matches the card just answered');
+ assert.equal(run.nodes[1].dataset.mbClosedCard,'true','a card answered before the load stays closed');
+});
+
+test('a card whose status attribute turns answered in this session stays on the page with the filter on',()=>{
+ const run=runBridge([{id:'a',state:'waiting',color:''},{id:'b',state:'answered',color:''},{id:'c',state:'waiting',color:''}]);
+ run.nodes[0].dataset.mbState='answered';run.deliver({type:'lavish-mb:closed',token:'t',show:false});
+ const item=run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1).items[0];
+ assert.deepEqual([item.state,item.closed,item.hidden],['answered',false,false]);
+ assert.equal(run.nodes[0].getClientRects().length,1,'the injected rule leaves the card just answered visible');
+ assert.equal(run.nodes[1].getClientRects().length,0,'a card answered before the load is still hidden');
+});
+
+test('only a class change on a card refreshes the minimap, not one elsewhere in the page',()=>{
+ const run=runBridge([{id:'a',classes:['attesa'],color:''}]);
+ run.mutated([{type:'attributes',attributeName:'class',target:{matches:()=>false}}]);
+ assert.equal(run.frames.length,0,'an unrelated class toggle schedules no outline');
+ run.mutated([{type:'attributes',attributeName:'class',target:run.nodes[0]}]);
+ assert.equal(run.frames.length,1,'a card changing its status class is redrawn');
+});
+
+test('a neutral card border never replaces a known status colour',()=>{
+ const run=runBridge([{id:'a',state:'waiting',color:''},{id:'b',state:'blocked',color:''}]);
+ assert.deepEqual(Array.from(run.posted.filter(m=>m.type==='lavish-mb:outline').at(-1).items,item=>item.color),['#d6ab32','#fe8b83']);
+});
+
+test('the closed-card control stays available for a page with only open cards, disabled until it has something to hide',async()=>{
+ const chrome=upstreamChrome();const run=await runAddon(new Map(),{chrome});
+ const closed=chrome.bar.children.find(el=>el.className==='mb-closed-switch');
+ run.deliver({type:'lavish-mb:outline',items:[{id:'a',state:'waiting'}],closed:0,open:1});
+ assert.deepEqual([closed.hidden,closed.disabled,closed.attributes.title],[false,true,'Nessuna carta chiusa da nascondere'],'with nothing to hide the switch says so instead of doing nothing');
+ run.deliver({type:'lavish-mb:outline',items:[{id:'a',state:'waiting'},{id:'b',state:'answered',closed:true,hidden:true}],closed:1,open:1});
+ assert.deepEqual([closed.hidden,closed.disabled,closed.attributes.title],[false,false,'Anche le chiuse (1)'],'the count of closed cards is visible in the tooltip');
+ run.deliver({type:'lavish-mb:outline',items:[{id:'b',state:'answered',closed:true}],closed:1,open:0});
+ assert.equal(closed.disabled,true,'a page of closed cards only is never emptied, so the switch has no effect there');
+});
 
 function element(tag) {
   const classes = new Set();
@@ -70,7 +128,7 @@ function element(tag) {
     getAttribute(name) { return name in this.attributes ? this.attributes[name] : null; },
     removeAttribute(name) { delete this.attributes[name]; },
     append(...items) { for (const item of items) { item.parent = this; this.children.push(item); } },
-    replaceChildren(...items) { this.children = []; this.append(...items); },
+    replaceChildren(...items) { this.textContent = ''; this.children = []; this.append(...items); },
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; },
     before(item) { const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this), 0, item); },
     get childNodes() { return this.children; },
@@ -93,15 +151,17 @@ function upstreamChrome() {
   track.append(knob); annotate.append(track, label); bar.append(brandBox, annotate);
   const title = element('h2'), send = element('button'), end = element('span'), input = element('textarea');
   title.textContent = 'Conversation'; send.textContent = 'Send to Agent'; end.textContent = 'Send & End';
-  return { bar, brandBox, brand, annotate, title, send, end, input };
+  const endButton = element('button'), exit = element('svg');
+  endButton.append(exit, end);
+  return { bar, brandBox, brand, annotate, title, send, end, endButton, exit, input };
 }
 
-async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null } = {}) {
+async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null, appMode = null } = {}) {
   const listeners = {}, posted = [], documentListeners = {}, observers = [];
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
   const body = element('body'), head = element('head');
-  const root = { style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
+  const root = { dataset: appMode ? {mbAppMode: appMode} : {}, style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
   const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {} };
   const bySelector = { ...chrome ? { '.brand': chrome.brandBox, '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {}, ...panel ? { '.panel': panel } : {} };
   const descendants = node => (node.children || []).flatMap(child => [child, ...descendants(child)]);
@@ -175,28 +235,40 @@ test('addon: no separate scroll cursor, new and changed lines are marked, focus 
   assert.equal(rail.style.props['--mb-accent'], '#49cbbd');
 });
 
-test('backdrop mode: the sandboxed artifact relays a choice, the host page keeps it on the device and replays it on ready', async () => {
-  const { posted, dispatch } = runBridge([]);
-  dispatch('lavish-mb:mode-change', { detail: { mode: 'transparent' } });
-  dispatch('lavish-mb:mode-change', { detail: { mode: 'neon' } });
-  assert.deepEqual(posted.filter(m => m.type === 'lavish-mb:mode').map(m => [m.mode, m.token]), [['transparent', 't']], 'only a known mode reaches the host page');
+test('backdrop mode is app-authoritative, survives the handshake and ignores stored or artifact choices', async () => {
+  const storage = new Map([['lavish-mb:mode','dark']]);
+  const app = await runAddon(storage,{appMode:'transparent'});
+  app.deliver({type:'lavish-mb:ready'});
+  assert.equal(app.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'transparent');
+  app.deliver({type:'lavish-mb:mode',mode:'dark'});
+  assert.equal(app.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'transparent','an artifact cannot override the toolbar');
+  app.root.dataset.mbAppMode='dark';app.observers.filter(o=>o.target===app.root).forEach(o=>o.fn());
+  assert.equal(app.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'dark','native preference updates reach the current artifact');
+  app.deliver({type:'lavish-mb:ready'});
+  assert.equal(app.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'dark','reload uses current app preference');
+  assert.equal(storage.get('lavish-mb:mode'),'dark','web mode is not rewritten');
+  for(const pointer of ['fine','coarse']) {
+    const browser=await runAddon(new Map([['lavish-mb:mode','transparent']]),{pointer});
+    browser.deliver({type:'lavish-mb:ready'});
+    assert.equal(browser.posted.filter(m=>m.type==='lavish-mb:mode').at(-1).mode,'dark','browser and phone ignore old transparent choice');
+  }
+});
 
-  const storage = new Map();
-  const first = await runAddon(storage);
-  first.deliver({ type: 'lavish-mb:mode', mode: 'transparent' });
-  assert.equal(storage.get('lavish-mb:mode'), 'transparent');
-  first.deliver({ type: 'lavish-mb:mode', mode: 'neon' });
-  assert.equal(storage.get('lavish-mb:mode'), 'transparent', 'an unknown mode is not remembered');
-
-  const next = await runAddon(storage);
-  next.deliver({ type: 'lavish-mb:ready' });
-  assert.deepEqual(next.posted.filter(m => m.type === 'lavish-mb:mode').map(m => m.mode), ['transparent'], 'the next artifact gets the remembered mode');
-  const phone = await runAddon(storage, { pointer: 'coarse' });
-  phone.deliver({ type: 'lavish-mb:ready' });
-  assert.equal(phone.posted.some(m => m.type === 'lavish-mb:mode'), false, 'the phone has no switch: the artifact keeps its dark default');
-  const fresh = await runAddon();
-  fresh.deliver({ type: 'lavish-mb:ready' });
-  assert.equal(fresh.posted.some(m => m.type === 'lavish-mb:mode'), false, 'no choice yet: the artifact keeps its own default');
+test('only the Mac app bridge accepts transparent mode; browser and phone remain dark, old controls retire',()=>{
+ const native='Mozilla/5.0 (Macintosh; Intel Mac OS X) Electron/44.2.0';
+ for(const userAgent of ['Chrome Macintosh','Chrome Android','Electron/44.2.0 Windows',native]) {
+  let removed=0;
+  const run=runBridge([],{userAgent,legacyControls:[{remove(){removed++;}}]});
+  assert.equal(removed,1);assert.equal(run.root.dataset.mbMode,'dark');
+  run.deliver({type:'lavish-mb:mode',token:'wrong',mode:'transparent'});
+  assert.equal(run.root.dataset.mbMode,'dark','wrong channel token is ignored');
+  run.deliver({type:'lavish-mb:mode',token:'t',mode:'transparent'});
+  assert.equal(run.root.dataset.mbMode,userAgent===native?'transparent':'dark');
+  run.deliver({type:'lavish-mb:mode',token:'t',mode:'dark'});
+  assert.equal(run.root.dataset.mbMode,'dark');
+  run.dispatch('lavish-mb:mode-change',{detail:{mode:'transparent'}});
+  assert.deepEqual([run.root.dataset.mbMode,run.posted.some(m=>/^lavish-mb:mode/.test(m.type))],['dark',false],'an old artifact mode event changes nothing and sends nothing upstream');
+ }
 });
 
 test('minimap shape and colours follow the approved mock-up; the new lines pulse in opacity unless motion is reduced', () => {
@@ -289,7 +361,11 @@ test('addon: arrow to the artifacts index, BRUVISH mark, Italian panel, annotate
   const index = chrome.bar.children[0];
   assert.deepEqual([index.tagName, index.className, index.href, index.textContent, index.attributes['aria-label']], ['A', 'mb-index', '/', '←', 'Indice degli artefatti'], 'the arrow to the catalog home comes first, before the mark');
   assert.equal(chrome.bar.children[1], chrome.brandBox);
-  assert.deepEqual([chrome.title.textContent, chrome.send.textContent, chrome.end.textContent, chrome.input.placeholder], ['Conversazione', 'Invia all’agente', 'Invia e chiudi', 'Scrivi all’agente…']);
+  assert.deepEqual([chrome.title.textContent, chrome.send.textContent, chrome.input.placeholder], ['Conversazione', '', 'Scrivi all’agente…']);
+  assert.deepEqual([chrome.send.getAttribute('aria-label'),chrome.send.getAttribute('title')],['Invia all’agente','Invia all’agente']);
+  assert.equal(chrome.send.children[0].tagName,'SVG');
+  assert.deepEqual([chrome.endButton.getAttribute('aria-label'),chrome.endButton.getAttribute('title')],['Invia e chiudi','Invia e chiudi']);
+  assert.deepEqual(chrome.endButton.children,[chrome.exit],'send and close keeps only its original icon');
   assert.equal(head.children[0].href, '/mb-catalog-fonts.css', 'the page fonts reach the frame');
   const annotate = chrome.annotate;
   assert.equal(annotate.attributes.role, 'switch');
@@ -329,7 +405,7 @@ test('addon: the annotate switch also toggles with a double tap of the right Opt
   assert.equal(chrome.annotate.clicks, 2, 'an ended session keeps the switch disabled');
 });
 
-test('addon: closed-cards switch (check in a circle) next to annotate, hidden unless the page has closed and open cards', async () => {
+test('addon: closed-cards switch (check in a circle) remains available whenever the page has cards', async () => {
   const chrome = upstreamChrome();
   const { rail, root, deliver, posted } = await runAddon(new Map(), { chrome });
   const closed = chrome.bar.children.find(el => el.className === 'mb-closed-switch');
@@ -365,7 +441,7 @@ test('addon: closed-cards switch (check in a circle) next to annotate, hidden un
   deliver({ type: 'lavish-mb:show-closed' });
   assert.deepEqual([closed.attributes['aria-checked'], posted.filter(m => m.type === 'lavish-mb:closed').at(-1).show], ['true', true], 'a reveal inside a hidden closed card turns the switch on');
   deliver({ type: 'lavish-mb:outline', items: [{ id: 'a', title: 'Carta a', state: 'answered', closed: true }], closed: 1, open: 0 });
-  assert.equal(closed.hidden, true, 'nothing to filter on a page of closed cards only');
+  assert.equal(closed.hidden, false, 'the control stays available on pages containing only answered cards');
 });
 
 test('addon: official panel texts turn Italian, also when written later, and the reader\'s own words never change', async () => {
@@ -440,4 +516,27 @@ test('interview: a first tap selects an option, a second tap on the same option 
   assert.deepEqual(submitted, ['no'], 'second tap on the same option queues it');
   listeners.click.forEach(fn => fn({ target: { tagName: 'LABEL' } }));
   assert.deepEqual(submitted, ['no'], 'the click on the label itself is not a tap');
+});
+
+test('two-tap forms validate and queue through submit events without any submit button',()=>{
+ const listeners={},queued=[],status={textContent:''},classes=new Set();let prevented=0;
+ const label={classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}};
+ class HTMLInputElement {constructor(){this.type='radio';this.checked=false;}closest(){return label;}}
+ const input=new HTMLInputElement();
+ const form={dataset:{mbQuestion:'q0'},addEventListener:(type,fn)=>(listeners[type]||=[]).push(fn),querySelector:selector=>selector==='.queue-status'?status:selector==='.mb-armed'&&classes.has('mb-armed')?label:null,requestSubmit(...submitter){assert.equal(submitter.length,0,'no submit button or submitter is required');for(const listener of listeners.submit)listener({preventDefault:()=>prevented++});}};
+ const document={documentElement:{dataset:{}},readyState:'complete',querySelectorAll:selector=>selector==='[data-mb-question]'?[form]:selector==='.mb-armed'&&classes.has('mb-armed')?[label]:[]};
+ vm.runInNewContext(artifactJs,{document,window:{lavish:{queuePrompt:(message,options)=>queued.push({message,options})}},HTMLInputElement,FormData:class{constructor(source){assert.equal(source,form);}get(name){assert.equal(name,'choice');return input.checked?'yes':null;}}});
+ form.requestSubmit();
+ assert.equal(status.textContent,'Scegli una risposta.');assert.equal(queued.length,0);
+ input.checked=true;
+ for(const listener of listeners.click)listener({target:input});
+ assert.equal(queued.length,0,'first activation only selects');
+ for(const listener of listeners.click)listener({target:input});
+ assert.equal(queued.length,1,'second activation queues through the original submit handler');
+ assert.equal(queued[0].options.data.answer.choice,'yes');
+ assert.equal(queued[0].options.queueKey,'answer:q0');
+ assert.equal(queued[0].options.element,form);
+ assert.equal(classes.has('mb-armed'),false,'submission resets the two-tap state');
+ form.requestSubmit();assert.equal(queued.length,2,'programmatic submit still works with no button');
+ assert.equal(prevented,3,'submit does not navigate away from the review');
 });

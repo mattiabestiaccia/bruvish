@@ -4,16 +4,20 @@ const closeView = view => {const contents = view.webContents;if (contents && !co
 
 // Owns only app tabs. Closing one never calls the Lavish end-session API.
 class Workspace {
-  constructor({window, createView, onChange}) {
-    this.window = window; this.createView = createView; this.onChange = onChange;
+  constructor({window, toolbar, createView, onChange}) {
+    this.window = window; this.toolbar = toolbar; this.createView = createView; this.onChange = onChange;
     this.tabs = new Map(); this.active = null;
   }
-  snapshot() { return {active: this.active, tabs: [...this.tabs].map(([id, row]) => ({id, title: row.title}))}; }
+  snapshot() { return {active: this.active, theme: this.tabs.get(this.active)?.toolbar?.theme || null, controls: this.tabs.get(this.active)?.toolbar?.controls || null, tabs: [...this.tabs].map(([id, row]) => ({id, title: row.title}))}; }
   changed() { this.onChange(this.snapshot()); }
   layout() {
-    if (!this.active) return;
     const [width, height] = this.window.getContentSize();
-    this.tabs.get(this.active)?.view.setBounds({x: 0, y: 56, width, height: Math.max(0, height - 56)});
+    // One full-width local toolbar, with the review strictly below it: no overlap or split row.
+    if (this.active) this.tabs.get(this.active)?.view.setBounds({x: 0, y: 40, width, height: Math.max(0, height - 40)});
+    if (this.toolbar) {
+      this.toolbar.setBounds({x: 0, y: 0, width, height: this.active ? 40 : height});
+      this.window.contentView.addChildView(this.toolbar);
+    }
   }
   select(file) {
     if (!this.tabs.has(file)) throw Error('This tab is no longer open.');
@@ -24,7 +28,7 @@ class Workspace {
   }
   home() {
     if (this.active) this.window.contentView.removeChildView(this.tabs.get(this.active).view);
-    this.active = null; this.changed();
+    this.active = null; this.layout(); this.changed();
   }
   async open(request) {
     const previous = this.tabs.get(request.file);

@@ -2,30 +2,40 @@ const api = window.lavishApp;
 const $ = id => document.getElementById(id);
 let reviews = [], state = {tabs: [], active: null};
 let preferences = {layout: 'list', transparent: false, artifactBackground: true, fullscreenImage: null, artifacts: {}};
-let imageFile = null, imageRequest = null;
-// The chosen image appears only in full screen with transparency, under the same tint.
-function renderFullscreenImage(fullscreen) {
- const file = preferences.transparent && fullscreen ? preferences.fullscreenImage : null;
- if (file === imageFile) return;
- imageFile = file;const request = imageRequest = Symbol();
- if (!file) {document.body.style.removeProperty('--fullscreen-image');document.body.classList.remove('fullscreen-image');return;}
- void action(async () => {const url = await api.fullscreenImage();if (request !== imageRequest || !url) return;document.body.style.setProperty('--fullscreen-image', `url("${url}")`);document.body.classList.add('fullscreen-image');}).then(() => {if (request === imageRequest && !document.body.classList.contains('fullscreen-image')) imageFile = null;});
-}
 function showError(error) {$('error').textContent = error.message || String(error);$('error').hidden = false;}
 async function action(fn) {try {$('error').hidden = true;return await fn();}catch (error) {showError(error);}}
 function button(text, listener, className = '') {const node = document.createElement('button');node.textContent = text;node.className = className;node.addEventListener('click', listener);return node;}
 function renderPreferences(next) {
  if (next) preferences = next;
  document.body.classList.toggle('transparent', preferences.transparent);
- $('transparent').setAttribute('aria-pressed', String(preferences.transparent));
- $('artifact-background').checked = preferences.artifactBackground;
- $('artifact-background').disabled = !preferences.transparent;
+ document.body.classList.toggle('transparent-artifacts', preferences.transparent);
+ $('transparent').setAttribute('aria-checked', String(preferences.transparent));
  $('layout').setAttribute('aria-pressed', String(preferences.layout === 'grid'));
  $('layout').textContent = preferences.layout === 'grid' ? 'Elenco' : 'Griglia';
  $('reviews').classList.toggle('grid', preferences.layout === 'grid');
 }
+const controlLabels = {annotate:'Annota',closed:'Anche le carte chiuse',panel:'Mostra la conversazione',more:'Altro',revisions:'Revisioni',warnings:'Problemi di impaginazione'};
+function renderReviewControls(controls, active) {
+ $('review-actions').hidden = !active;
+ for (const [id, label] of Object.entries(controlLabels)) {
+  const node = $(id), control = controls?.[id];
+  node.hidden = !control || Boolean(control.hidden);
+  node.disabled = !control || Boolean(control.disabled);
+  node.setAttribute('aria-label', control?.label || label);
+  node.title = control?.title || control?.label || label;
+  if (node.getAttribute('role') === 'switch') node.setAttribute('aria-checked', String(Boolean(control?.checked)));
+  else node.setAttribute('aria-expanded', String(Boolean(control?.expanded)));
+  const badge = node.querySelector('.control-count');
+  if (badge) {const count=Number.parseInt(control?.count,10)||0;badge.textContent=count>99?'99+':String(count);badge.hidden=count<1;}
+ }
+}
 function renderTabs(next) {
- state = next;renderPreferences(next.preferences);document.body.classList.toggle('fullscreen', Boolean(next.fullscreen));renderFullscreenImage(Boolean(next.fullscreen));document.body.classList.toggle('in-review', Boolean(state.active));$('tabs').replaceChildren();
+ for (const key of ['--mb-title','--mb-muted','--mb-line','--mb-field','--mb-glass','--mb-on-accent']) {
+  const value = next.theme?.[key];
+  if (typeof value === 'string' && value.trim()) document.documentElement.style.setProperty(key, value);
+  else document.documentElement.style.removeProperty(key);
+ }
+ state = next;renderReviewControls(next.controls, next.active);renderPreferences(next.preferences);document.body.classList.toggle('fullscreen', Boolean(next.fullscreen));document.body.classList.toggle('in-review', Boolean(state.active));$('tabs').replaceChildren();
  for (const tab of state.tabs) {const item = document.createElement('span');item.className = 'tab' + (tab.id === state.active ? ' active' : '');
   const title = button(tab.title, () => action(() => api.select(tab.id)), 'title');title.title = tab.title;
   const close = button('×', () => action(() => api.close(tab.id)), 'close');close.setAttribute('aria-label', 'Ferma la visualizzazione di ' + tab.title);item.append(title, close);$('tabs').append(item);
@@ -67,6 +77,18 @@ async function refresh() {$('status').textContent = 'Caricamento…';reviews = a
 $('search').addEventListener('input', renderCatalog);$('filter').addEventListener('change', renderCatalog);$('collection').addEventListener('change', renderCatalog);
 $('layout').addEventListener('click', () => action(() => settings({layout: preferences.layout === 'grid' ? 'list' : 'grid'})));
 $('transparent').addEventListener('click', () => action(() => settings({transparent: !preferences.transparent})));
-$('artifact-background').addEventListener('change', () => action(() => settings({artifactBackground: $('artifact-background').checked})));
-$('refresh').addEventListener('click', () => action(refresh));$('home').addEventListener('click', () => action(async () => {await api.home();await refresh();}));$('choose').addEventListener('click', () => action(() => api.chooseFile()));
+$('refresh').addEventListener('click', () => action(refresh));
+for (const id of ['home', 'index']) $(id).addEventListener('click', () => action(async () => {await api.home();await refresh();}));
+for (const id of Object.keys(controlLabels)) $(id).addEventListener('click', () => action(async () => {renderTabs(await api.reviewAction(id));}));
+// The local toolbar can hold keyboard focus; preserve annotation shortcuts there too.
+let lastOptionTap = -Infinity;
+document.addEventListener('keydown', event => {
+ const typing = event.target?.closest?.('input,textarea,select,[contenteditable="true"]');
+ if (!state.active || typing) {lastOptionTap=-Infinity;return;}
+ if ((event.metaKey||event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase()==='i') {event.preventDefault();$('annotate').click();lastOptionTap=-Infinity;return;}
+ if (event.code!=='AltRight'||event.metaKey||event.ctrlKey||event.shiftKey) {lastOptionTap=-Infinity;return;}
+ if (event.repeat) return;
+ if (event.timeStamp-lastOptionTap<=400) {lastOptionTap=-Infinity;$('annotate').click();}
+ else lastOptionTap=event.timeStamp;
+},true);
 api.onChange(renderTabs);void action(async () => {renderTabs(await api.snapshot());await refresh();});

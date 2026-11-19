@@ -10,11 +10,13 @@
     "core.cjs",
     "catalog.cjs",
     "workspace.cjs",
+    "review-toolbar.cjs",
     "ipc.cjs",
     "preload.cjs",
     "preferences.cjs",
     "appearance.cjs",
     "ui/index.html",
+    "ui/backdrop.html",
     "ui/app.js",
     "ui/app.css",
     "ui/fonts.css"

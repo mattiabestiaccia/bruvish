@@ -1,32 +1,9 @@
 (() => {
-    // Backdrop mode: dark (full #1f2023) or transparent. Applied before the body renders.
-    // The choice is remembered on the device: here when storage works, otherwise through the
-    // Lavish runtime bridge, which forwards it to the host page (the artifact iframe is sandboxed).
-    // Only a pointer-fine device honours a saved choice: without the switch (phone), the default applies.
-    const KEY = 'lavish-mb:mode', MODES = ['dark', 'transparent'], root = document.documentElement;
-    const stored = () => { try {
-        return matchMedia('(pointer: fine)').matches ? localStorage.getItem(KEY) : null;
-    }
-    catch {
-        return null;
-    } };
-    const fallback = () => { const ua = navigator.userAgent || ''; return /\bElectron\//.test(ua) && /Macintosh|Mac OS X/.test(ua) ? 'transparent' : 'dark'; };
-    if (!MODES.includes(root.dataset.mbMode)) {
-        const saved = stored();
-        root.dataset.mbMode = MODES.includes(saved) ? saved : fallback();
-    }
-    const setMode = mode => { if (!MODES.includes(mode))
-        return; root.dataset.mbMode = mode; try {
-        localStorage.setItem(KEY, mode);
-    }
-    catch { } document.dispatchEvent(new CustomEvent('lavish-mb:mode-change', { detail: { mode } })); };
+    // Dark before first paint, including standalone files and legacy saved choices. Only the Mac
+    // app's toolbar can subsequently change this through the runtime bridge; artifacts own no mode state.
+    const root = document.documentElement;
+    root.dataset.mbMode = 'dark';
     const init = () => {
-        // One switch, shown on pointer-fine devices only: on = transparent, off = dark.
-        const switches = [...document.querySelectorAll('[data-mb-mode-switch]')];
-        const sync = () => switches.forEach(item => item.setAttribute('aria-checked', String(root.dataset.mbMode === 'transparent')));
-        switches.forEach(item => item.addEventListener('click', () => setMode(root.dataset.mbMode === 'transparent' ? 'dark' : 'transparent')));
-        new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-mb-mode'] });
-        sync();
         document.querySelectorAll('[data-mb-voice]').forEach(button => button.addEventListener('click', () => { if (!('speechSynthesis' in window))
             return; if (speechSynthesis.speaking) {
             speechSynthesis.cancel();
@@ -40,7 +17,7 @@
             return;
         } window.lavish.queuePrompt('Risposta per ' + form.dataset.mbQuestion, { tag: 'choice', text: 'Risposta: ' + form.dataset.mbQuestion, element: form, queueKey: 'answer:' + form.dataset.mbQuestion, data: { question: form.dataset.mbQuestion, answer } }); status.textContent = 'Risposta aggiunta alla coda. Inviala dal pannello con «Invia all’agente».'; form.querySelector('.mb-armed')?.classList.remove('mb-armed'); armed = null; }));
         // Answer in two taps: the first tap on an option selects it, a second tap on the same option queues it
-        // (the same submit as the button). Keyboard: Space on the selected option is the second tap.
+        // through requestSubmit(), without a submit button. Space on the selected option is the second tap.
         let armed = null;
         document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('click', event => { const input = event.target; if (!(input instanceof HTMLInputElement) || input.type !== 'radio' || !input.checked)
             return; if (armed === input) {

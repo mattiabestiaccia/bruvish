@@ -98,6 +98,8 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         // Frame from the approved mock-up: BRUVISH mark, labelless icon switches, closed cards hidden by default (q1 and q5 are answered and not new).
         assert.deepEqual(await client.evaluate('(()=>{const a=document.getElementById("annotation"),c=document.querySelector(".mb-closed-switch");return {brand:document.querySelector(".brand-mark").textContent,role:a.getAttribute("role"),checked:a.getAttribute("aria-checked"),label:a.textContent.trim(),closedShown:getComputedStyle(c).display!=="none",closedChecked:c.getAttribute("aria-checked"),dots:Array.from(document.querySelectorAll(".mb-rail .mb-closed")).map(b=>b.dataset.target),title:document.querySelector(".panel h2").textContent,font:getComputedStyle(document.querySelector(".bar")).fontFamily}})()'),{brand:'BRUVISH',role:'switch',checked:'true',label:'',closedShown:true,closedChecked:'false',dots:['q1','q5'],title:'Conversazione',font:'"Atkinson Hyperlegible Next", system-ui, sans-serif'});
         assert.deepEqual(await client.evaluate('["q1","q5","q0"].map(id=>getComputedStyle(document.getElementById(id)).display)',true),['none','none','block']);
+        assert.deepEqual(await client.evaluate('Array.from(document.querySelectorAll("#sendActions button")).map(b=>({text:b.textContent.trim(),label:b.getAttribute("aria-label"),title:b.title,icon:!!b.querySelector("svg"),inside:b.getBoundingClientRect().right<=document.querySelector(".composer").getBoundingClientRect().right}))'),[{text:'',label:'Invia e chiudi',title:'Invia e chiudi',icon:true,inside:true},{text:'',label:'Invia all’agente',title:'Invia all’agente',icon:true,inside:true}]);
+        assert.equal(await client.evaluate('document.getElementById("presenceBanner").textContent'),'Agente non in ascolto');
         // Top left, the arrow back to the artifacts index: it leads to the catalog home of the same server.
         const index = await client.evaluate('(()=>{const a=document.querySelector(".bar .mb-index");return a&&{text:a.textContent,href:a.href,first:a===document.querySelector(".bar").firstElementChild,label:a.getAttribute("aria-label")}})()');
         assert.deepEqual(index, { text: '←', href: new URL('/', session.url).href, first: true, label: 'Indice degli artefatti' });
@@ -156,17 +158,14 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
             await client.evaluate('document.dispatchEvent(new KeyboardEvent("keydown",{key:"0",metaKey:true,bubbles:true,cancelable:true}))', frame);
             await until(() => client.evaluate('document.documentElement.style.zoom==="1"', true), 'shortcut reset');
         }
-        const switchDisplay = () => client.evaluate('getComputedStyle(document.querySelector(".mb-mode")).display', true);
-        assert.notEqual(await switchDisplay(), 'none', 'the mode switch is shown on the computer');
+        assert.equal(await client.evaluate('document.querySelector(".mb-mode,[data-mb-mode-switch]")', true),null,'no artifact transparency switch on the computer');
+        await client.evaluate('localStorage.setItem("lavish-mb:mode","transparent")');
         await client.emulate('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
-        await until(async () => await client.evaluate('matchMedia("(pointer: coarse)").matches', true) && await switchDisplay() === 'none', 'switch hidden with a phone pointer');
+        await until(() => client.evaluate('matchMedia("(pointer: coarse)").matches', true), 'phone pointer');
+        assert.deepEqual(await client.evaluate('[document.documentElement.dataset.mbMode,getComputedStyle(document.body,"::before").backgroundColor,document.querySelector(".mb-mode,[data-mb-mode-switch]")]', true),['dark','rgb(31, 32, 35)',null],'phone stays dark and has no toggle');
         await client.emulate('Emulation.setTouchEmulationEnabled', { enabled: false });
-        await until(async () => await switchDisplay() !== 'none', 'switch shown again on the computer');
-        // The mode switch lives in the sandboxed artifact; the host page remembers the choice on the device.
-        await client.evaluate('document.querySelector("[data-mb-mode-switch]").click()', true);
-        await until(() => client.evaluate('localStorage.getItem("lavish-mb:mode")==="transparent"'), 'mode remembered by the host page');
-        assert.deepEqual(await client.evaluate('[getComputedStyle(document.documentElement).backgroundColor,getComputedStyle(document.body).backgroundColor,document.querySelector("[data-mb-mode-switch]").getAttribute("aria-checked")]', true), ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'true']);
-        await until(async()=>{try{await matchingCardColors();return true;}catch{return false;}},'card colors in minimap after mode change');
+        await client.evaluate('document.dispatchEvent(new CustomEvent("lavish-mb:mode-change",{detail:{mode:"transparent"}}))',true);
+        assert.equal(await client.evaluate('document.documentElement.dataset.mbMode',true),'dark','legacy artifact events cannot enable transparency in a browser');
         // Interview cards carry no free text field: notes go through the annotation tool. The draft is the choice.
         assert.equal(await client.evaluate('document.querySelectorAll("textarea,[data-mb-question] input:not([type=radio])").length', true), 0);
         const q0Choice = 'document.querySelector("[data-mb-question=q0] input:checked")?.value';
@@ -174,7 +173,7 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(() => client.evaluate('Object.values(Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith("lavish-mb:v1:")))).some(v=>JSON.parse(v).fields?.["q0:choice"]?.value==="yes")'), 'draft persisted');
         await client.call('Page.reload');
         await until(async () => await client.evaluate(q0Choice, true) === 'yes', 'draft restored after reload');
-        await until(() => client.evaluate('document.documentElement.dataset.mbMode==="transparent"', true), 'mode restored after reload');
+        await until(() => client.evaluate('document.documentElement.dataset.mbMode==="dark"', true), 'old transparent web-storage choice ignored after reload');
         input.state.answers.q0 = { choice: 'no' };
         input.state.revision = 2;
         await writeFile(file, await renderDocument(input));
@@ -218,6 +217,15 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         reply.stderr.on('data', d => replyErr += d);
         assert.equal(await new Promise(r => reply.on('exit', r)), 0, replyErr);
         await until(() => client.evaluate('!document.body.classList.contains("panel-collapsed")'), 'reply opens panel');
+        if(await client.evaluate('document.getElementById("q0").getClientRects().length===0',true))await client.evaluate('document.querySelector(".mb-closed-switch").click()');
+        await until(()=>client.evaluate('document.getElementById("q0").getClientRects().length>0',true),'keyboard fixture card visible');
+        assert.equal(await client.evaluate('document.querySelector("[data-mb-question=q0] button[type=submit]")', true),null,'questions have no redundant submit button');
+        const queuedBeforeSpace=await client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length');
+        await client.evaluate('(()=>{const input=document.querySelector("[data-mb-question=q0] input[value=yes]");input.scrollIntoView({block:"center"});input.focus();input.click()})()',true);
+        assert.equal(await client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length'),queuedBeforeSpace,'first option activation does not submit');
+        await client.call('Input.dispatchKeyEvent',{type:'rawKeyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
+        await client.call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
+        await until(()=>client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length>'+queuedBeforeSpace),'Space on the selected option queues without a submit button');
         await client.evaluate('document.querySelector("[data-mb-question=q0]").requestSubmit()', true);
         await until(() => client.evaluate('!document.getElementById("send").disabled'), 'native queue');
         const poll = spawn(process.execPath, [driver, 'poll', file, '--timeout-ms', '5000'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
