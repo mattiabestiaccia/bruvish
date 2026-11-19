@@ -1,5 +1,6 @@
 import test from 'node:test';
 import {queuePointerExpression} from '../test-helpers/queue-pointer.mjs';
+import {checkCardEdit} from '../test-helpers/card-edit.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, chmod, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -62,6 +63,12 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await uiClient.evaluate('document.getElementById("home").click()');await until(()=>uiClient.evaluate('Array.from(document.querySelectorAll(".review .path")).some(n=>n.textContent==='+JSON.stringify(file)+')'),'native catalog reads canonical state');
   await uiClient.evaluate('Array.from(document.querySelectorAll(".review")).find(n=>n.querySelector(".path").textContent==='+JSON.stringify(file)+').querySelector("button").click()');await until(()=>uiClient.evaluate('document.body.classList.contains("in-review")'),'catalog opens through canonical CLI');
   const again=await execute(process.execPath,[adapter,session.url,file],{env});assert.equal(again.code,0,again.stderr);assert.equal(JSON.parse(again.stdout).pid,first.pid);assert.equal(JSON.parse(again.stdout).window,first.window);
+  // Historical native comparison of changing an answer from its card stops after that check alone.
+  if(process.env.LAVISH_MB_TEST_CARD_PROBE==='1'){
+   const steps=await checkCardEdit({client,until,delay,writeFile,file});
+   if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR){await mkdir(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'card-edit.json'),JSON.stringify({passed:true,steps},null,2));}
+   return;
+  }
   // Interview cards have no free text field: the draft is the chosen answer.
   const choice='document.querySelector("[data-mb-question=q0] input:checked")?.value';
   const choose=value=>'(()=>{const option=document.querySelector("[data-mb-question=q0] input[value='+value+']");if(!option)return false;option.checked=true;option.dispatchEvent(new Event("input",{bubbles:true}));return true})()';
@@ -205,6 +212,9 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
    if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR)await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'handwritten-'+(transparent?'glass':'opaque')+'.png'),Buffer.from(shot.data,'base64'));
   }
   if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR)await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'handwritten-pixels.json'),JSON.stringify(pixels,null,2));
+  // An answer already given on a hand-written card: the card stays, annotate-mode click on it reopens the
+  // queued answer, and a newer answer with the same queueKey replaces it.
+  await checkCardEdit({client,until,delay,writeFile,file});
  }catch(error){
   const evidence=process.env.LAVISH_MB_TEST_EVIDENCE_DIR;
   if(evidence){
