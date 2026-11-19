@@ -167,7 +167,12 @@ test('runtime mode travels from the app to the artifact, never from web storage 
 
 test('interview questions explain the two-tap answer and carry no free text field', async () => {
   const html = await renderDocument(doc([card('q', { status: 'waiting', question: { options: [{ value: 'si', label: 'Sì' }, { value: 'no', label: 'No' }] } })]));
-  assert.match(html, /<\/label><p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla\.<\/p><button type="submit">/);
+  const form = html.match(/<form data-mb-question="q">[\s\S]*?<\/form>/)[0];
+  assert.doesNotMatch(form, /<button|type="submit"|Aggiungi risposte/, 'the two-tap form has no redundant submit control');
+  assert.match(form, /class="mb-hint"[^>]*>[^<]*Spazio/);
+  assert.match(form, /<span class="queue-status" role="status"><\/span>/);
+  assert.match(css, /input:focus-visible[^{}]*\{outline:3px/, 'keyboard focus remains visible');
+  assert.match(css, /\.queue-status:empty\{margin:0\}/, 'empty live status has no button-sized gap and stays available to assistive tools');
   assert.doesNotMatch(html, /<textarea|<input(?![^>]*type="radio")/, 'notes go through the annotation tool');
 });
 

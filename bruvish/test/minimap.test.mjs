@@ -489,3 +489,26 @@ test('interview: a first tap selects an option, a second tap on the same option 
   listeners.click.forEach(fn => fn({ target: { tagName: 'LABEL' } }));
   assert.deepEqual(submitted, ['no'], 'the click on the label itself is not a tap');
 });
+
+test('two-tap forms validate and queue through submit events without any submit button',()=>{
+ const listeners={},queued=[],status={textContent:''},classes=new Set();let prevented=0;
+ const label={classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}};
+ class HTMLInputElement {constructor(){this.type='radio';this.checked=false;}closest(){return label;}}
+ const input=new HTMLInputElement();
+ const form={dataset:{mbQuestion:'q0'},addEventListener:(type,fn)=>(listeners[type]||=[]).push(fn),querySelector:selector=>selector==='.queue-status'?status:selector==='.mb-armed'&&classes.has('mb-armed')?label:null,requestSubmit(...submitter){assert.equal(submitter.length,0,'no submit button or submitter is required');for(const listener of listeners.submit)listener({preventDefault:()=>prevented++});}};
+ const document={documentElement:{dataset:{}},readyState:'complete',querySelectorAll:selector=>selector==='[data-mb-question]'?[form]:selector==='.mb-armed'&&classes.has('mb-armed')?[label]:[]};
+ vm.runInNewContext(artifactJs,{document,window:{lavish:{queuePrompt:(message,options)=>queued.push({message,options})}},HTMLInputElement,FormData:class{constructor(source){assert.equal(source,form);}get(name){assert.equal(name,'choice');return input.checked?'yes':null;}}});
+ form.requestSubmit();
+ assert.equal(status.textContent,'Scegli una risposta.');assert.equal(queued.length,0);
+ input.checked=true;
+ for(const listener of listeners.click)listener({target:input});
+ assert.equal(queued.length,0,'first activation only selects');
+ for(const listener of listeners.click)listener({target:input});
+ assert.equal(queued.length,1,'second activation queues through the original submit handler');
+ assert.equal(queued[0].options.data.answer.choice,'yes');
+ assert.equal(queued[0].options.queueKey,'answer:q0');
+ assert.equal(queued[0].options.element,form);
+ assert.equal(classes.has('mb-armed'),false,'submission resets the two-tap state');
+ form.requestSubmit();assert.equal(queued.length,2,'programmatic submit still works with no button');
+ assert.equal(prevented,3,'submit does not navigate away from the review');
+});

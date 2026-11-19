@@ -17,7 +17,7 @@
             return;
         } window.lavish.queuePrompt('Risposta per ' + form.dataset.mbQuestion, { tag: 'choice', text: 'Risposta: ' + form.dataset.mbQuestion, element: form, queueKey: 'answer:' + form.dataset.mbQuestion, data: { question: form.dataset.mbQuestion, answer } }); status.textContent = 'Risposta aggiunta alla coda. Inviala dal pannello con «Invia all’agente».'; form.querySelector('.mb-armed')?.classList.remove('mb-armed'); armed = null; }));
         // Answer in two taps: the first tap on an option selects it, a second tap on the same option queues it
-        // (the same submit as the button). Keyboard: Space on the selected option is the second tap.
+        // through requestSubmit(), without a submit button. Space on the selected option is the second tap.
         let armed = null;
         document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('click', event => { const input = event.target; if (!(input instanceof HTMLInputElement) || input.type !== 'radio' || !input.checked)
             return; if (armed === input) {

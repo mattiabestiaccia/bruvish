@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {queuePointerExpression} from '../test-helpers/queue-pointer.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, chmod, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -72,7 +73,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   // Two feedback rounds through the ordinary CLI: a tracked poll, the native Send, then a reply.
   const cli=(...args)=>execute(process.execPath,[builtCli,...args],{env});
   const clickReview=async selector=>{
-   const point=await until(()=>client.evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return null;el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2,describe=n=>n?{tag:n.tagName,id:n.id,className:n.getAttribute?.('class')}:null;if(!window.__queuePointerTrace){window.__queuePointerTrace=[];for(const type of ['pointerdown','mousedown','mouseup','click'])document.addEventListener(type,event=>{window.__queuePointerTrace.push({type,x:event.clientX,y:event.clientY,screenX:event.screenX,screenY:event.screenY,trusted:event.isTrusted,target:describe(event.target)});window.__queuePointerTrace=window.__queuePointerTrace.slice(-40)},true)}window.__queuePointerPoint={selector,x,y,rect:r.toJSON(),width:innerWidth,height:innerHeight,scrollY,hit:describe(document.elementFromPoint(x,y)),wanted:describe(el),focus:document.hasFocus()};return {x,y}})()`),'click target '+selector);
+   const point=await until(()=>client.evaluate(queuePointerExpression(selector)),'click target '+selector);
    for(const type of ['mousePressed','mouseReleased'])await client.call('Input.dispatchMouseEvent',{type,...point,button:'left',clickCount:1});
   };
   for(let i=1;i<=2;i++){

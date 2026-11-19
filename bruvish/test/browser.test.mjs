@@ -217,6 +217,15 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         reply.stderr.on('data', d => replyErr += d);
         assert.equal(await new Promise(r => reply.on('exit', r)), 0, replyErr);
         await until(() => client.evaluate('!document.body.classList.contains("panel-collapsed")'), 'reply opens panel');
+        if(await client.evaluate('document.getElementById("q0").getClientRects().length===0',true))await client.evaluate('document.querySelector(".mb-closed-switch").click()');
+        await until(()=>client.evaluate('document.getElementById("q0").getClientRects().length>0',true),'keyboard fixture card visible');
+        assert.equal(await client.evaluate('document.querySelector("[data-mb-question=q0] button[type=submit]")', true),null,'questions have no redundant submit button');
+        const queuedBeforeSpace=await client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length');
+        await client.evaluate('(()=>{const input=document.querySelector("[data-mb-question=q0] input[value=yes]");input.scrollIntoView({block:"center"});input.focus();input.click()})()',true);
+        assert.equal(await client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length'),queuedBeforeSpace,'first option activation does not submit');
+        await client.call('Input.dispatchKeyEvent',{type:'rawKeyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
+        await client.call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
+        await until(()=>client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length>'+queuedBeforeSpace),'Space on the selected option queues without a submit button');
         await client.evaluate('document.querySelector("[data-mb-question=q0]").requestSubmit()', true);
         await until(() => client.evaluate('!document.getElementById("send").disabled'), 'native queue');
         const poll = spawn(process.execPath, [driver, 'poll', file, '--timeout-ms', '5000'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
