@@ -219,7 +219,6 @@ function registerIpc() {
       return snapshot();
     },
     'lavish:home': () => workspace.home(),
-    'lavish:fullscreen-image': fullscreenImage,
     'lavish:select': id => {if (typeof id !== 'string') throw Error('Invalid tab');workspace.select(id);},
     'lavish:close': id => {if (typeof id !== 'string') throw Error('Invalid tab');workspace.close(id);},
     'lavish:open-review': key => withReopen(reopen => core.openRegistered(key, {reopen})),

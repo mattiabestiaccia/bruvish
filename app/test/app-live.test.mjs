@@ -1,5 +1,4 @@
 import test from 'node:test';
-import {queuePointerExpression} from '../test-helpers/queue-pointer.mjs';
 import {checkCardEdit} from '../test-helpers/card-edit.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, chmod, mkdir } from 'node:fs/promises';
@@ -63,12 +62,6 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await uiClient.evaluate('document.getElementById("home").click()');await until(()=>uiClient.evaluate('Array.from(document.querySelectorAll(".review .path")).some(n=>n.textContent==='+JSON.stringify(file)+')'),'native catalog reads canonical state');
   await uiClient.evaluate('Array.from(document.querySelectorAll(".review")).find(n=>n.querySelector(".path").textContent==='+JSON.stringify(file)+').querySelector("button").click()');await until(()=>uiClient.evaluate('document.body.classList.contains("in-review")'),'catalog opens through canonical CLI');
   const again=await execute(process.execPath,[adapter,session.url,file],{env});assert.equal(again.code,0,again.stderr);assert.equal(JSON.parse(again.stdout).pid,first.pid);assert.equal(JSON.parse(again.stdout).window,first.window);
-  // Historical native comparison of changing an answer from its card stops after that check alone.
-  if(process.env.LAVISH_MB_TEST_CARD_PROBE==='1'){
-   const steps=await checkCardEdit({client,until,delay,writeFile,file});
-   if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR){await mkdir(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'card-edit.json'),JSON.stringify({passed:true,steps},null,2));}
-   return;
-  }
   // Interview cards have no free text field: the draft is the chosen answer.
   const choice='document.querySelector("[data-mb-question=q0] input:checked")?.value';
   const choose=value=>'(()=>{const option=document.querySelector("[data-mb-question=q0] input[value='+value+']");if(!option)return false;option.checked=true;option.dispatchEvent(new Event("input",{bubbles:true}));return true})()';
@@ -80,7 +73,7 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   // Two feedback rounds through the ordinary CLI: a tracked poll, the native Send, then a reply.
   const cli=(...args)=>execute(process.execPath,[builtCli,...args],{env});
   const clickReview=async selector=>{
-   const point=await until(()=>client.evaluate(queuePointerExpression(selector)),'click target '+selector);
+   const point=await until(()=>client.evaluate('(()=>{const el=document.querySelector('+JSON.stringify(selector)+');if(!el)return null;el.scrollIntoView({block:"center"});const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()'),'click target '+selector);
    for(const type of ['mousePressed','mouseReleased'])await client.call('Input.dispatchMouseEvent',{type,...point,button:'left',clickCount:1});
   };
   for(let i=1;i<=2;i++){
@@ -92,11 +85,6 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
    await client.evaluate('(()=>{const input=document.querySelector(".queued-edit-input");input.value='+JSON.stringify(text+' corrected in panel')+';input.dispatchEvent(new Event("input",{bubbles:true}))})()');
    await clickReview('.queued-edit-save');
    await until(()=>client.evaluate('!document.querySelector(".queued-edit-input")&&document.querySelector("#queuedLog .bubble-text")?.textContent.includes("corrected in panel")'),'queued edit saved on the same note');
-   // Historical native bisection stops only after the real click/edit/save sequence passed.
-   if(process.env.LAVISH_MB_TEST_QUEUE_PROBE==='1'){
-    if(process.env.LAVISH_MB_TEST_EVIDENCE_DIR){await mkdir(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'queue-probe.json'),JSON.stringify({passed:true,point:await client.evaluate('window.__queuePointerPoint'),events:await client.evaluate('window.__queuePointerTrace')},null,2));}
-    return;
-   }
    const poll=cli('poll',file,'--timeout-ms','60000');
    await until(()=>client.evaluate('!document.getElementById("send").disabled'),'send enabled');await client.evaluate('document.getElementById("send").click()');
    const feedback=await poll;assert.equal(feedback.code,0,feedback.stderr);assert(feedback.stdout.includes(text+' corrected in panel'),feedback.stdout);
@@ -221,10 +209,8 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
    await mkdir(evidence,{recursive:true});
    const diagnostic={error:error.message,uiExceptions:uiClient?.errors,reviewExceptions:client?.errors};
    try{diagnostic.ui=await uiClient.evaluate(`({inReview:document.body.classList.contains('in-review'),layoutLabel:document.getElementById('layout')?.textContent,grid:document.getElementById('reviews')?.classList.contains('grid'),error:document.getElementById('error')?.textContent})`);}catch(e){diagnostic.uiError=e.message;}
-   try{diagnostic.queue=await client.evaluate(`({bubbles:Array.from(document.querySelectorAll('#queuedLog .bubble')).map(el=>({index:el.dataset.index,className:el.className,editDisabled:el.querySelector('.queued-edit')?.disabled})),editor:!!document.querySelector('.queued-edit-input'),point:window.__queuePointerPoint,events:window.__queuePointerTrace,body:document.body.className,panelRect:document.querySelector('.panel')?.getBoundingClientRect().toJSON()})`);}catch{}
-   try{diagnostic.queueState=await client.evaluate('({ended,terminalReserved:terminalSubmission!==null,notes:queued.map(prompt=>({id:promptIdentity(prompt),sending:isPromptSending(prompt),tag:prompt.tag}))})');}catch{}
+   try{diagnostic.queue=await client.evaluate(`({bubbles:Array.from(document.querySelectorAll('#queuedLog .bubble')).map(el=>({index:el.dataset.index,className:el.className,editDisabled:el.querySelector('.queued-edit')?.disabled})),editor:!!document.querySelector('.queued-edit-input'),body:document.body.className,panelRect:document.querySelector('.panel')?.getBoundingClientRect().toJSON()})`);}catch{}
    try{const shot=await client.call('Page.captureScreenshot',{format:'png'});await writeFile(path.join(evidence,'review-failure.png'),Buffer.from(shot.data,'base64'));}catch{}
-   if(process.env.LAVISH_MB_TEST_QUEUE_PROBE==='1')try{await client.evaluate('document.querySelector("#queuedLog .bubble.queued .bubble-text")?.click()');await delay(100);diagnostic.domClickOpensEditor=await client.evaluate('!!document.querySelector(".queued-edit-input")');}catch(e){diagnostic.domClickError=e.message;}
    try{diagnostic.preferences=JSON.parse(await readFile(path.join(dir,'app/preferences.json'),'utf8'));}catch{}
    try{const shot=await uiClient.call('Page.captureScreenshot',{format:'png'});await writeFile(path.join(evidence,'native-failure.png'),Buffer.from(shot.data,'base64'));}catch{}
    await writeFile(path.join(evidence,'native-failure.json'),JSON.stringify(diagnostic,null,2));

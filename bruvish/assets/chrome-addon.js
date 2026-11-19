@@ -324,9 +324,6 @@
             setShowClosed(true);
         if (m.type === 'lavish-mb:annotate-toggle')
             annotate?.click();
-        // Old artifacts can still request a mode; return the app's current value, never adopt theirs.
-        if (m.type === 'lavish-mb:mode' || m.type === 'lavish-mb:mode-request')
-            send('mode', { mode });
         if (m.type === 'lavish-mb:outline' && Array.isArray(m.items)) {
             outlineItems = m.items.filter(i => typeof i.id === 'string' && typeof i.title === 'string').slice(0, 400);
             if (typeof m.accent === 'string' && m.accent && CSS.supports('color', m.accent))

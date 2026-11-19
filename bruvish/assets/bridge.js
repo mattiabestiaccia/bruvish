@@ -214,9 +214,6 @@
                 delete conflicts[id];
         } draft(); });
     document.addEventListener('change', draft);
-    // Compatibility with older generated scripts: ask for the authoritative app value, never send a choice.
-    document.addEventListener('lavish-mb:mode-change', () => { if (token)
-        send('mode-request'); });
     document.addEventListener('toggle', () => { draft(); schedule(); }, true);
     addEventListener('scroll', () => { if (!pendingFrame)
         pendingFrame = requestAnimationFrame(() => { pendingFrame = 0; position(); }); }, { passive: true });

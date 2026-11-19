@@ -267,8 +267,7 @@ test('only the Mac app bridge accepts transparent mode; browser and phone remain
   run.deliver({type:'lavish-mb:mode',token:'t',mode:'dark'});
   assert.equal(run.root.dataset.mbMode,'dark');
   run.dispatch('lavish-mb:mode-change',{detail:{mode:'transparent'}});
-  assert.equal(run.posted.some(m=>m.type==='lavish-mb:mode'),false,'no artifact mode choice goes upstream');
-  assert.equal(run.posted.at(-1).type,'lavish-mb:mode-request','old scripts only request the app value');
+  assert.deepEqual([run.root.dataset.mbMode,run.posted.some(m=>/^lavish-mb:mode/.test(m.type))],['dark',false],'an old artifact mode event changes nothing and sends nothing upstream');
  }
 });
 

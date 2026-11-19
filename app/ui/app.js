@@ -2,15 +2,6 @@ const api = window.lavishApp;
 const $ = id => document.getElementById(id);
 let reviews = [], state = {tabs: [], active: null};
 let preferences = {layout: 'list', transparent: false, artifactBackground: true, fullscreenImage: null, artifacts: {}};
-let imageFile = null, imageRequest = null;
-// The chosen image appears only in full screen with transparency, under the same tint.
-function renderFullscreenImage(fullscreen) {
- const file = preferences.transparent && fullscreen ? preferences.fullscreenImage : null;
- if (file === imageFile) return;
- imageFile = file;const request = imageRequest = Symbol();
- if (!file) {document.body.style.removeProperty('--fullscreen-image');document.body.classList.remove('fullscreen-image');return;}
- void action(async () => {const url = await api.fullscreenImage();if (request !== imageRequest || !url) return;document.body.style.setProperty('--fullscreen-image', `url("${url}")`);document.body.classList.add('fullscreen-image');}).then(() => {if (request === imageRequest && !document.body.classList.contains('fullscreen-image')) imageFile = null;});
-}
 function showError(error) {$('error').textContent = error.message || String(error);$('error').hidden = false;}
 async function action(fn) {try {$('error').hidden = true;return await fn();}catch (error) {showError(error);}}
 function button(text, listener, className = '') {const node = document.createElement('button');node.textContent = text;node.className = className;node.addEventListener('click', listener);return node;}
@@ -44,7 +35,7 @@ function renderTabs(next) {
   if (typeof value === 'string' && value.trim()) document.documentElement.style.setProperty(key, value);
   else document.documentElement.style.removeProperty(key);
  }
- state = next;renderReviewControls(next.controls, next.active);renderPreferences(next.preferences);document.body.classList.toggle('fullscreen', Boolean(next.fullscreen));renderFullscreenImage(Boolean(next.fullscreen));document.body.classList.toggle('in-review', Boolean(state.active));$('tabs').replaceChildren();
+ state = next;renderReviewControls(next.controls, next.active);renderPreferences(next.preferences);document.body.classList.toggle('fullscreen', Boolean(next.fullscreen));document.body.classList.toggle('in-review', Boolean(state.active));$('tabs').replaceChildren();
  for (const tab of state.tabs) {const item = document.createElement('span');item.className = 'tab' + (tab.id === state.active ? ' active' : '');
   const title = button(tab.title, () => action(() => api.select(tab.id)), 'title');title.title = tab.title;
   const close = button('×', () => action(() => api.close(tab.id)), 'close');close.setAttribute('aria-label', 'Ferma la visualizzazione di ' + tab.title);item.append(title, close);$('tabs').append(item);

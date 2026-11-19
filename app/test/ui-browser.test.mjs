@@ -105,6 +105,8 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     await until(() => evaluate('document.body.classList.contains("transparent")'));
     assert.equal(await evaluate('document.getElementById("transparent").getAttribute("aria-checked")'),'true');
     assert.equal(await evaluate('getComputedStyle(document.documentElement).backgroundColor'),'rgba(0, 0, 0, 0)');
+    // The backdrop window owns the single 40% tint (rgba(16,19,24,.4), the accepted pre-toolbar home); the home view adds none.
+    assert.deepEqual(await evaluate('(()=>{const s=getComputedStyle(document.body);return [s.backgroundColor,s.backgroundImage]})()'),['rgba(0, 0, 0, 0)','none'],'the transparent home paints no second tint');
     if (process.env.LAVISH_MB_TEST_EVIDENCE_DIR) {
       await fs.mkdir(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});
       const shot = await call('Page.captureScreenshot',{format:'png'});
@@ -115,6 +117,7 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     await evaluate('document.querySelector(".review .favorite").click()');
     await until(() => evaluate('document.querySelectorAll(".review").length===0'));
     await evaluate('window.reviewState={preferences:libraryPreferences,tabs:[{id:"tab1",title:"An unusually long review title to exercise tab overflow"}],active:"tab1",controls:Object.fromEntries(["annotate","closed","panel","more","revisions","warnings"].map(id=>[id,{hidden:false,disabled:false,checked:true,expanded:false,count:id==="warnings"?"3":""}]))};changed(reviewState)');
+    assert.equal(await evaluate('getComputedStyle(document.body).backgroundColor'),'rgba(0, 0, 0, 0)','the transparent review composition is unchanged');
     for (const width of [720,1000,1240]) {
       await call('Emulation.setDeviceMetricsOverride',{width,height:920,deviceScaleFactor:1,mobile:false});
       assert.deepEqual(await evaluate('(()=>{const bar=document.querySelector(".toolbar").getBoundingClientRect(),group=document.getElementById("toolbar-actions").getBoundingClientRect();return {left:bar.left,width:bar.width,height:bar.height,groupInside:group.right<=bar.right,groupAtRight:bar.right-group.right===8,centered:[...document.querySelectorAll("#toolbar-actions button")].every(b=>{const r=b.getBoundingClientRect();return r.top+r.height/2===bar.height/2})}})()'),{left:0,width,height:40,groupInside:true,groupAtRight:true,centered:true});
@@ -122,6 +125,9 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     await evaluate('document.getElementById("annotate").click()');
     await until(()=>evaluate('document.getElementById("annotate").getAttribute("aria-checked")==="false"'));
     assert.deepEqual(await evaluate('calls.at(-1)'),['review-action','annotate']);
+    await call('Page.navigate',{url:new URL('../ui/backdrop.html',import.meta.url).href});
+    await until(() => evaluate('document.readyState==="complete"&&getComputedStyle(document.body).backgroundColor!=="rgba(0, 0, 0, 0)"'));
+    assert.equal(await evaluate('getComputedStyle(document.body).backgroundColor'),'rgba(16, 19, 24, 0.4)','the backdrop paints the single 40% tint');
   } finally {
     ws?.close();
     if (browser && browser.exitCode===null && browser.signalCode===null) {browser.kill('SIGTERM');await new Promise(r=>browser.once('exit',r));}
