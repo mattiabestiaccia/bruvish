@@ -542,7 +542,8 @@ test('addon: a saved draft says nothing; draft problems and conflicts sit in the
   run.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: [] });
   assert.deepEqual([run.tools.hidden, note.hidden], [true, true], 'a draft saved as expected shows no notice');
   run.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: ['q0:choice'] });
-  assert.deepEqual([run.tools.hidden, conflicts.hidden, conflicts.textContent], [false, false, 'Bozze in conflitto (1)'], 'conflicting drafts show their button in the bar');
+  assert.deepEqual([run.tools.hidden, conflicts.hidden, conflicts.attributes['aria-label'], conflicts.attributes.title], [false, false, 'Bozze in conflitto (1)', 'Bozze in conflitto (1)'], 'conflicting drafts show their button in the bar, named in full');
+  assert.deepEqual(conflicts.children.map(el => [el.tagName, el.className || '', el.textContent]), [['SVG', '', ''], ['SPAN', 'mb-conflict-label', 'Bozze in conflitto'], ['SPAN', '', ' (1)']], 'icon, words, count: at phone width the words can give way and the count stays');
   const offline = await runAddon(new Map(), { chrome: upstreamChrome() });
   const problem = offline.tools.children.find(el => el.className === 'mb-draft-note');
   assert.deepEqual([offline.tools.hidden, problem.hidden, problem.attributes.title, problem.attributes.role], [false, false, 'Identità server non verificata: bozze solo in memoria', 'status'], 'a draft problem is an icon with a hover hint');

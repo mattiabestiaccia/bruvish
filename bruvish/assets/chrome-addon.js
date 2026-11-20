@@ -248,7 +248,8 @@
     note.className = 'mb-draft-note';
     note.setAttribute('role', 'status');
     noteText.className = 'mb-sr';
-    note.append(icon([['path', { d: 'M8 2.4l6 10.8H2z' }], ['path', { d: 'M8 6.4v3.2' }], ['path', { d: 'M8 11.5v.1' }]]), noteText);
+    const warningShape = [['path', { d: 'M8 2.4l6 10.8H2z' }], ['path', { d: 'M8 6.4v3.2' }], ['path', { d: 'M8 11.5v.1' }]];
+    note.append(icon(warningShape), noteText);
     note.hidden = true;
     function placeTools() {
         const title = document.querySelector('.panel h2');
@@ -276,7 +277,13 @@
     function button(label, fn) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); tools.append(b); return b; }
     // The tools only appear while they have something to say: a draft problem or conflicting drafts. A draft
     // that is saved as expected says nothing.
-    const conflictButton = button('Bozze in conflitto', showConflicts);
+    // At phone width the bar has no room for the words: the button keeps the icon and the count, the full
+    // words stay in the hover hint and the accessible name.
+    const conflictButton = button('', showConflicts), conflictLabel = document.createElement('span'), conflictCount = document.createElement('span');
+    conflictButton.className = 'mb-conflict-button';
+    conflictLabel.className = 'mb-conflict-label';
+    conflictLabel.textContent = 'Bozze in conflitto';
+    conflictButton.append(icon(warningShape), conflictLabel, conflictCount);
     conflictButton.hidden = true;
     tools.append(note);
     tools.hidden = true;
@@ -379,7 +386,9 @@
             persist();
             setNote(storageAvailable ? '' : 'Bozze non persistenti in questo browser');
             conflictButton.hidden = !record.conflicts.length;
-            conflictButton.textContent = 'Bozze in conflitto (' + record.conflicts.length + ')';
+            conflictCount.textContent = ' (' + record.conflicts.length + ')';
+            conflictButton.setAttribute('aria-label', 'Bozze in conflitto (' + record.conflicts.length + ')');
+            conflictButton.setAttribute('title', 'Bozze in conflitto (' + record.conflicts.length + ')');
             refreshTools();
         }
         if (m.type === 'lavish-mb:zoom-request')

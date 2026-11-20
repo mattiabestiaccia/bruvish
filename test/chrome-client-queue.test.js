@@ -8904,7 +8904,11 @@ for (const first of ["HTTP", "transcript", "ack_ids"]) {
         [[yes]],
         "a late acknowledgement cannot restore the old answer's sent mark",
       );
-      assert.deepEqual(chrome.queued().map((item) => item.selector), [no], "the new answer remains queued");
+      assert.deepEqual(
+        chrome.queued().map((item) => item.selector),
+        [no],
+        "the new answer remains queued",
+      );
     });
   }
 }
@@ -8940,8 +8944,61 @@ test("a partial transcript acknowledgement reports only the remaining anchored d
     [["#first"], ["#second"]],
     "each accepted answer is reported once, including a batch settled in parts",
   );
-  assert.deepEqual(chrome.queued().map((prompt) => prompt.selector), ["#replacement"]);
+  assert.deepEqual(
+    chrome.queued().map((prompt) => prompt.selector),
+    ["#replacement"],
+  );
 });
+
+for (const responseHasChat of [false, true]) {
+  test(`an answer replaced while its send is in flight is never reported as delivered (HTTP chat ${responseHasChat})`, async () => {
+    let acceptPost = () => {};
+    const chrome = await createChromeHarness({
+      fetchImpl: async (url) => {
+        if (url === "/api/abc/prompts") {
+          return new Promise((resolve) => {
+            acceptPost = () =>
+              resolve({ ok: true, json: async () => (responseHasChat ? { chat, chat_revision: 1 } : {}) });
+          });
+        }
+        return { ok: true, json: async () => ({}) };
+      },
+    });
+    const yes = '[data-mb-question="q0"] input[value="yes"]';
+    const no = '[data-mb-question="q0"] input[value="no"]';
+    const answer = (prompt, selector) =>
+      chrome.sendFrameMessage({
+        type: "lavish:queuePrompt",
+        prompt: { prompt, selector, tag: "choice", text: "Risposta: q0", _lavishQueueKey: "answer:q0" },
+      });
+    answer("Yes", yes);
+    const [sent] = chrome.queued();
+    const chat = [chatEntryForPrompt(sent, "2026-11-20T00:00:00.000Z")];
+    chrome.element("send").click();
+    chrome.sendSnapshot("uid=1 body");
+    await flushPromises();
+    answer("No", no);
+    assert.deepEqual(
+      chrome.queued().map((prompt) => prompt.selector),
+      [no],
+      "the newer answer replaces the one in flight",
+    );
+
+    acceptPost();
+    await flushPromises();
+
+    assert.deepEqual(
+      chrome.postedToFrame.filter((message) => message.type === "lavish:deliveredAnchors"),
+      [],
+      "the replaced answer is not marked sent next to the queued one",
+    );
+    assert.deepEqual(
+      chrome.queued().map((prompt) => prompt.selector),
+      [no],
+      "the newer answer stays queued",
+    );
+  });
+}
 
 // The artifact walks the list newest first, so a selector a newer note carries again must sit at
 // that newer note, after a selector queued in between; otherwise the in-between note would win.

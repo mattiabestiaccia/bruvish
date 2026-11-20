@@ -180,6 +180,11 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(() => client.evaluate('document.documentElement.dataset.mbStateVersion==="2"', true), 'live reload');
         assert.equal(await client.evaluate(q0Choice, true), 'no', 'a conflicting radio draft must not replace a new canonical choice');
         await until(() => client.evaluate('!document.querySelectorAll(".mb-tools button")[0].hidden'), 'conflict visible');
+        await client.call('Emulation.setDeviceMetricsOverride', { width: 375, height: 740, deviceScaleFactor: 1, mobile: false });
+        await until(() => client.evaluate('innerWidth===375'), 'phone width');
+        assert.deepEqual(await client.evaluate('(()=>{const b=document.querySelector(".mb-conflict-button"),r=b.getBoundingClientRect();return {words:getComputedStyle(b.querySelector(".mb-conflict-label")).display,icon:getComputedStyle(b.querySelector("svg")).display!=="none",name:b.getAttribute("aria-label"),narrow:r.width<60,inside:r.right<=innerWidth}})()'), { words: 'none', icon: true, name: 'Bozze in conflitto (1)', narrow: true, inside: true }, 'at phone width the conflict button keeps only the icon and the count');
+        await client.call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+        await until(() => client.evaluate('innerWidth===1440'), 'desktop width again');
         await client.evaluate('document.querySelectorAll(".mb-tools button")[0].click()');
         assert.equal(await client.evaluate('document.querySelector(".mb-conflict-dialog [data-field=\\"q0:choice\\"] pre")?.textContent'), 'yes');
         await client.evaluate('document.querySelector(".mb-conflict-dialog [data-field=\\"q0:choice\\"] button").click()');
