@@ -130,7 +130,8 @@ function element(tag) {
     append(...items) { for (const item of items) { item.parent = this; this.children.push(item); } },
     replaceChildren(...items) { this.textContent = ''; this.children = []; this.append(...items); },
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; },
-    before(item) { const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this), 0, item); },
+    before(item) { item.remove?.(); const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this), 0, item); },
+    after(item) { item.remove?.(); const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this) + 1, 0, item); },
     get childNodes() { return this.children; },
     querySelector(selector) { const name = selector.replace(/^\./, ''); for (const child of this.children) { if (child.classList?.contains(name)) return child; const found = child.querySelector?.(selector); if (found) return found; } return null; },
     addEventListener(type, fn) { this.listeners[type] = fn; },
@@ -156,7 +157,7 @@ function upstreamChrome() {
   return { bar, brandBox, brand, annotate, title, send, end, endButton, exit, input };
 }
 
-async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null, appMode = null } = {}) {
+async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null, appMode = null, online = false } = {}) {
   const listeners = {}, posted = [], documentListeners = {}, observers = [];
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
@@ -176,12 +177,12 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   const context = {
     document, posted,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
-    crypto: { randomUUID: () => 'token-1' },
+    crypto: { randomUUID: () => 'token-1' }, location: { origin: 'http://127.0.0.1:1' },
     matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')' }),
     CSS: { supports: (property, value) => property === 'color' && /^(#[0-9a-f]{3,8}|rgba?\([\d., ]+\))$/i.test(value) },
     MutationObserver: class { constructor(fn) { this.fn = fn; observers.push(this); } observe(target) { this.target = target; } },
     Node: { ELEMENT_NODE: 1, TEXT_NODE: 3 }, NodeFilter: { SHOW_ELEMENT: 1, SHOW_TEXT: 4 },
-    fetch: () => Promise.reject(new Error('offline')),
+    fetch: () => online ? Promise.resolve({ json: () => ({ state_id: 'state-1' }) }) : Promise.reject(new Error('offline')),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }
   };
   vm.runInNewContext(addon, context);
@@ -191,7 +192,8 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   // Upstream sets aria-pressed again on every toggle; the observer then mirrors it.
   const upstreamToggle = pressed => { chrome.annotate.setAttribute('aria-pressed', String(pressed)); observers.filter(o => o.target === chrome.annotate).forEach(o => o.fn()); };
   const rail = body.children.find(el => el.className === 'mb-rail');
-  return { body, head, root, rail, deliver, posted, key, upstreamToggle, observers };
+  const tools = descendants(body).concat(chrome ? descendants(chrome.bar) : [], chrome?.title.parent ? descendants(chrome.title.parent) : []).find(el => el.classList.contains('mb-tools'));
+  return { body, head, root, rail, deliver, posted, key, upstreamToggle, observers, tools };
 }
 
 test('bridge: each minimap entry carries the novelty of its card and the outline carries the theme accent', () => {
@@ -528,6 +530,39 @@ function runQuestions({ forms: spec = { q0: ['yes', 'no'] }, lavish = null } = {
   const armed = id => form(id).inputs.filter(i => i.label.classList.contains('mb-armed')).map(i => i.value);
   return { form, option, tap, anchors, delivered, marked, sent, armed, queued };
 }
+
+test('addon: a saved draft says nothing; draft problems and conflicts sit in the top bar in the browser and in the panel head in the app, never over the artifact', async () => {
+  const chrome = upstreamChrome();
+  const run = await runAddon(new Map(), { chrome, online: true });
+  const note = run.tools.children.find(el => el.className === 'mb-draft-note'), conflicts = run.tools.children.find(el => el.tagName === 'BUTTON');
+  const closed = chrome.bar.children.find(el => el.className === 'mb-closed-switch');
+  assert.equal(run.tools.parent, chrome.bar, 'in the browser the tools are part of the top bar');
+  assert.equal(chrome.bar.children.indexOf(run.tools), chrome.bar.children.indexOf(closed) - 1, 'right before the closed-cards switch');
+  assert.equal(run.tools.hidden, true, 'nothing to say, nothing shown');
+  run.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: [] });
+  assert.deepEqual([run.tools.hidden, note.hidden], [true, true], 'a draft saved as expected shows no notice');
+  run.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: ['q0:choice'] });
+  assert.deepEqual([run.tools.hidden, conflicts.hidden, conflicts.textContent], [false, false, 'Bozze in conflitto (1)'], 'conflicting drafts show their button in the bar');
+  const offline = await runAddon(new Map(), { chrome: upstreamChrome() });
+  const problem = offline.tools.children.find(el => el.className === 'mb-draft-note');
+  assert.deepEqual([offline.tools.hidden, problem.hidden, problem.attributes.title, problem.attributes.role], [false, false, 'Identità server non verificata: bozze solo in memoria', 'status'], 'a draft problem is an icon with a hover hint');
+  assert.deepEqual(problem.children.map(el => el.tagName), ['SVG', 'SPAN'], 'warning icon, then the words');
+  assert.deepEqual([problem.children[0].attributes['aria-hidden'], problem.children[1].className, problem.children[1].textContent], ['true', 'mb-sr', 'Identità server non verificata: bozze solo in memoria'], 'screen readers read the words, not the icon');
+  offline.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: [] });
+  assert.equal(problem.attributes.title, 'Bozze non persistenti in questo browser');
+  const appChrome = upstreamChrome(), panel = element('aside');
+  panel.className = 'panel'; panel.append(appChrome.title, element('div'));
+  const app = await runAddon(new Map(), { chrome: appChrome, panel, appMode: 'dark' });
+  assert.deepEqual([app.tools.parent, panel.children.indexOf(app.tools), app.tools.classList.contains('mb-tools-panel')], [panel, 1, true], 'the app hides the served bar: the tools go right under the panel title');
+  const late = upstreamChrome(), latePanel = element('aside');
+  latePanel.className = 'panel'; latePanel.append(late.title);
+  const browserFirst = await runAddon(new Map(), { chrome: late, panel: latePanel });
+  assert.equal(browserFirst.tools.parent, late.bar);
+  browserFirst.root.dataset.mbAppMode = 'transparent'; browserFirst.observers.filter(o => o.target === browserFirst.root).forEach(o => o.fn());
+  assert.deepEqual([browserFirst.tools.parent, browserFirst.tools.classList.contains('mb-tools-panel')], [latePanel, true], 'the app sets its mode after the load; the tools move then');
+  assert.doesNotMatch(css, /\.mb-tools\{[^}]*position:fixed/, 'no floating panel over the artifact');
+  assert.doesNotMatch(addon, /Bozza salvata/, 'the saved-draft notice is gone');
+});
 
 test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {
   const run = runQuestions({ lavish: true });

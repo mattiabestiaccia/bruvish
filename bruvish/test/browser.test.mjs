@@ -148,7 +148,7 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
             }
             await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR, 'layout-issues.json'), JSON.stringify(issues,null,2)+'\n');
         }
-        assert.equal(await client.evaluate('document.querySelector(".mb-tools").hidden'), true, 'the floating panel stays hidden while it has nothing to say');
+        assert.equal(await client.evaluate('document.querySelector(".mb-tools").hidden'), true, 'the draft tools in the bar stay hidden while they have nothing to say');
         assert.equal(await client.evaluate('document.querySelectorAll(".mb-tools button").length'), 1, 'theme and zoom buttons are gone');
         assert.deepEqual(await client.evaluate('[document.querySelector(".bar").getBoundingClientRect().height,document.querySelector(".panel").getBoundingClientRect().width]'), [30, 245]);
         for (const frame of [false, true]) {

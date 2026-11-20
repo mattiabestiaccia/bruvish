@@ -239,35 +239,59 @@
     rail.setAttribute('aria-label', 'Indice delle schede');
     // The minimap is the only position cue: the current line is longer, no separate scroll cursor.
     document.body.append(rail);
+    // Draft problems and conflicting drafts never sit over the artifact: in the browser they are part of the top
+    // bar; in the Mac app, which hides the served bar, they go to the head of the conversation panel.
     const tools = document.createElement('div');
     tools.className = 'mb-tools';
-    const note = document.createElement('span');
+    // A draft problem is a warning icon with a hover hint; its words stay readable to screen readers.
+    const note = document.createElement('span'), noteText = document.createElement('span');
     note.className = 'mb-draft-note';
     note.setAttribute('role', 'status');
-    document.body.append(tools);
+    noteText.className = 'mb-sr';
+    note.append(icon([['path', { d: 'M8 2.4l6 10.8H2z' }], ['path', { d: 'M8 6.4v3.2' }], ['path', { d: 'M8 11.5v.1' }]]), noteText);
+    note.hidden = true;
+    function placeTools() {
+        const title = document.querySelector('.panel h2');
+        if (root.dataset.mbAppMode !== undefined && title) {
+            title.after(tools);
+            tools.classList.add('mb-tools-panel');
+        }
+        else {
+            if (closedSwitch.parentElement)
+                closedSwitch.before(tools);
+            else
+                (document.querySelector('.bar') || document.body).append(tools);
+            tools.classList.remove('mb-tools-panel');
+        }
+    }
     const send = (type, data = {}) => { if (token)
         iframe.contentWindow?.postMessage({ type: 'lavish-mb:' + type, version: 1, token, ...data }, '*'); };
     const syncAppMode = () => {
+        placeTools();
         mode = root.dataset.mbAppMode === 'transparent' ? 'transparent' : 'dark';
         send('mode', { mode });
     };
     syncAppMode();
     new MutationObserver(syncAppMode).observe(root, { attributes: true, attributeFilter: ['data-mb-app-mode'] });
     function button(label, fn) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', fn); tools.append(b); return b; }
-    // The panel only appears while it has something to say: a draft notice or conflicting drafts.
+    // The tools only appear while they have something to say: a draft problem or conflicting drafts. A draft
+    // that is saved as expected says nothing.
     const conflictButton = button('Bozze in conflitto', showConflicts);
     conflictButton.hidden = true;
     tools.append(note);
     tools.hidden = true;
-    function refreshTools() { tools.hidden = conflictButton.hidden && !note.textContent; }
+    function refreshTools() { tools.hidden = conflictButton.hidden && note.hidden; }
+    function setNote(text) { noteText.textContent = text; note.hidden = !text; if (text)
+        note.setAttribute('title', text);
+    else
+        note.removeAttribute('title'); refreshTools(); }
     function persist() { if (!storageAvailable)
         return; try {
         localStorage.setItem(storageKey, JSON.stringify({ theme, zoom: contentZoom, ...record }));
     }
     catch {
         storageAvailable = false;
-        note.textContent = 'Bozze non persistenti in questo browser';
-        refreshTools();
+        setNote('Bozze non persistenti in questo browser');
     } }
     function setTheme(value) { theme = value; send('theme', { theme }); persist(); }
     function setZoom(value) { contentZoom = Math.max(.6, Math.min(2.5, Math.round(value * 10) / 10)); send('zoom', { zoom: contentZoom }); persist(); }
@@ -353,8 +377,7 @@
         if (m.type === 'lavish-mb:draft' && m.fields && typeof m.fields === 'object') {
             record = { fields: m.fields, conflicts: Array.isArray(m.conflicts) ? m.conflicts : [] };
             persist();
-            const n = Object.keys(record.fields).length;
-            note.textContent = storageAvailable ? (n ? 'Bozza salvata su questo browser' : '') : 'Bozze non persistenti in questo browser';
+            setNote(storageAvailable ? '' : 'Bozze non persistenti in questo browser');
             conflictButton.hidden = !record.conflicts.length;
             conflictButton.textContent = 'Bozze in conflitto (' + record.conflicts.length + ')';
             refreshTools();
@@ -386,5 +409,5 @@
     }
     catch {
         storageAvailable = false;
-    } setTheme(theme); hello(); }).catch(() => { note.textContent = 'Identità server non verificata: bozze solo in memoria'; storageKey = 'memory'; setTheme('dark'); hello(); refreshTools(); });
+    } setTheme(theme); hello(); }).catch(() => { setNote('Identità server non verificata: bozze solo in memoria'); storageKey = 'memory'; setTheme('dark'); hello(); });
 })();
