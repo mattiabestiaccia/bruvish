@@ -161,7 +161,7 @@ test('the two-tap answer is explained once, in the usage guide; the cards carry 
   assert.doesNotMatch(form, /<button|type="submit"|Aggiungi risposte/, 'the two-tap form has no redundant submit control');
   assert.doesNotMatch(html, /mb-hint/, 'no help line in the cards');
   const guide = html.match(/<details class="guide" id="usage-guide">[\s\S]*?<\/details>/)[0];
-  assert.match(guide, /<p class="mb-answer-help"><span class="sentence">Tocca una risposta per sceglierla, toccala di nuovo per accodarla\.<\/span><span class="sentence">Con la tastiera, premi Spazio sull’opzione scelta per accodarla\.<\/span><span class="sentence">Accanto alla risposta accodata compare «✓ in coda», e dopo l’invio «✓ inviata»\.<\/span><\/p><\/details>$/, 'after the page\'s own guide');
+  assert.match(guide, /<p class="mb-answer-help"><span class="sentence">Tocca una risposta per sceglierla, toccala di nuovo per accodarla\.<\/span><span class="sentence">Con la tastiera, premi Spazio sull’opzione scelta per accodarla\.<\/span><\/p><\/details>$/, 'after the page\'s own guide');
   assert.equal(html.split('Tocca una risposta').length, 2, 'said once for the whole page');
   assert.doesNotMatch(await renderDocument(doc([card('a')])), /mb-answer-help|Tocca una risposta/, 'a page without questions does not explain how to answer');
   assert.match(form, /<span class="queue-status" role="status"><\/span><\/fieldset>/, 'a status region for screen readers and problems, empty and out of sight');
