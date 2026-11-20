@@ -29,14 +29,12 @@
         } const question = form.dataset.mbQuestion; window.lavish.queuePrompt('Risposta per ' + question, { tag: 'choice', text: 'Risposta: ' + question, element: input, selector: optionSelector(form, input), queueKey: 'answer:' + question, data: { question, answer: { choice: String(input.value) } } }); say(form, ''); form.querySelector('.mb-armed')?.classList.remove('mb-armed'); armed = null; }));
         // Answer in two taps: the first tap on an option selects it, a second tap on the same option queues it
         // through requestSubmit(), without a submit button. Space on the selected option is the second tap.
-        // An option already in the queue needs no second tap.
         let armed = null;
         document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('click', event => { const input = event.target; if (!(input instanceof HTMLInputElement) || input.type !== 'radio' || !input.checked)
             return; if (armed === input) {
             form.requestSubmit();
             return;
-        } document.querySelectorAll('.mb-armed').forEach(option => option.classList.remove('mb-armed')); const label = input.closest('label'); armed = label?.classList.contains('mb-queued') ? null : input; if (armed)
-            label.classList.add('mb-armed'); }));
+        } document.querySelectorAll('.mb-armed').forEach(option => option.classList.remove('mb-armed')); armed = input; input.closest('label')?.classList.add('mb-armed'); }));
         // The first list after a load only restores the marks; later changes are also said to screen readers.
         let marksRestored = false, queued = new Set();
         const sent = new Set();

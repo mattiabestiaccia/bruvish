@@ -8852,6 +8852,97 @@ test("the artifact learns which anchored notes were delivered, and a removed not
   );
 });
 
+for (const first of ["HTTP", "transcript", "ack_ids"]) {
+  for (const responseHasChat of [false, true]) {
+    test(`an anchored delivery is reported once with ${first} first and HTTP chat ${responseHasChat}`, async () => {
+      let acceptPost = () => {};
+      const chrome = await createChromeHarness({
+        fetchImpl: async (url) => {
+          if (url === "/api/abc/prompts") {
+            return new Promise((resolve) => {
+              acceptPost = () =>
+                resolve({ ok: true, json: async () => (responseHasChat ? { chat, chat_revision: 1 } : {}) });
+            });
+          }
+          return { ok: true, json: async () => ({}) };
+        },
+      });
+      const yes = '[data-mb-question="q0"] input[value="yes"]';
+      const no = '[data-mb-question="q0"] input[value="no"]';
+      queueHeadingNote(chrome, "Yes", yes);
+      const [prompt] = chrome.queued();
+      const chat = [chatEntryForPrompt(prompt, "2026-11-20T00:00:00.000Z")];
+      chrome.element("send").click();
+      chrome.sendSnapshot("uid=1 body");
+      await flushPromises();
+      const sync = () =>
+        chrome.eventSource().listeners.get("chat-sync")({
+          data: JSON.stringify({
+            chat: first === "ack_ids" ? [] : chat,
+            ack_ids: first === "ack_ids" ? [prompt.prompt_id] : [],
+            chat_revision: 1,
+          }),
+        });
+      if (first === "HTTP") {
+        acceptPost();
+        await flushPromises();
+      } else {
+        sync();
+      }
+      assert.deepEqual(chrome.queued(), [], "the first acknowledgement settles the answer");
+      queueHeadingNote(chrome, "No", no);
+      if (first === "HTTP") {
+        sync();
+      } else {
+        acceptPost();
+        await flushPromises();
+      }
+      assert.deepEqual(
+        chrome.postedToFrame
+          .filter((message) => message.type === "lavish:deliveredAnchors")
+          .map((message) => JSON.parse(JSON.stringify(message.selectors))),
+        [[yes]],
+        "a late acknowledgement cannot restore the old answer's sent mark",
+      );
+      assert.deepEqual(chrome.queued().map((item) => item.selector), [no], "the new answer remains queued");
+    });
+  }
+}
+
+test("a partial transcript acknowledgement reports only the remaining anchored delivery on HTTP acceptance", async () => {
+  let acceptPost = () => {};
+  const chrome = await createChromeHarness({
+    fetchImpl: async (url) => {
+      if (url === "/api/abc/prompts") {
+        return new Promise((resolve) => {
+          acceptPost = () => resolve({ ok: true, json: async () => ({ chat, chat_revision: 2 }) });
+        });
+      }
+      return { ok: true, json: async () => ({}) };
+    },
+  });
+  queueHeadingNote(chrome, "First answer", "#first");
+  queueHeadingNote(chrome, "Second answer", "#second");
+  const chat = chrome.queued().map((prompt) => chatEntryForPrompt(prompt, "2026-11-20T00:00:00.000Z"));
+  chrome.element("send").click();
+  chrome.sendSnapshot("uid=1 body");
+  await flushPromises();
+  chrome.eventSource().listeners.get("chat-sync")({
+    data: JSON.stringify({ chat: chat.slice(0, 1), chat_revision: 1 }),
+  });
+  queueHeadingNote(chrome, "New first answer", "#replacement");
+  acceptPost();
+  await flushPromises();
+  assert.deepEqual(
+    chrome.postedToFrame
+      .filter((message) => message.type === "lavish:deliveredAnchors")
+      .map((message) => JSON.parse(JSON.stringify(message.selectors))),
+    [["#first"], ["#second"]],
+    "each accepted answer is reported once, including a batch settled in parts",
+  );
+  assert.deepEqual(chrome.queued().map((prompt) => prompt.selector), ["#replacement"]);
+});
+
 // The artifact walks the list newest first, so a selector a newer note carries again must sit at
 // that newer note, after a selector queued in between; otherwise the in-between note would win.
 test("the artifact's queued-anchor list places each selector at its newest note", async () => {

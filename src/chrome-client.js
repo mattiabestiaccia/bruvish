@@ -1100,7 +1100,6 @@ function settleQueuedFromTranscript(chat, shouldRender = true) {
   for (const prompt of queued) {
     if (!promptAcknowledgedInChat(prompt, chat)) continue;
     settledPrompts.add(prompt);
-    deliveredPrompts.add(prompt);
   }
   if (!settledPrompts.size) return false;
   for (let i = queued.length - 1; i >= 0; i -= 1) {
@@ -1668,8 +1667,10 @@ function postQueuedAnchors(force = false) {
 // Tells the artifact which element selectors left the queue because their notes were delivered, so it
 // can tell a sent note from a removed one. Like the queued-anchor list, only selectors cross into the frame.
 function postDeliveredAnchors(prompts) {
+  const newlyDelivered = prompts.filter((prompt) => !deliveredPrompts.has(prompt));
+  for (const prompt of newlyDelivered) deliveredPrompts.add(prompt);
   const selectors = [
-    ...new Set(prompts.filter((prompt) => isElementAnchoredPrompt(prompt)).flatMap(queuedAnchorSelectorsOf)),
+    ...new Set(newlyDelivered.filter((prompt) => isElementAnchoredPrompt(prompt)).flatMap(queuedAnchorSelectorsOf)),
   ];
   if (selectors.length) postToFrame({ type: "lavish:deliveredAnchors", selectors });
 }
@@ -2303,7 +2304,6 @@ async function submitQueuedOnce(submission, preserveFailureState = false) {
     : null;
   if (!acceptedChat || reconciledChat) {
     for (const prompt of prompts) {
-      deliveredPrompts.add(prompt);
       const index = queued.indexOf(prompt);
       if (index !== -1) queued.splice(index, 1);
     }

@@ -615,8 +615,15 @@ test('the queued answer carries a check mark that follows the chrome queue: it m
   assert.equal(quoted, '[data-mb-question="q1"] input[value="a\\"b\\\\c"]', 'quotes and backslashes are escaped in the selector');
   run.anchors([no, quoted, 'article#x > p']);
   assert.deepEqual([run.marked('q0'), run.marked('q1')], [['no'], ['a"b\\c']], 'each question keeps its own mark; other notes are ignored');
+  const queuedBeforeRepeat = run.queued.length;
   run.tap('q0', 'no');
-  assert.deepEqual(run.armed('q0'), [], 'an option already in the queue needs no second tap');
+  assert.deepEqual(run.armed('q0'), ['no'], 'an option already in the queue still arms on the first tap');
+  assert.equal(run.queued.length, queuedBeforeRepeat, 'the first tap does not requeue it');
+  run.tap('q0', 'no');
+  assert.equal(run.queued.length, queuedBeforeRepeat + 1, 'the second tap requeues the original answer');
+  assert.equal(run.queued.at(-1).options.data.answer.choice, 'no');
+  assert.deepEqual(run.armed('q0'), [], 'requeueing resets the two-tap gesture');
+  assert.deepEqual(run.marked('q0'), ['no'], 'requeueing keeps the queued mark');
   run.tap('q0', 'yes');
   assert.deepEqual(run.armed('q0'), ['yes'], 'another option still arms while the queued one keeps its mark');
   assert.deepEqual(run.marked('q0'), ['no']);
