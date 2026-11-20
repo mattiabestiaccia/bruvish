@@ -52,28 +52,41 @@ export function inline(value) {
 // sentences still shows one per line. A sentence end is . ! ? or … (closing quotes, brackets or inline marks may follow),
 // then a space or a newline, then a capital letter, a digit, a backtick or an asterisk (an opening quote or
 // bracket may come first). It is never a split point inside an inline mark, after a known abbreviation
-// (es., cfr., dott., nov. ...), after a single letter (initials, S.p.A.) or after a list number at the
-// start ("1. Primo"). Decimals, versions and paths have no space after the point and never split.
+// (es., cfr., dott. ...), after a number abbreviation followed by a digit (pag. 3, art. 5, 20 nov. 2026),
+// or after a single letter (initials, S.p.A.). A list number (digits only) stays with the sentence it opens:
+// at the start of a string it is never a split point, and after a colon or a semicolon the split comes before it.
+// Decimals, versions and paths have no space after the point and never split.
 // A non-breaking space (U+00A0) after the point keeps two parts on one line.
-const ABBREVIATIONS = new Set(['es', 'p.es', 'p.e', 'cfr', 'ca', 'dott', 'dott.ssa', 'sig', 'sigg', 'sig.ra', 'prof', 'ing', 'avv', 'arch', 'geom', 'rag', 'on', 'sen', 'pag', 'pagg', 'pp', 'nn', 'nr', 'num', 'art', 'artt', 'vol', 'voll', 'cap', 'par', 'fig', 'figg', 'tab', 'cit', 'ibid', 'op', 'ed', 'trad', 'rif', 'tel', 'vs', 'mr', 'mrs', 'ms', 'dr', 'st', 'jr', 'sr', 'e.g', 'i.e', 'gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic', 'jan', 'jun', 'jul', 'aug', 'sep', 'oct', 'dec']);
+const ABBREVIATIONS = new Set(['es', 'p.es', 'p.e', 'cfr', 'dott', 'dott.ssa', 'sig', 'sigg', 'sig.ra', 'prof', 'ing', 'avv', 'arch', 'geom', 'rag', 'sen', 'ibid', 'cit', 'op', 'ed', 'trad', 'rif', 'vs', 'mr', 'mrs', 'ms', 'dr', 'st', 'jr', 'sr', 'e.g', 'i.e']);
+const NUMBER_ABBREVIATIONS = new Set(['pag', 'pagg', 'pp', 'art', 'artt', 'cap', 'par', 'fig', 'figg', 'tab', 'vol', 'voll', 'nr', 'num', 'nn', 'tel', 'ca', 'gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic', 'jan', 'jun', 'jul', 'aug', 'sep', 'oct', 'dec']);
 const SENTENCE_END = /([.!?…]+)([»"”’')\]*`]*)[ \t\r\n]+(?=[«"“‘(\[]?[\p{Lu}\p{N}`*])/gu;
 export function splitSentences(value) {
     const text = String(value ?? '');
     const marks = [...text.matchAll(INLINE)].map(m => [m.index, m.index + m[0].length]);
+    const inside = at => marks.some(([from, to]) => at > from && at < to);
     const parts = [];
     let start = 0;
     for (const match of text.matchAll(SENTENCE_END)) {
-        const at = match.index, end = at + match[1].length + match[2].length;
-        if (marks.some(([from, to]) => end > from && end < to))
+        const at = match.index, end = at + match[1].length + match[2].length, next = match.index + match[0].length;
+        if (inside(end))
             continue;
         if (match[1] === '.') {
-            const word = /([^\s«"“‘(\[]*)$/.exec(text.slice(start, at))[1];
+            const before = text.slice(start, at), word = /([^\s«"“‘(\[]*)$/.exec(before)[1];
             const bare = word.toLowerCase();
-            if (ABBREVIATIONS.has(bare) || /^\p{L}$/u.test(word) || /^(?:\p{L}\.)+\p{L}$/u.test(word) || (/^\d+$/.test(word) && text.slice(start, at).trim() === word))
+            if (ABBREVIATIONS.has(bare) || (NUMBER_ABBREVIATIONS.has(bare) && /^[«"“‘(\[]?\p{N}/u.test(text.slice(next))) || /^\p{L}$/u.test(word) || /^(?:\p{L}\.)+\p{L}$/u.test(word))
                 continue;
+            if (/^\d+$/.test(word)) {
+                const lead = before.slice(0, -word.length).trim();
+                if (/[:;]$/.test(lead) && !inside(at - word.length)) {
+                    parts.push(lead);
+                    start = at - word.length;
+                }
+                if (!lead || /[:;]$/.test(lead))
+                    continue;
+            }
         }
         parts.push(text.slice(start, end).trim());
-        start = match.index + match[0].length;
+        start = next;
     }
     parts.push(text.slice(start).trim());
     return parts.filter(Boolean);

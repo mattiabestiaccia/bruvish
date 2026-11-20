@@ -46,6 +46,16 @@ test('a string with several sentences is split at sentence ends, not at abbrevia
     'Uno.\nDue.': ['Uno.', 'Due.'],
     'Effetto pratico: quel push non parte più da solo: lo valuta il classificatore.': ['Effetto pratico: quel push non parte più da solo: lo valuta il classificatore.'],
     'Senza punto finale': ['Senza punto finale'],
+    'Premi Tab. Poi scegli Set. Ok.': ['Premi Tab.', 'Poi scegli Set.', 'Ok.'],
+    'Torna ad ago. Poi riparti.': ['Torna ad ago.', 'Poi riparti.'],
+    'Vedi pag. 3 e art. 5 del testo. Fine.': ['Vedi pag. 3 e art. 5 del testo.', 'Fine.'],
+    'Vale dal 3 ago. 2026. Poi scade.': ['Vale dal 3 ago. 2026.', 'Poi scade.'],
+    'Due strade: 1. Tenere la regola. 2. Toglierla.': ['Due strade:', '1. Tenere la regola.', '2. Toglierla.'],
+    'Prima; 2. Seconda via.': ['Prima;', '2. Seconda via.'],
+    'Ne restano 3. Poi basta.': ['Ne restano 3.', 'Poi basta.'],
+    '**Scelte: 1. Una.** Fine.': ['**Scelte: 1. Una.**', 'Fine.'],
+    // Known limit: a sentence ending with a single letter stays joined to the next one.
+    'Premi il tasto A. Poi esci.': ['Premi il tasto A. Poi esci.'],
   };
   for (const [text, expected] of Object.entries(cases)) assert.deepEqual(splitSentences(text), expected, text);
   // A non-breaking space after the point keeps the two parts on one line.
