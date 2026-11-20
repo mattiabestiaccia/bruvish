@@ -144,6 +144,11 @@ export function renderRecord(html) {
         return null;
     }
 }
+// How to answer is said once, in the usage guide, never in each card. Only pages with a question carry it.
+const ANSWER_HELP = ['Tocca una risposta per sceglierla, toccala di nuovo per accodarla.', 'Con la tastiera, premi Spazio sull’opzione scelta per accodarla.', 'Accanto alla risposta accodata compare «✓ in coda».'];
+// The mark next to an option that is in the queue. It is hidden until artifact.js sees the option among the
+// chrome's queued anchors; when shown, "in coda" becomes part of the option's accessible name.
+const QUEUED_MARK = '<span class="mb-queued-mark"><span aria-hidden="true">✓ </span>in coda</span>';
 const sameCards = (a, b) => { const ka = Object.keys(a || {}), kb = Object.keys(b || {}); return ka.length === kb.length && ka.every(k => a[k] === b[k]); };
 export async function renderDocument(input, options = {}) {
     if (!input.title || !input.guide)
@@ -186,7 +191,7 @@ export async function renderDocument(input, options = {}) {
                         throw new Error('Card ' + card.id + ': question.reason explains the recommended option; mark that option with "recommended": true or drop the reason');
                     reason = fieldsTable([['Motivazione', filledParagraphs(q.reason, 'Card ' + card.id + ': question.reason is empty; write the reason in one or two sentences')]], 'mb-fields mb-reason');
                 }
-                question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + inline(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + inline(o.label) + '</span></label>').join('') + reason + '<p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla. Con la tastiera, premi Spazio sull’opzione scelta per accodarla.</p><span class="queue-status" role="status"></span></fieldset></form>';
+                question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + inline(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + inline(o.label) + '</span>' + QUEUED_MARK + '</label>').join('') + reason + '<span class="queue-status" role="status"></span></fieldset></form>';
             }
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
@@ -194,8 +199,9 @@ export async function renderDocument(input, options = {}) {
             return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button><h3>' + inline(card.title) + '</h3>' + paragraphs(card.paragraphs) + cardFields(card) + context + question + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
+    const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
     const css = (await Promise.all(['fonts.css', 'artifact.css'].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = await readFile(asset('artifact.js'), 'utf8');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header><h1>' + escape(input.title) + '</h1>' + paragraphs(input.intro ? [input.intro] : []) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + '</details><nav>' + input.sections.map(s => '<a href="#' + s.id + '">' + escape(s.title) + '</a>').join('') + '</nav>' + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header><h1>' + escape(input.title) + '</h1>' + paragraphs(input.intro ? [input.intro] : []) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details><nav>' + input.sections.map(s => '<a href="#' + s.id + '">' + escape(s.title) + '</a>').join('') + '</nav>' + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }

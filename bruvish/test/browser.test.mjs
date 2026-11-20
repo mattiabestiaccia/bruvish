@@ -226,6 +226,9 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await client.call('Input.dispatchKeyEvent',{type:'rawKeyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
         await client.call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
         await until(()=>client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length>'+queuedBeforeSpace),'Space on the selected option queues without a submit button');
+        // The queued answer gets its check mark from the chrome's queue, with no sentence in the card.
+        const q0Mark='(()=>{const label=document.querySelector("[data-mb-question=q0] input[value=yes]").closest("label"),mark=label.querySelector(".mb-queued-mark");return [label.classList.contains("mb-queued"),mark.checkVisibility(),mark.textContent,document.querySelector("[data-mb-question=q0] .queue-status").checkVisibility()]})()';
+        await until(async()=>JSON.stringify(await client.evaluate(q0Mark,true))===JSON.stringify([true,true,'✓ in coda',false]),'check mark next to the queued answer');
         await client.evaluate('document.querySelector("[data-mb-question=q0]").requestSubmit()', true);
         await until(() => client.evaluate('!document.getElementById("send").disabled'), 'native queue');
         const poll = spawn(process.execPath, [driver, 'poll', file, '--timeout-ms', '5000'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -235,6 +238,7 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         assert.equal(await new Promise(r => poll.on('exit', r)), 0);
         assert(/choice\W+yes/.test(feedback), feedback);
         assert(feedback.includes('q0'), feedback);
+        await until(async()=>(await client.evaluate(q0Mark,true))[0]===false,'the sent answer leaves the queue and loses its mark');
         // Frame style of the approved mock-up as the browser computes it: agent replies inline without a bubble,
         // the reader's messages on a very light green, the restyled frame text never under 13px.
         await until(() => client.evaluate('document.querySelector(".bubble.user")!==null&&document.querySelector(".bubble.agent .chat-md")!==null'), 'reader and agent messages in the conversation');

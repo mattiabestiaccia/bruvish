@@ -497,46 +497,98 @@ test('addon: official panel texts turn Italian, also when written later, and the
   assert.equal(later.nodeValue, 'Annulla', 'text the official code writes later');
 });
 
+// A small fake of the two-tap question forms: options with labels, the status region and the window that
+// receives the chrome's messages. `lavish` stands for the SDK; leave it out for a page opened without Lavish.
+function runQuestions({ forms: spec = { q0: ['yes', 'no'] }, lavish = null } = {}) {
+  const listeners = { window: {} }, queued = [], parent = {};
+  class HTMLInputElement { }
+  const classList = () => { const set = new Set(); return { set, add: c => set.add(c), remove: c => set.delete(c), contains: c => set.has(c), toggle: (c, on) => on ? set.add(c) : set.delete(c) }; };
+  const forms = Object.entries(spec).map(([id, values]) => {
+    const form = { dataset: { mbQuestion: id }, listeners: {}, status: { textContent: '', classList: classList() } };
+    form.inputs = values.map(value => { const input = Object.assign(new HTMLInputElement(), { type: 'radio', name: 'choice', value, checked: false }); input.label = { classList: classList(), querySelector: s => s === 'span' ? { textContent: value.toUpperCase() } : null }; input.closest = s => s === 'label' ? input.label : null; return input; });
+    form.addEventListener = (type, fn) => (form.listeners[type] ||= []).push(fn);
+    form.querySelector = s => s === '.queue-status' ? form.status : s === 'input[name="choice"]:checked' ? form.inputs.find(i => i.checked) || null : s === '.mb-armed' ? form.inputs.map(i => i.label).find(l => l.classList.contains('mb-armed')) || null : null;
+    form.querySelectorAll = s => s === 'input[name="choice"]' ? form.inputs : [];
+    form.requestSubmit = (...submitter) => { assert.equal(submitter.length, 0, 'no submit button or submitter is required'); let prevented = false; form.listeners.submit.forEach(fn => fn({ preventDefault: () => { prevented = true; } })); assert(prevented, 'submit does not navigate away from the review'); };
+    return form;
+  });
+  const labels = () => forms.flatMap(f => f.inputs.map(i => i.label));
+  const document = { documentElement: { dataset: {} }, readyState: 'complete', querySelectorAll: s => s === '[data-mb-question]' ? forms : s === '.mb-armed' ? labels().filter(l => l.classList.contains('mb-armed')) : [], addEventListener() { } };
+  const window = { parent, addEventListener: (type, fn) => (listeners.window[type] ||= []).push(fn) };
+  if (lavish) window.lavish = { queuePrompt: (message, options) => queued.push({ message, options }) };
+  vm.runInNewContext(artifactJs, { document, window, HTMLInputElement });
+  const form = id => forms.find(f => f.dataset.mbQuestion === id);
+  const option = (id, value) => form(id).inputs.find(i => i.value === value);
+  // A tap checks the option, as the browser does before the click event, then fires the form's click listeners.
+  const tap = (id, value) => { const input = option(id, value); form(id).inputs.forEach(i => { i.checked = i === input; }); form(id).listeners.click.forEach(fn => fn({ target: input })); };
+  const anchors = (selectors, source = parent) => listeners.window.message.forEach(fn => fn({ source, data: { type: 'lavish:queuedAnchors', selectors } }));
+  const marked = id => form(id).inputs.filter(i => i.label.classList.contains('mb-queued')).map(i => i.value);
+  const armed = id => form(id).inputs.filter(i => i.label.classList.contains('mb-armed')).map(i => i.value);
+  return { form, option, tap, anchors, marked, armed, queued };
+}
+
 test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {
-  const listeners = {}, submitted = [];
-  class HTMLInputElement { constructor(value) { this.type = 'radio'; this.value = value; this.checked = false; this.label = { classes: new Set(), classList: null }; this.label.classList = { add: c => this.label.classes.add(c), remove: c => this.label.classes.delete(c) }; } closest() { return this.label; } }
-  const yes = new HTMLInputElement('yes'), no = new HTMLInputElement('no');
-  const status = { textContent: '' };
-  const form = { dataset: { mbQuestion: 'q0' }, addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }, requestSubmit() { submitted.push((yes.checked && 'yes') || (no.checked && 'no')); }, querySelector: s => s === '.queue-status' ? status : null };
-  const document = { documentElement: { dataset: {} }, readyState: 'complete', querySelectorAll: s => s === '[data-mb-question]' ? [form] : s === '.mb-armed' ? [yes, no].map(i => i.label).filter(l => l.classes.has('mb-armed')) : [], addEventListener() { } };
-  vm.runInNewContext(artifactJs, { document, navigator: { userAgent: '' }, matchMedia: () => ({ matches: false }), localStorage: { getItem: () => null }, MutationObserver: class { observe() { } }, HTMLInputElement, FormData: class { }, CustomEvent: class { } });
-  const tap = input => { yes.checked = no.checked = false; input.checked = true; listeners.click.forEach(fn => fn({ target: input })); };
-  tap(yes);
-  assert.deepEqual(submitted, [], 'first tap only selects');
-  assert(yes.label.classes.has('mb-armed'), 'the selected option asks for a second tap');
-  tap(no);
-  assert.deepEqual(submitted, [], 'a different option is a new first tap');
-  assert.deepEqual([yes.label.classes.has('mb-armed'), no.label.classes.has('mb-armed')], [false, true]);
-  tap(no);
-  assert.deepEqual(submitted, ['no'], 'second tap on the same option queues it');
-  listeners.click.forEach(fn => fn({ target: { tagName: 'LABEL' } }));
-  assert.deepEqual(submitted, ['no'], 'the click on the label itself is not a tap');
+  const run = runQuestions({ lavish: true });
+  run.tap('q0', 'yes');
+  assert.equal(run.queued.length, 0, 'first tap only selects');
+  assert.deepEqual(run.armed('q0'), ['yes'], 'the selected option asks for a second tap');
+  run.tap('q0', 'no');
+  assert.equal(run.queued.length, 0, 'a different option is a new first tap');
+  assert.deepEqual(run.armed('q0'), ['no']);
+  run.tap('q0', 'no');
+  assert.deepEqual(run.queued.map(q => q.options.data.answer.choice), ['no'], 'second tap on the same option queues it');
+  assert.deepEqual(run.armed('q0'), [], 'submission resets the two-tap state');
+  run.form('q0').listeners.click.forEach(fn => fn({ target: { tagName: 'LABEL' } }));
+  assert.equal(run.queued.length, 1, 'the click on the label itself is not a tap');
 });
 
-test('two-tap forms validate and queue through submit events without any submit button',()=>{
- const listeners={},queued=[],status={textContent:''},classes=new Set();let prevented=0;
- const label={classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}};
- class HTMLInputElement {constructor(){this.type='radio';this.checked=false;}closest(){return label;}}
- const input=new HTMLInputElement();
- const form={dataset:{mbQuestion:'q0'},addEventListener:(type,fn)=>(listeners[type]||=[]).push(fn),querySelector:selector=>selector==='.queue-status'?status:selector==='.mb-armed'&&classes.has('mb-armed')?label:null,requestSubmit(...submitter){assert.equal(submitter.length,0,'no submit button or submitter is required');for(const listener of listeners.submit)listener({preventDefault:()=>prevented++});}};
- const document={documentElement:{dataset:{}},readyState:'complete',querySelectorAll:selector=>selector==='[data-mb-question]'?[form]:selector==='.mb-armed'&&classes.has('mb-armed')?[label]:[]};
- vm.runInNewContext(artifactJs,{document,window:{lavish:{queuePrompt:(message,options)=>queued.push({message,options})}},HTMLInputElement,FormData:class{constructor(source){assert.equal(source,form);}get(name){assert.equal(name,'choice');return input.checked?'yes':null;}}});
- form.requestSubmit();
- assert.equal(status.textContent,'Scegli una risposta.');assert.equal(queued.length,0);
- input.checked=true;
- for(const listener of listeners.click)listener({target:input});
- assert.equal(queued.length,0,'first activation only selects');
- for(const listener of listeners.click)listener({target:input});
- assert.equal(queued.length,1,'second activation queues through the original submit handler');
- assert.equal(queued[0].options.data.answer.choice,'yes');
- assert.equal(queued[0].options.queueKey,'answer:q0');
- assert.equal(queued[0].options.element,form);
- assert.equal(classes.has('mb-armed'),false,'submission resets the two-tap state');
- form.requestSubmit();assert.equal(queued.length,2,'programmatic submit still works with no button');
- assert.equal(prevented,3,'submit does not navigate away from the review');
+test('two-tap forms validate and queue through submit events without any submit button', () => {
+  const run = runQuestions({ lavish: true }), status = run.form('q0').status;
+  run.form('q0').requestSubmit();
+  assert.deepEqual([status.textContent, status.classList.contains('mb-alert'), run.queued.length], ['Scegli una risposta.', true, 0], 'a problem is shown in the card');
+  run.tap('q0', 'yes');
+  run.tap('q0', 'yes');
+  assert.equal(run.queued.length, 1, 'second activation queues through the original submit handler');
+  const { message, options } = run.queued[0];
+  assert.equal(message, 'Risposta per q0');
+  assert.deepEqual(JSON.parse(JSON.stringify(options.data)), { question: 'q0', answer: { choice: 'yes' } }, 'the data the agent reads');
+  assert.equal(options.queueKey, 'answer:q0', 'a new answer to the same question replaces the queued one');
+  assert.equal(options.element, run.option('q0', 'yes'), 'the queued note points at the chosen option');
+  assert.equal(options.selector, '[data-mb-question="q0"] input[value="yes"]');
+  assert.deepEqual([status.textContent, status.classList.contains('mb-alert')], ['', false], 'no sentence in the card after queueing');
+  run.form('q0').requestSubmit();
+  assert.equal(run.queued.length, 2, 'programmatic submit still works with no button');
+  const standalone = runQuestions();
+  standalone.tap('q0', 'yes');
+  standalone.tap('q0', 'yes');
+  assert.deepEqual([standalone.form('q0').status.textContent, standalone.form('q0').status.classList.contains('mb-alert')], ['Apri la pagina con Lavish per accodare la risposta.', true]);
+});
+
+test('the queued answer carries a check mark that follows the chrome queue: it moves with a new answer and leaves with the answer', () => {
+  const run = runQuestions({ forms: { q0: ['yes', 'no'], q1: ['a"b\\c', 'd'] }, lavish: true });
+  const selector = (id, value) => { run.tap(id, value); run.tap(id, value); return run.queued.at(-1).options.selector; };
+  const yes = selector('q0', 'yes');
+  assert.deepEqual(run.marked('q0'), [], 'no mark until the chrome lists the answer as queued');
+  run.anchors([yes]);
+  assert.deepEqual(run.marked('q0'), ['yes'], 'the first list after a load restores the marks');
+  assert.equal(run.form('q0').status.textContent, '', 'restored marks are not announced');
+  const no = selector('q0', 'no');
+  run.anchors([no]);
+  assert.deepEqual(run.marked('q0'), ['no'], 'the mark moves to the new answer');
+  assert.equal(run.form('q0').status.textContent, 'Risposta «NO» in coda.', 'the change is said to screen readers');
+  const quoted = selector('q1', 'a"b\\c');
+  assert.equal(quoted, '[data-mb-question="q1"] input[value="a\\"b\\\\c"]', 'quotes and backslashes are escaped in the selector');
+  run.anchors([no, quoted, 'article#x > p']);
+  assert.deepEqual([run.marked('q0'), run.marked('q1')], [['no'], ['a"b\\c']], 'each question keeps its own mark; other notes are ignored');
+  run.tap('q0', 'no');
+  assert.deepEqual(run.armed('q0'), [], 'an option already in the queue needs no second tap');
+  run.tap('q0', 'yes');
+  assert.deepEqual(run.armed('q0'), ['yes'], 'another option still arms while the queued one keeps its mark');
+  assert.deepEqual(run.marked('q0'), ['no']);
+  run.anchors([quoted]);
+  assert.deepEqual([run.marked('q0'), run.form('q0').status.textContent], [[], 'Risposta tolta dalla coda.'], 'removed from the queue or sent: the mark goes away');
+  run.anchors([], {});
+  assert.deepEqual(run.marked('q1'), ['a"b\\c'], 'only the chrome (the parent window) moves the marks');
+  run.anchors([]);
+  assert.deepEqual(run.marked('q1'), []);
 });
