@@ -1,0 +1,93 @@
+{
+  "title": "Bruvish · Carte con campi e formato",
+  "intro": "Un esempio di tutte le parti del corpo di una carta. Ogni frase va su una riga sua.",
+  "guide": [
+    "La prima opzione di ogni domanda è la consigliata. Un tocco sceglie, il secondo mette in coda; poi Invia all'agente nel pannello."
+  ],
+  "state": {
+    "revision": 1,
+    "answers": {},
+    "comments": [
+      {
+        "id": "c-push",
+        "card": "push",
+        "text": "Qual è la motivazione del tuo suggerimento?",
+        "response": "Un push su `main` non si annulla con un clic. Il passaggio unico verso `main` è già lo strumento di merge, quindi la regola non serve più."
+      }
+    ]
+  },
+  "sections": [
+    {
+      "id": "campi",
+      "title": "Voci ricorrenti in tabella",
+      "cards": [
+        {
+          "id": "push",
+          "title": "Push diretto su `main`: regola allow da togliere",
+          "status": "waiting",
+          "metadata": "Fonte: inventario dei permessi · Stato: in attesa",
+          "paragraphs": ["Le voci che ricorrono in ogni carta stanno nella tabella sotto, con l'etichetta a sinistra."],
+          "fields": [
+            {
+              "label": "Oggi",
+              "paragraphs": ["Due regole allow permettono a tutti di lanciare senza conferma `git push origin main`."]
+            },
+            {
+              "label": "Proposta",
+              "paragraphs": ["Togliere le due regole allow. Non diventa un divieto."]
+            },
+            {
+              "label": "Effetto pratico",
+              "paragraphs": [
+                [
+                  "Quel push non parte più da solo: lo valuta il classificatore e può chiedere conferma.",
+                  "Il push **forzato** resta vietato a tutti, come oggi."
+                ]
+              ]
+            }
+          ],
+          "question": {
+            "label": "Cosa ne faccio?",
+            "options": [
+              { "value": "togliere", "label": "Togliere le due regole `allow`", "recommended": true },
+              { "value": "tenere", "label": "Lasciarle a tutti, come oggi" }
+            ],
+            "reason": "La regola contraddice il passaggio unico verso `main`. Senza di essa il push torna a chiedere conferma, e nient'altro cambia."
+          }
+        }
+      ]
+    },
+    {
+      "id": "formato",
+      "title": "Formato del testo",
+      "cards": [
+        {
+          "id": "segni",
+          "title": "Codice, *corsivo* e **grassetto** colorati",
+          "status": "info",
+          "paragraphs": [
+            [
+              "Il codice in linea, come `settings.json` o `~/.config/app/*.toml`, è color pesca.",
+              "Il **grassetto** è giallo e il *corsivo* è lilla.",
+              { "text": "Una frase può anche essere evidenziata.", "highlight": true }
+            ],
+            [
+              "Un segno senza chiusura resta testo: 2 * 3 * 4, un ` solo, ~/.pi/* e ~/.codex*.",
+              "Qualsiasi <b>tag</b> scritto nel testo resta testo, mai HTML."
+            ]
+          ]
+        },
+        {
+          "id": "righe",
+          "title": "Una frase per riga",
+          "status": "info",
+          "paragraphs": [
+            "Questa stringa contiene tre frasi. Il renderer le divide da solo. Ognuna va a capo.",
+            "Le abbreviazioni non dividono: vedi es. la versione 0.1.97 del 20 nov. 2026 o la S.p.A. Rossi. Il punto di un percorso come `a.b/c.d` nemmeno."
+          ],
+          "clarification": "Fra le righe di una frase lunga c'è l'interlinea normale. Fra le frasi di un paragrafo c'è un po' più spazio. Fra i paragrafi ce n'è ancora di più."
+        }
+      ]
+    }
+  ]
+}

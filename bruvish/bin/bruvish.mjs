@@ -11,6 +11,11 @@ const help = `Bruvish artifact tools
                                          Re-rendering the same output keeps its theme and marks
                                          cards new/changed since the previous revision.
   state apply state.json delta.json     Explicit canonical answers/comments delta.
+Card JSON (full example: bruvish/examples/carte-complete.json):
+  fields: [{"label": "Oggi", "paragraphs": ["..."]}]   two-column table after the paragraphs
+  question.reason: "..."                               why the recommended option, under the answers
+  Text marks: \`code\`, **bold**, *italic*. Each sentence renders on its own line; a string with
+  several sentences is split (non-breaking space after the point keeps it together).
 Present the page with: lavish-axi page.html (style guide: lavish-axi design).
 `;
 try {

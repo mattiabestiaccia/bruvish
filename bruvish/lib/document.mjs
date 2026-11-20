@@ -29,7 +29,73 @@ export function applyDelta(current, delta) {
     next.history = [...(current.history || []), { revision: next.revision, delta: structuredClone(delta) }];
     return next;
 }
-function paragraphs(value = []) { return value.map(p => '<p>' + (Array.isArray(p) ? p : [p]).map(sentence => '<span class="sentence">' + (sentence && typeof sentence === 'object' ? (sentence.highlight ? '<mark>' + escape(sentence.text) + '</mark>' : escape(sentence.text)) : escape(sentence)) + '</span>').join('') + '</p>').join(''); }
+// Inline marks in agent text: `code`, **bold**, *italic*. Every other character stays escaped: the marks
+// become fixed tags and no HTML from the input ever reaches the page. An unmatched mark stays literal text.
+// A code span is literal (no marks inside); bold may hold code and italic; italic may hold code.
+const INLINE = /`([^`\n]+)`|\*\*(?=[^\s*])((?:`[^`\n]+`|[^`*]|\*(?!\*))+?)(?<=[^\s*])\*\*|\*(?=[^\s*])((?:`[^`\n]+`|[^`*])+?)(?<=[^\s*])\*/g;
+export function inline(value) {
+    const text = String(value ?? '');
+    let html = '', last = 0;
+    for (const match of text.matchAll(INLINE)) {
+        html += escape(text.slice(last, match.index));
+        if (match[1] !== undefined)
+            html += '<code>' + escape(match[1]) + '</code>';
+        else if (match[2] !== undefined)
+            html += '<strong>' + inline(match[2]) + '</strong>';
+        else
+            html += '<em>' + inline(match[3]) + '</em>';
+        last = match.index + match[0].length;
+    }
+    return html + escape(text.slice(last));
+}
+// One sentence per line: the renderer splits every agent string at a sentence end, so a string with several
+// sentences still shows one per line. A sentence end is . ! ? or … (closing quotes, brackets or inline marks may follow),
+// then a space or a newline, then a capital letter, a digit, a backtick or an asterisk (an opening quote or
+// bracket may come first). It is never a split point inside an inline mark, after a known abbreviation
+// (es., cfr., dott., nov. ...), after a single letter (initials, S.p.A.) or after a list number at the
+// start ("1. Primo"). Decimals, versions and paths have no space after the point and never split.
+// A non-breaking space (U+00A0) after the point keeps two parts on one line.
+const ABBREVIATIONS = new Set(['es', 'p.es', 'p.e', 'cfr', 'ca', 'dott', 'dott.ssa', 'sig', 'sigg', 'sig.ra', 'prof', 'ing', 'avv', 'arch', 'geom', 'rag', 'on', 'sen', 'pag', 'pagg', 'pp', 'nn', 'nr', 'num', 'art', 'artt', 'vol', 'voll', 'cap', 'par', 'fig', 'figg', 'tab', 'cit', 'ibid', 'op', 'ed', 'trad', 'rif', 'tel', 'vs', 'mr', 'mrs', 'ms', 'dr', 'st', 'jr', 'sr', 'e.g', 'i.e', 'gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic', 'jan', 'jun', 'jul', 'aug', 'sep', 'oct', 'dec']);
+const SENTENCE_END = /([.!?…]+)([»"”’')\]*`]*)[ \t\r\n]+(?=[«"“‘(\[]?[\p{Lu}\p{N}`*])/gu;
+export function splitSentences(value) {
+    const text = String(value ?? '');
+    const marks = [...text.matchAll(INLINE)].map(m => [m.index, m.index + m[0].length]);
+    const parts = [];
+    let start = 0;
+    for (const match of text.matchAll(SENTENCE_END)) {
+        const at = match.index, end = at + match[1].length + match[2].length;
+        if (marks.some(([from, to]) => end > from && end < to))
+            continue;
+        if (match[1] === '.') {
+            const word = /([^\s«"“‘(\[]*)$/.exec(text.slice(start, at))[1];
+            const bare = word.toLowerCase();
+            if (ABBREVIATIONS.has(bare) || /^\p{L}$/u.test(word) || /^(?:\p{L}\.)+\p{L}$/u.test(word) || (/^\d+$/.test(word) && text.slice(start, at).trim() === word))
+                continue;
+        }
+        parts.push(text.slice(start, end).trim());
+        start = match.index + match[0].length;
+    }
+    parts.push(text.slice(start).trim());
+    return parts.filter(Boolean);
+}
+// A sentence is a string or { text, highlight }; a paragraph is a sentence or an array of sentences; a text block
+// (card paragraphs, field paragraphs, question reason) is a string or an array of paragraphs.
+const block = value => value === undefined || value === null ? [] : Array.isArray(value) ? value : [value];
+const sentencesOf = paragraph => (Array.isArray(paragraph) ? paragraph : [paragraph]).flatMap(sentence => {
+    const object = sentence && typeof sentence === 'object';
+    return splitSentences(object ? sentence.text : sentence).map(text => '<span class="sentence">' + (object && sentence.highlight ? '<mark>' + inline(text) + '</mark>' : inline(text)) + '</span>');
+});
+function paragraphs(value) { return block(value).map(p => '<p>' + sentencesOf(p).join('') + '</p>').join(''); }
+// Recurring entries of a card (for example Oggi, Proposta, Effetto pratico) as a two-column table: the label from
+// the JSON, the content with the same sentence and paragraph rules as the card body.
+function fieldsTable(rows, className = 'mb-fields') { return '<table class="' + className + '"><tbody>' + rows.map(([label, content]) => '<tr><th scope="row">' + label + '</th><td>' + content + '</td></tr>').join('') + '</tbody></table>'; }
+function cardFields(card) {
+    if (card.fields === undefined)
+        return '';
+    if (!Array.isArray(card.fields) || card.fields.some(f => !f || typeof f !== 'object' || typeof f.label !== 'string' || !f.label.trim() || f.paragraphs === undefined))
+        throw new Error('Card ' + card.id + ': fields must be an array of { "label": "Oggi", "paragraphs": ["Una frase."] }, each with a non-empty label and its text');
+    return card.fields.length ? fieldsTable(card.fields.map(f => [inline(f.label), paragraphs(f.paragraphs)])) : '';
+}
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
 export function familyFor(seed) { return FAMILIES[createHash('sha256').update(String(seed)).digest().readUInt32BE(0) % FAMILIES.length]; }
@@ -37,7 +103,7 @@ export function familyFor(seed) { return FAMILIES[createHash('sha256').update(St
 const canonical = value => Array.isArray(value) ? '[' + value.map(canonical).join(',') + ']' : value && typeof value === 'object' ? '{' + Object.keys(value).sort().filter(k => value[k] !== undefined).map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}' : JSON.stringify(value ?? null);
 // What the reader sees as written by the agent. The reader's own answers and unanswered comments are excluded.
 export function cardFingerprint(card, comments = []) {
-    const content = { title: card.title, status: card.status || 'info', paragraphs: card.paragraphs || [], metadata: card.metadata, clarification: card.clarification, question: card.question, comments: comments.filter(c => c.response).map(c => ({ id: c.id, text: c.text, response: c.response })) };
+    const content = { title: card.title, status: card.status || 'info', paragraphs: card.paragraphs || [], fields: card.fields, metadata: card.metadata, clarification: card.clarification, question: card.question, comments: comments.filter(c => c.response).map(c => ({ id: c.id, text: c.text, response: c.response })) };
     return createHash('sha256').update(canonical(content)).digest('hex').slice(0, 16);
 }
 // Reads the render record embedded by a previous render of the same artifact; null when absent or unreadable.
@@ -84,16 +150,26 @@ export async function renderDocument(input, options = {}) {
             const status = answer ? 'answered' : (card.status || 'info');
             if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
                 throw new Error('Unknown card status');
-            const context = (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + escape(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
+            const context = (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + inline(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
             let question = '';
             if (card.question) {
                 const q = card.question;
-                question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + escape(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + escape(o.label) + '</span></label>').join('') + '<p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla. Con la tastiera, premi Spazio sull’opzione scelta per accodarla.</p><span class="queue-status" role="status"></span></fieldset></form>';
+                // The reason for the recommended option sits right under the answers, in the card body style.
+                let reason = '';
+                if (q.reason !== undefined) {
+                    if (!q.options.some(o => o.recommended === true))
+                        throw new Error('Card ' + card.id + ': question.reason explains the recommended option; mark that option with "recommended": true or drop the reason');
+                    const text = paragraphs(q.reason);
+                    if (!text.includes('class="sentence"'))
+                        throw new Error('Card ' + card.id + ': question.reason is empty; write the reason in one or two sentences');
+                    reason = fieldsTable([['Motivazione', text]], 'mb-fields mb-reason');
+                }
+                question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + inline(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + inline(o.label) + '</span></label>').join('') + reason + '<p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla. Con la tastiera, premi Spazio sull’opzione scelta per accodarla.</p><span class="queue-status" role="status"></span></fieldset></form>';
             }
             const comments = (state.comments || []).filter(c => c.card === card.id);
-            const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => '<p><b>Commento:</b> ' + escape(c.text) + '</p>' + (c.response ? '<p><b>Risposta:</b> ' + escape(c.response) + '</p>' : '')).join('') + '</details>' : '';
+            const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id);
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button><h3>' + escape(card.title) + '</h3>' + paragraphs(card.paragraphs) + context + question + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button><h3>' + inline(card.title) + '</h3>' + paragraphs(card.paragraphs) + cardFields(card) + context + question + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const css = (await Promise.all(['fonts.css', 'artifact.css'].map(n => readFile(asset(n), 'utf8')))).join('\n');

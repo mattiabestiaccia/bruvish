@@ -8,7 +8,7 @@
             return; if (speechSynthesis.speaking) {
             speechSynthesis.cancel();
             return;
-        } const card = button.closest('.card'); const text = [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p')].map(p => p.textContent)].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
+        } const card = button.closest('.card'); const lines = node => { const sentences = [...node.querySelectorAll('.sentence')].map(s => s.textContent); return sentences.length ? sentences.join(' ') : node.textContent; }; const text = [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p, :scope>.mb-fields tr')].map(node => node.matches('tr') ? node.querySelector('th').textContent + ': ' + lines(node.querySelector('td')) : lines(node))].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
         document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('submit', event => { event.preventDefault(); const values = new FormData(form); const answer = { choice: String(values.get('choice') || '') }; const status = form.querySelector('.queue-status'); if (!answer.choice) {
             status.textContent = 'Scegli una risposta.';
             return;
