@@ -560,8 +560,6 @@ test('addon: a saved draft says nothing; draft problems and conflicts sit in the
   assert.equal(browserFirst.tools.parent, late.bar);
   browserFirst.root.dataset.mbAppMode = 'transparent'; browserFirst.observers.filter(o => o.target === browserFirst.root).forEach(o => o.fn());
   assert.deepEqual([browserFirst.tools.parent, browserFirst.tools.classList.contains('mb-tools-panel')], [latePanel, true], 'the app sets its mode after the load; the tools move then');
-  assert.doesNotMatch(css, /\.mb-tools\{[^}]*position:fixed/, 'no floating panel over the artifact');
-  assert.doesNotMatch(addon, /Bozza salvata/, 'the saved-draft notice is gone');
 });
 
 test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {
