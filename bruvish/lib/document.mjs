@@ -81,7 +81,7 @@ export function splitSentences(value) {
                 const lead = before.slice(0, -word.length).trim();
                 if (!lead)
                     continue;
-                if (/[:;]$/.test(lead) && !inside(at - word.length) && new RegExp('[.!?…:;][»"”’\')\\]*`]*\\s+' + (Number(word) + 1) + '\\.\\s').test(text.slice(next))) {
+                if (/[:;]$/.test(lead) && !inside(at - word.length) && new RegExp('[.!?…][»"”’\')\\]*`]*\\s+' + (Number(word) + 1) + '\\.\\s').test(text.slice(next))) {
                     parts.push(lead);
                     start = at - word.length;
                     continue;
