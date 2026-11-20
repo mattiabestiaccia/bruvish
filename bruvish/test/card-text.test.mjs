@@ -118,7 +118,7 @@ test('a sentence of another shape stops the render instead of vanishing; intro, 
   }
 });
 
-test('the reason for the recommended option sits right under the answers, before the hint, in the card style', async () => {
+test('the reason for the recommended option sits right under the answers, in the card style', async () => {
   const question = { label: 'Cosa ne *faccio*?', options: [{ value: 'a', label: 'Togliere `allow`', recommended: true }, { value: 'b', label: 'Lasciare' }], reason: ['Un push su `main` non si annulla. **Nessuno** lo usa.'] };
   const form = cardHtml(await renderDocument(doc([{ id: 'q', title: 'Q', status: 'waiting', paragraphs: [['Testo.']], question }])), 'q').match(/<form[\s\S]*?<\/form>/)[0];
   assert.match(form, /<legend>Cosa ne <em>faccio<\/em>\?<\/legend>/);
@@ -126,7 +126,7 @@ test('the reason for the recommended option sits right under the answers, before
   const reason = form.match(/<table class="mb-fields mb-reason">[\s\S]*?<\/table>/)[0];
   assert.match(reason, /<th scope="row">Motivazione<\/th>/);
   assert.match(reason, /<span class="sentence">Un push su <code>main<\/code> non si annulla\.<\/span><span class="sentence"><strong>Nessuno<\/strong> lo usa\.<\/span>/);
-  assert(form.lastIndexOf('</label>') < form.indexOf('mb-reason') && form.indexOf('mb-reason') < form.indexOf('class="mb-hint"'), 'answers, reason, hint');
+  assert(form.lastIndexOf('</label>') < form.indexOf('mb-reason') && form.indexOf('mb-reason') < form.indexOf('class="queue-status"'), 'answers, reason, status region');
   await assert.rejects(renderDocument(doc([{ id: 'q', title: 'Q', question: { options: [{ value: 'a', label: 'A' }], reason: 'Perché sì.' } }])), /Card q: question\.reason explains the recommended option; mark that option with "recommended": true/);
   await assert.rejects(renderDocument(doc([{ id: 'q', title: 'Q', question: { options: [{ value: 'a', label: 'A', recommended: true }], reason: ' ' } }])), /Card q: question\.reason is empty/);
   assert.doesNotMatch(cardHtml(await renderDocument(doc([{ id: 'q', title: 'Q', question: { options: [{ value: 'a', label: 'A', recommended: true }] } }])), 'q'), /mb-reason/, 'no reason, no table');
@@ -251,6 +251,7 @@ test('the voice reads the title, the body sentences one by one, then each field 
   const spoken = [];
   const context = { document: { documentElement: { dataset: {} }, readyState: 'complete', querySelectorAll: selector => root.querySelectorAll(selector), addEventListener() { } }, HTMLInputElement: class { }, SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } }, speechSynthesis: { speaking: false, speak: utterance => spoken.push(utterance), cancel() { } } };
   context.window = context;
+  context.addEventListener = () => { };
   vm.runInNewContext(artifactJs, context);
   root.querySelector('[data-mb-voice]').listeners.click.forEach(fn => fn({}));
   assert.deepEqual(spoken.map(u => [u.text, u.lang]), [['Una scheda Prima. Seconda. Oggi: Frase uno. Frase due.', 'it-IT']]);

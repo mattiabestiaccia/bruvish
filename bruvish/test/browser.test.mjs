@@ -148,7 +148,7 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
             }
             await writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR, 'layout-issues.json'), JSON.stringify(issues,null,2)+'\n');
         }
-        assert.equal(await client.evaluate('document.querySelector(".mb-tools").hidden'), true, 'the floating panel stays hidden while it has nothing to say');
+        assert.equal(await client.evaluate('document.querySelector(".mb-tools").hidden'), true, 'the draft tools in the bar stay hidden while they have nothing to say');
         assert.equal(await client.evaluate('document.querySelectorAll(".mb-tools button").length'), 1, 'theme and zoom buttons are gone');
         assert.deepEqual(await client.evaluate('[document.querySelector(".bar").getBoundingClientRect().height,document.querySelector(".panel").getBoundingClientRect().width]'), [30, 245]);
         for (const frame of [false, true]) {
@@ -180,6 +180,24 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(() => client.evaluate('document.documentElement.dataset.mbStateVersion==="2"', true), 'live reload');
         assert.equal(await client.evaluate(q0Choice, true), 'no', 'a conflicting radio draft must not replace a new canonical choice');
         await until(() => client.evaluate('!document.querySelectorAll(".mb-tools button")[0].hidden'), 'conflict visible');
+        await client.call('Emulation.setDeviceMetricsOverride', { width: 375, height: 740, deviceScaleFactor: 1, mobile: false });
+        await until(() => client.evaluate('innerWidth===375'), 'phone width');
+        assert.deepEqual(await client.evaluate('(()=>{const b=document.querySelector(".mb-conflict-button"),r=b.getBoundingClientRect();return {words:getComputedStyle(b.querySelector(".mb-conflict-label")).display,icon:getComputedStyle(b.querySelector("svg")).display!=="none",name:b.getAttribute("aria-label"),narrow:r.width<60,inside:r.right<=innerWidth,barReachable:Array.from(document.querySelectorAll(".bar button,.bar a")).filter(el=>el.getClientRects().length).every(el=>el.getBoundingClientRect().right<=innerWidth)}})()'), { words: 'none', icon: true, name: 'Bozze in conflitto (1)', narrow: true, inside: true, barReachable: true }, 'at phone width the conflict button keeps only the icon and the count, and every bar control stays on screen');
+        await client.call('Emulation.setDeviceMetricsOverride', { width: 800, height: 740, deviceScaleFactor: 1, mobile: false });
+        await client.evaluate('document.documentElement.dataset.mbAppMode="dark"');
+        await until(() => client.evaluate('document.querySelector(".mb-tools").parentElement===document.getElementById("panel")'), 'app draft controls outside the sheet handle');
+        await client.evaluate('if(!document.body.classList.contains("sheet-open"))document.getElementById("panelToggle").click()');
+        await until(() => client.evaluate('getComputedStyle(document.getElementById("panel")).transform==="none"'), 'app sheet fully open');
+        const conflictPoint = await client.evaluate('(()=>{const r=document.querySelector(".mb-conflict-button").getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()');
+        await client.call('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...conflictPoint });
+        await client.call('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...conflictPoint });
+        await until(() => client.evaluate('!!document.querySelector(".mb-conflict-dialog")'), 'app conflict dialog opens on a pointer click');
+        assert.equal(await client.evaluate('document.body.classList.contains("sheet-open")'), true, 'opening conflicts never toggles the sheet');
+        assert.equal(await client.evaluate('(()=>{const button=document.querySelector(".mb-conflict-dialog button"),r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2))})()'), true, 'conflict actions stay above the open sheet');
+        await client.evaluate('document.querySelector(".mb-conflict-dialog > button").click();document.getElementById("panelToggle").click();delete document.documentElement.dataset.mbAppMode');
+        await until(() => client.evaluate('document.querySelector(".mb-tools").parentElement===document.querySelector(".bar")'), 'browser draft controls restored to the bar');
+        await client.call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+        await until(() => client.evaluate('innerWidth===1440'), 'desktop width again');
         await client.evaluate('document.querySelectorAll(".mb-tools button")[0].click()');
         assert.equal(await client.evaluate('document.querySelector(".mb-conflict-dialog [data-field=\\"q0:choice\\"] pre")?.textContent'), 'yes');
         await client.evaluate('document.querySelector(".mb-conflict-dialog [data-field=\\"q0:choice\\"] button").click()');
@@ -226,6 +244,10 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await client.call('Input.dispatchKeyEvent',{type:'rawKeyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
         await client.call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
         await until(()=>client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length>'+queuedBeforeSpace),'Space on the selected option queues without a submit button');
+        // The queued answer gets its check mark from the chrome's queue, with no sentence in the card.
+        const q0Mark='(()=>{const label=document.querySelector("[data-mb-question=q0] input[value=yes]").closest("label"),mark=label.querySelector(".mb-queued-mark");return [label.classList.contains("mb-queued"),mark.checkVisibility(),mark.textContent]})()';
+        await until(async()=>JSON.stringify(await client.evaluate(q0Mark,true))===JSON.stringify([true,true,'✓ in coda']),'check mark next to the queued answer');
+        assert.deepEqual(await client.evaluate('(()=>{const status=document.querySelector("[data-mb-question=q0] .queue-status"),css=getComputedStyle(status),rect=status.getBoundingClientRect();return {clip:css.clipPath,width:rect.width,height:rect.height,role:status.getAttribute("role"),hidden:!!status.closest("[hidden],[inert],[aria-hidden=true]"),rendered:status.checkVisibility({checkVisibilityCSS:true,checkOpacity:true})}})()',true),{clip:'inset(50%)',width:1,height:1,role:'status',hidden:false,rendered:true},'queue announcements are visually clipped while remaining available to screen readers');
         await client.evaluate('document.querySelector("[data-mb-question=q0]").requestSubmit()', true);
         await until(() => client.evaluate('!document.getElementById("send").disabled'), 'native queue');
         const poll = spawn(process.execPath, [driver, 'poll', file, '--timeout-ms', '5000'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -235,6 +257,8 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         assert.equal(await new Promise(r => poll.on('exit', r)), 0);
         assert(/choice\W+yes/.test(feedback), feedback);
         assert(feedback.includes('q0'), feedback);
+        const q0Sent='(()=>{const label=document.querySelector("[data-mb-question=q0] input[value=yes]").closest("label"),mark=label.querySelector(".mb-sent-mark");return [label.classList.contains("mb-queued"),label.querySelector(".mb-queued-mark").checkVisibility(),mark.checkVisibility(),mark.textContent]})()';
+        await until(async()=>JSON.stringify(await client.evaluate(q0Sent,true))===JSON.stringify([false,false,true,'✓ inviata']),'the sent answer leaves the queue and shows it was sent');
         // Frame style of the approved mock-up as the browser computes it: agent replies inline without a bubble,
         // the reader's messages on a very light green, the restyled frame text never under 13px.
         await until(() => client.evaluate('document.querySelector(".bubble.user")!==null&&document.querySelector(".bubble.agent .chat-md")!==null'), 'reader and agent messages in the conversation');

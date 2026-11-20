@@ -130,7 +130,8 @@ function element(tag) {
     append(...items) { for (const item of items) { item.parent = this; this.children.push(item); } },
     replaceChildren(...items) { this.textContent = ''; this.children = []; this.append(...items); },
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; },
-    before(item) { const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this), 0, item); },
+    before(item) { item.remove?.(); const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this), 0, item); },
+    after(item) { item.remove?.(); const siblings = this.parent.children; item.parent = this.parent; siblings.splice(siblings.indexOf(this) + 1, 0, item); },
     get childNodes() { return this.children; },
     querySelector(selector) { const name = selector.replace(/^\./, ''); for (const child of this.children) { if (child.classList?.contains(name)) return child; const found = child.querySelector?.(selector); if (found) return found; } return null; },
     addEventListener(type, fn) { this.listeners[type] = fn; },
@@ -156,13 +157,13 @@ function upstreamChrome() {
   return { bar, brandBox, brand, annotate, title, send, end, endButton, exit, input };
 }
 
-async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null, appMode = null } = {}) {
+async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, active = null, panel = null, appMode = null, online = false } = {}) {
   const listeners = {}, posted = [], documentListeners = {}, observers = [];
   const contentWindow = { postMessage: message => posted.push(message) };
   const iframe = { contentWindow, addEventListener() { } };
   const body = element('body'), head = element('head');
   const root = { dataset: appMode ? {mbAppMode: appMode} : {}, style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
-  const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {} };
+  const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {}, ...panel ? { panelHead: panel.children.find(el => el.className === 'panel-head') } : {} };
   const bySelector = { ...chrome ? { '.brand': chrome.brandBox, '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {}, ...panel ? { '.panel': panel } : {} };
   const descendants = node => (node.children || []).flatMap(child => [child, ...descendants(child)]);
   const document = {
@@ -176,12 +177,12 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   const context = {
     document, posted,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
-    crypto: { randomUUID: () => 'token-1' },
+    crypto: { randomUUID: () => 'token-1' }, location: { origin: 'http://127.0.0.1:1' },
     matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')' }),
     CSS: { supports: (property, value) => property === 'color' && /^(#[0-9a-f]{3,8}|rgba?\([\d., ]+\))$/i.test(value) },
     MutationObserver: class { constructor(fn) { this.fn = fn; observers.push(this); } observe(target) { this.target = target; } },
     Node: { ELEMENT_NODE: 1, TEXT_NODE: 3 }, NodeFilter: { SHOW_ELEMENT: 1, SHOW_TEXT: 4 },
-    fetch: () => Promise.reject(new Error('offline')),
+    fetch: () => online ? Promise.resolve({ json: () => ({ state_id: 'state-1' }) }) : Promise.reject(new Error('offline')),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }
   };
   vm.runInNewContext(addon, context);
@@ -191,7 +192,8 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   // Upstream sets aria-pressed again on every toggle; the observer then mirrors it.
   const upstreamToggle = pressed => { chrome.annotate.setAttribute('aria-pressed', String(pressed)); observers.filter(o => o.target === chrome.annotate).forEach(o => o.fn()); };
   const rail = body.children.find(el => el.className === 'mb-rail');
-  return { body, head, root, rail, deliver, posted, key, upstreamToggle, observers };
+  const tools = descendants(body).concat(chrome ? descendants(chrome.bar) : [], chrome?.title.parent ? descendants(chrome.title.parent) : [], panel ? descendants(panel) : []).find(el => el.classList.contains('mb-tools'));
+  return { body, head, root, rail, deliver, posted, key, upstreamToggle, observers, tools };
 }
 
 test('bridge: each minimap entry carries the novelty of its card and the outline carries the theme accent', () => {
@@ -497,46 +499,168 @@ test('addon: official panel texts turn Italian, also when written later, and the
   assert.equal(later.nodeValue, 'Annulla', 'text the official code writes later');
 });
 
-test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {
-  const listeners = {}, submitted = [];
-  class HTMLInputElement { constructor(value) { this.type = 'radio'; this.value = value; this.checked = false; this.label = { classes: new Set(), classList: null }; this.label.classList = { add: c => this.label.classes.add(c), remove: c => this.label.classes.delete(c) }; } closest() { return this.label; } }
-  const yes = new HTMLInputElement('yes'), no = new HTMLInputElement('no');
-  const status = { textContent: '' };
-  const form = { dataset: { mbQuestion: 'q0' }, addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }, requestSubmit() { submitted.push((yes.checked && 'yes') || (no.checked && 'no')); }, querySelector: s => s === '.queue-status' ? status : null };
-  const document = { documentElement: { dataset: {} }, readyState: 'complete', querySelectorAll: s => s === '[data-mb-question]' ? [form] : s === '.mb-armed' ? [yes, no].map(i => i.label).filter(l => l.classes.has('mb-armed')) : [], addEventListener() { } };
-  vm.runInNewContext(artifactJs, { document, navigator: { userAgent: '' }, matchMedia: () => ({ matches: false }), localStorage: { getItem: () => null }, MutationObserver: class { observe() { } }, HTMLInputElement, FormData: class { }, CustomEvent: class { } });
-  const tap = input => { yes.checked = no.checked = false; input.checked = true; listeners.click.forEach(fn => fn({ target: input })); };
-  tap(yes);
-  assert.deepEqual(submitted, [], 'first tap only selects');
-  assert(yes.label.classes.has('mb-armed'), 'the selected option asks for a second tap');
-  tap(no);
-  assert.deepEqual(submitted, [], 'a different option is a new first tap');
-  assert.deepEqual([yes.label.classes.has('mb-armed'), no.label.classes.has('mb-armed')], [false, true]);
-  tap(no);
-  assert.deepEqual(submitted, ['no'], 'second tap on the same option queues it');
-  listeners.click.forEach(fn => fn({ target: { tagName: 'LABEL' } }));
-  assert.deepEqual(submitted, ['no'], 'the click on the label itself is not a tap');
+// A small fake of the two-tap question forms: options with labels, the status region and the window that
+// receives the chrome's messages. `lavish` stands for the SDK; leave it out for a page opened without Lavish.
+function runQuestions({ forms: spec = { q0: ['yes', 'no'] }, lavish = null } = {}) {
+  const listeners = { window: {} }, queued = [], parent = {};
+  class HTMLInputElement { }
+  const classList = () => { const set = new Set(); return { set, add: c => set.add(c), remove: c => set.delete(c), contains: c => set.has(c), toggle: (c, on) => on ? set.add(c) : set.delete(c) }; };
+  const forms = Object.entries(spec).map(([id, values]) => {
+    const form = { dataset: { mbQuestion: id }, listeners: {}, status: { textContent: '', classList: classList() } };
+    form.inputs = values.map(value => { const input = Object.assign(new HTMLInputElement(), { type: 'radio', name: 'choice', value, checked: false }); input.label = { classList: classList(), querySelector: s => s === 'span' ? { textContent: value.toUpperCase() } : null }; input.closest = s => s === 'label' ? input.label : null; return input; });
+    form.addEventListener = (type, fn) => (form.listeners[type] ||= []).push(fn);
+    form.querySelector = s => s === '.queue-status' ? form.status : s === 'input[name="choice"]:checked' ? form.inputs.find(i => i.checked) || null : s === '.mb-armed' ? form.inputs.map(i => i.label).find(l => l.classList.contains('mb-armed')) || null : null;
+    form.querySelectorAll = s => s === 'input[name="choice"]' ? form.inputs : [];
+    form.requestSubmit = (...submitter) => { assert.equal(submitter.length, 0, 'no submit button or submitter is required'); let prevented = false; form.listeners.submit.forEach(fn => fn({ preventDefault: () => { prevented = true; } })); assert(prevented, 'submit does not navigate away from the review'); };
+    return form;
+  });
+  const labels = () => forms.flatMap(f => f.inputs.map(i => i.label));
+  const document = { documentElement: { dataset: {} }, readyState: 'complete', querySelectorAll: s => s === '[data-mb-question]' ? forms : s === '.mb-armed' ? labels().filter(l => l.classList.contains('mb-armed')) : [], addEventListener() { } };
+  const window = { parent, addEventListener: (type, fn) => (listeners.window[type] ||= []).push(fn) };
+  if (lavish) window.lavish = { queuePrompt: (message, options) => queued.push({ message, options }) };
+  vm.runInNewContext(artifactJs, { document, window, HTMLInputElement });
+  const form = id => forms.find(f => f.dataset.mbQuestion === id);
+  const option = (id, value) => form(id).inputs.find(i => i.value === value);
+  // A tap checks the option, as the browser does before the click event, then fires the form's click listeners.
+  const tap = (id, value) => { const input = option(id, value); form(id).inputs.forEach(i => { i.checked = i === input; }); form(id).listeners.click.forEach(fn => fn({ target: input })); };
+  const anchors = (selectors, source = parent) => listeners.window.message.forEach(fn => fn({ source, data: { type: 'lavish:queuedAnchors', selectors } }));
+  const delivered = (selectors, source = parent) => listeners.window.message.forEach(fn => fn({ source, data: { type: 'lavish:deliveredAnchors', selectors } }));
+  const marked = id => form(id).inputs.filter(i => i.label.classList.contains('mb-queued')).map(i => i.value);
+  const sent = id => form(id).inputs.filter(i => i.label.classList.contains('mb-sent')).map(i => i.value);
+  const armed = id => form(id).inputs.filter(i => i.label.classList.contains('mb-armed')).map(i => i.value);
+  return { form, option, tap, anchors, delivered, marked, sent, armed, queued };
+}
+
+test('addon: a saved draft says nothing; draft problems and conflicts sit in the browser bar or below the app sheet handle', async () => {
+  const chrome = upstreamChrome();
+  const run = await runAddon(new Map(), { chrome, online: true });
+  const note = run.tools.children.find(el => el.className === 'mb-draft-note'), conflicts = run.tools.children.find(el => el.tagName === 'BUTTON');
+  const closed = chrome.bar.children.find(el => el.className === 'mb-closed-switch');
+  assert.equal(run.tools.parent, chrome.bar, 'in the browser the tools are part of the top bar');
+  assert.equal(chrome.bar.children.indexOf(run.tools), chrome.bar.children.indexOf(closed) - 1, 'right before the closed-cards switch');
+  assert.equal(run.tools.hidden, true, 'nothing to say, nothing shown');
+  run.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: [] });
+  assert.deepEqual([run.tools.hidden, note.hidden], [true, true], 'a draft saved as expected shows no notice');
+  run.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: ['q0:choice'] });
+  assert.deepEqual([run.tools.hidden, conflicts.hidden, conflicts.attributes['aria-label'], conflicts.attributes.title], [false, false, 'Bozze in conflitto (1)', 'Bozze in conflitto (1)'], 'conflicting drafts show their button in the bar, named in full');
+  assert.deepEqual(conflicts.children.map(el => [el.tagName, el.className || '', el.textContent]), [['SVG', '', ''], ['SPAN', 'mb-conflict-label', 'Bozze in conflitto'], ['SPAN', '', ' (1)']], 'icon, words, count: at phone width the words can give way and the count stays');
+  const offline = await runAddon(new Map(), { chrome: upstreamChrome() });
+  const problem = offline.tools.children.find(el => el.className === 'mb-draft-note');
+  assert.deepEqual([offline.tools.hidden, problem.hidden, problem.attributes.title, problem.attributes.role], [false, false, 'Identità server non verificata: bozze solo in memoria', 'status'], 'a draft problem is an icon with a hover hint');
+  assert.deepEqual(problem.children.map(el => el.tagName), ['SVG', 'SPAN'], 'warning icon, then the words');
+  assert.deepEqual([problem.children[0].attributes['aria-hidden'], problem.children[1].className, problem.children[1].textContent], ['true', 'mb-sr', 'Identità server non verificata: bozze solo in memoria'], 'screen readers read the words, not the icon');
+  offline.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: [] });
+  assert.equal(problem.attributes.title, 'Bozze non persistenti in questo browser');
+  const servedPanel = chrome => { const panel = element('aside'), head = element('div'), row = element('div'), scroll = element('div'); panel.className = 'panel'; head.className = 'panel-head'; row.className = 'panel-head-row'; scroll.className = 'panel-scroll'; row.append(chrome.title); head.append(row); panel.append(head, scroll); return { panel, head, scroll }; };
+  const appChrome = upstreamChrome(), { panel, head, scroll } = servedPanel(appChrome);
+  const app = await runAddon(new Map(), { chrome: appChrome, panel, appMode: 'dark' });
+  assert.deepEqual([app.tools.parent, panel.children.indexOf(app.tools), app.tools.classList.contains('mb-tools-panel')], [panel, 1, true], 'the app hides the served bar: the tools go right under the panel head');
+  assert.deepEqual([app.tools.closest('.panel-head'), panel.children.indexOf(scroll)], [null, 2], 'never inside the head that drags the sheet, and before the conversation');
+  assert.equal(head.children.length, 1);
+  const late = upstreamChrome(), { panel: latePanel } = servedPanel(late);
+  const browserFirst = await runAddon(new Map(), { chrome: late, panel: latePanel });
+  assert.equal(browserFirst.tools.parent, late.bar);
+  browserFirst.root.dataset.mbAppMode = 'transparent'; browserFirst.observers.filter(o => o.target === browserFirst.root).forEach(o => o.fn());
+  assert.deepEqual([browserFirst.tools.parent, browserFirst.tools.classList.contains('mb-tools-panel')], [latePanel, true], 'the app sets its mode after the load; the tools move then');
+  delete browserFirst.root.dataset.mbAppMode; browserFirst.observers.filter(o => o.target === browserFirst.root).forEach(o => o.fn());
+  assert.deepEqual([browserFirst.tools.parent, browserFirst.tools.classList.contains('mb-tools-panel')], [late.bar, false], 'returning to the browser restores the bar controls');
 });
 
-test('two-tap forms validate and queue through submit events without any submit button',()=>{
- const listeners={},queued=[],status={textContent:''},classes=new Set();let prevented=0;
- const label={classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}};
- class HTMLInputElement {constructor(){this.type='radio';this.checked=false;}closest(){return label;}}
- const input=new HTMLInputElement();
- const form={dataset:{mbQuestion:'q0'},addEventListener:(type,fn)=>(listeners[type]||=[]).push(fn),querySelector:selector=>selector==='.queue-status'?status:selector==='.mb-armed'&&classes.has('mb-armed')?label:null,requestSubmit(...submitter){assert.equal(submitter.length,0,'no submit button or submitter is required');for(const listener of listeners.submit)listener({preventDefault:()=>prevented++});}};
- const document={documentElement:{dataset:{}},readyState:'complete',querySelectorAll:selector=>selector==='[data-mb-question]'?[form]:selector==='.mb-armed'&&classes.has('mb-armed')?[label]:[]};
- vm.runInNewContext(artifactJs,{document,window:{lavish:{queuePrompt:(message,options)=>queued.push({message,options})}},HTMLInputElement,FormData:class{constructor(source){assert.equal(source,form);}get(name){assert.equal(name,'choice');return input.checked?'yes':null;}}});
- form.requestSubmit();
- assert.equal(status.textContent,'Scegli una risposta.');assert.equal(queued.length,0);
- input.checked=true;
- for(const listener of listeners.click)listener({target:input});
- assert.equal(queued.length,0,'first activation only selects');
- for(const listener of listeners.click)listener({target:input});
- assert.equal(queued.length,1,'second activation queues through the original submit handler');
- assert.equal(queued[0].options.data.answer.choice,'yes');
- assert.equal(queued[0].options.queueKey,'answer:q0');
- assert.equal(queued[0].options.element,form);
- assert.equal(classes.has('mb-armed'),false,'submission resets the two-tap state');
- form.requestSubmit();assert.equal(queued.length,2,'programmatic submit still works with no button');
- assert.equal(prevented,3,'submit does not navigate away from the review');
+test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {
+  const run = runQuestions({ lavish: true });
+  run.tap('q0', 'yes');
+  assert.equal(run.queued.length, 0, 'first tap only selects');
+  assert.deepEqual(run.armed('q0'), ['yes'], 'the selected option asks for a second tap');
+  run.tap('q0', 'no');
+  assert.equal(run.queued.length, 0, 'a different option is a new first tap');
+  assert.deepEqual(run.armed('q0'), ['no']);
+  run.tap('q0', 'no');
+  assert.deepEqual(run.queued.map(q => q.options.data.answer.choice), ['no'], 'second tap on the same option queues it');
+  assert.deepEqual(run.armed('q0'), [], 'submission resets the two-tap state');
+  run.form('q0').listeners.click.forEach(fn => fn({ target: { tagName: 'LABEL' } }));
+  assert.equal(run.queued.length, 1, 'the click on the label itself is not a tap');
+});
+
+test('two-tap forms validate and queue through submit events without any submit button', () => {
+  const run = runQuestions({ lavish: true }), status = run.form('q0').status;
+  run.form('q0').requestSubmit();
+  assert.deepEqual([status.textContent, status.classList.contains('mb-alert'), run.queued.length], ['Scegli una risposta.', true, 0], 'a problem is shown in the card');
+  run.tap('q0', 'yes');
+  run.tap('q0', 'yes');
+  assert.equal(run.queued.length, 1, 'second activation queues through the original submit handler');
+  const { message, options } = run.queued[0];
+  assert.equal(message, 'Risposta per q0');
+  assert.deepEqual(JSON.parse(JSON.stringify(options.data)), { question: 'q0', answer: { choice: 'yes' } }, 'the data the agent reads');
+  assert.equal(options.queueKey, 'answer:q0', 'a new answer to the same question replaces the queued one');
+  assert.equal(options.element, run.option('q0', 'yes'), 'the queued note points at the chosen option');
+  assert.equal(options.selector, '[data-mb-question="q0"] input[value="yes"]');
+  assert.deepEqual([status.textContent, status.classList.contains('mb-alert')], ['', false], 'no sentence in the card after queueing');
+  run.form('q0').requestSubmit();
+  assert.equal(run.queued.length, 2, 'programmatic submit still works with no button');
+  const standalone = runQuestions();
+  standalone.tap('q0', 'yes');
+  standalone.tap('q0', 'yes');
+  assert.deepEqual([standalone.form('q0').status.textContent, standalone.form('q0').status.classList.contains('mb-alert')], ['Apri la pagina con Lavish per accodare la risposta.', true]);
+});
+
+test('the queued answer carries a check mark that follows the chrome queue: it moves with a new answer and leaves with the answer', () => {
+  const run = runQuestions({ forms: { q0: ['yes', 'no'], q1: ['a"b\\c', 'd'] }, lavish: true });
+  const selector = (id, value) => { run.tap(id, value); run.tap(id, value); return run.queued.at(-1).options.selector; };
+  const yes = selector('q0', 'yes');
+  assert.deepEqual(run.marked('q0'), [], 'no mark until the chrome lists the answer as queued');
+  run.anchors([yes]);
+  assert.deepEqual(run.marked('q0'), ['yes'], 'the first list after a load restores the marks');
+  assert.equal(run.form('q0').status.textContent, '', 'restored marks are not announced');
+  const no = selector('q0', 'no');
+  run.anchors([no]);
+  assert.deepEqual(run.marked('q0'), ['no'], 'the mark moves to the new answer');
+  assert.equal(run.form('q0').status.textContent, 'Risposta «NO» in coda.', 'the change is said to screen readers');
+  const quoted = selector('q1', 'a"b\\c');
+  assert.equal(quoted, '[data-mb-question="q1"] input[value="a\\"b\\\\c"]', 'quotes and backslashes are escaped in the selector');
+  run.anchors([no, quoted, 'article#x > p']);
+  assert.deepEqual([run.marked('q0'), run.marked('q1')], [['no'], ['a"b\\c']], 'each question keeps its own mark; other notes are ignored');
+  const queuedBeforeRepeat = run.queued.length;
+  run.tap('q0', 'no');
+  assert.deepEqual(run.armed('q0'), ['no'], 'an option already in the queue still arms on the first tap');
+  assert.equal(run.queued.length, queuedBeforeRepeat, 'the first tap does not requeue it');
+  run.tap('q0', 'no');
+  assert.equal(run.queued.length, queuedBeforeRepeat + 1, 'the second tap requeues the original answer');
+  assert.equal(run.queued.at(-1).options.data.answer.choice, 'no');
+  assert.deepEqual(run.armed('q0'), [], 'requeueing resets the two-tap gesture');
+  assert.deepEqual(run.marked('q0'), ['no'], 'requeueing keeps the queued mark');
+  run.tap('q0', 'yes');
+  assert.deepEqual(run.armed('q0'), ['yes'], 'another option still arms while the queued one keeps its mark');
+  assert.deepEqual(run.marked('q0'), ['no']);
+  run.anchors([quoted]);
+  assert.deepEqual([run.marked('q0'), run.sent('q0'), run.form('q0').status.textContent], [[], [], 'Risposta tolta dalla coda.'], 'removed from the queue without a send: the mark goes away');
+  run.anchors([], {});
+  assert.deepEqual(run.marked('q1'), ['a"b\\c'], 'only the chrome (the parent window) moves the marks');
+  run.anchors([]);
+  assert.deepEqual(run.marked('q1'), []);
+});
+
+test('a sent answer shows "inviata" until another answer to the same question enters the queue; a removal is never shown as sent', () => {
+  const run = runQuestions({ forms: { q0: ['yes', 'no'], q1: ['a', 'b'] }, lavish: true });
+  const queue = (id, value) => { run.tap(id, value); run.tap(id, value); return run.queued.at(-1).options.selector; };
+  const yes = queue('q0', 'yes'), a = queue('q1', 'a');
+  run.anchors([yes, a]);
+  run.delivered([yes, a, 'article#x > p']);
+  assert.deepEqual([run.marked('q0'), run.sent('q0')], [['yes'], []], 'while the chrome still lists it as queued, the answer stays "in coda"');
+  run.anchors([]);
+  assert.deepEqual([run.marked('q0'), run.sent('q0'), run.sent('q1')], [[], ['yes'], ['a']], 'once it leaves the queue after delivery, it is marked as sent');
+  assert.equal(run.form('q0').status.textContent, 'Risposta «YES» inviata.', 'the send is said to screen readers');
+  const no = queue('q0', 'no');
+  run.anchors([no]);
+  assert.deepEqual([run.marked('q0'), run.sent('q0'), run.sent('q1')], [['no'], [], ['a']], 'a new answer to the same question clears its sent mark, other questions keep theirs');
+  assert.equal(run.form('q0').status.textContent, 'Risposta «NO» in coda.');
+  run.anchors([]);
+  assert.deepEqual([run.marked('q0'), run.sent('q0'), run.form('q0').status.textContent], [[], [], 'Risposta tolta dalla coda.'], 'removed without a send: no mark, not "inviata"');
+  const again = queue('q1', 'a');
+  run.anchors([again]);
+  assert.deepEqual([run.marked('q1'), run.sent('q1')], [['a'], []], 'the sent answer queued again shows "in coda"');
+  run.anchors([]);
+  assert.deepEqual(run.sent('q1'), [], 'and its removal does not bring "inviata" back');
+  run.delivered([yes], {});
+  run.anchors([]);
+  assert.deepEqual(run.sent('q0'), [], 'only the chrome (the parent window) reports deliveries');
 });
