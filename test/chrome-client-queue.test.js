@@ -1718,6 +1718,43 @@ test("an older late Send failure preserves newer terminal retry guidance", async
   assert.doesNotMatch(chrome.element("sendHint").textContent, /click Send to Agent to retry/i);
 });
 
+test("queued prompts stay persisted until a submit succeeds", async () => {
+  let promptPostAttempts = 0;
+  let resolveSecondPost = () => {};
+  const chrome = await createChromeHarness({
+    storedQueue: [{ uid: "", prompt: "Keep me", selector: "", tag: "message", text: "Freeform message" }],
+    fetchImpl: async (url) => {
+      if (String(url).endsWith("/prompts")) {
+        promptPostAttempts += 1;
+        if (promptPostAttempts === 1) throw new Error("network unavailable");
+        await new Promise((resolve) => {
+          resolveSecondPost = () => resolve(undefined);
+        });
+      }
+      return { ok: true, json: async () => ({}) };
+    },
+  });
+  const persisted = () => chrome.queued().map((prompt) => prompt.prompt);
+
+  chrome.element("send").click();
+  chrome.sendSnapshot("first snapshot");
+  await flushPromises();
+  await flushPromises();
+  assert.equal(promptPostAttempts, 1);
+  assert.deepEqual(persisted(), ["Keep me"], "a failed submit keeps the prompt in the stored queue");
+
+  chrome.element("send").click();
+  chrome.sendSnapshot("second snapshot");
+  await flushPromises();
+  assert.equal(promptPostAttempts, 2);
+  assert.deepEqual(persisted(), ["Keep me"], "the prompt stays stored while its submit is in flight");
+
+  resolveSecondPost();
+  await flushPromises();
+  await flushPromises();
+  assert.deepEqual(persisted(), [], "only a successful submit removes the prompt from the stored queue");
+});
+
 test("a failed timeout fallback keeps the queue and a timely retry sends it once", async () => {
   let promptPostAttempts = 0;
   const chrome = await createChromeHarness({
