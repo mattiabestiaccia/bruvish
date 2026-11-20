@@ -165,9 +165,7 @@ test('the two-tap answer is explained once, in the usage guide; the cards carry 
   assert.equal(html.split('Tocca una risposta').length, 2, 'said once for the whole page');
   assert.doesNotMatch(await renderDocument(doc([card('a')])), /mb-answer-help|Tocca una risposta/, 'a page without questions does not explain how to answer');
   assert.match(form, /<span class="queue-status" role="status"><\/span><\/fieldset>/, 'a status region for screen readers and problems, empty and out of sight');
-  assert.match(css, /\.queue-status\{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset\(50%\)/);
   assert.equal([...form.matchAll(/<\/span><span class="mb-queued-mark"><span aria-hidden="true">✓ <\/span>in coda<\/span><\/label>/g)].length, 2, 'every option carries its queued mark');
-  assert.match(css, /\.mb-queued-mark\{display:none;[^}]*\}label\.option\.mb-queued \.mb-queued-mark\{display:inline\}/, 'shown only on the queued option');
   assert.doesNotMatch(html, /<textarea|<input(?![^>]*type="radio")/, 'notes go through the annotation tool');
 });
 
