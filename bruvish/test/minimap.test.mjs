@@ -163,7 +163,7 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   const iframe = { contentWindow, addEventListener() { } };
   const body = element('body'), head = element('head');
   const root = { dataset: appMode ? {mbAppMode: appMode} : {}, style: { props: {}, setProperty(name, value) { this.props[name] = value; }, removeProperty(name) { delete this.props[name]; } } };
-  const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {} };
+  const byId = { artifact: iframe, ...chrome ? { annotation: chrome.annotate, send: chrome.send, chatInput: chrome.input } : {}, ...panel ? { panelHead: panel.children.find(el => el.className === 'panel-head') } : {} };
   const bySelector = { ...chrome ? { '.brand': chrome.brandBox, '.brand-mark': chrome.brand, '.panel h2': chrome.title, '#sendAndEnd span': chrome.end } : {}, ...panel ? { '.panel': panel } : {} };
   const descendants = node => (node.children || []).flatMap(child => [child, ...descendants(child)]);
   const document = {
@@ -192,7 +192,7 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
   // Upstream sets aria-pressed again on every toggle; the observer then mirrors it.
   const upstreamToggle = pressed => { chrome.annotate.setAttribute('aria-pressed', String(pressed)); observers.filter(o => o.target === chrome.annotate).forEach(o => o.fn()); };
   const rail = body.children.find(el => el.className === 'mb-rail');
-  const tools = descendants(body).concat(chrome ? descendants(chrome.bar) : [], chrome?.title.parent ? descendants(chrome.title.parent) : []).find(el => el.classList.contains('mb-tools'));
+  const tools = descendants(body).concat(chrome ? descendants(chrome.bar) : [], chrome?.title.parent ? descendants(chrome.title.parent) : [], panel ? descendants(panel) : []).find(el => el.classList.contains('mb-tools'));
   return { body, head, root, rail, deliver, posted, key, upstreamToggle, observers, tools };
 }
 
@@ -531,7 +531,7 @@ function runQuestions({ forms: spec = { q0: ['yes', 'no'] }, lavish = null } = {
   return { form, option, tap, anchors, delivered, marked, sent, armed, queued };
 }
 
-test('addon: a saved draft says nothing; draft problems and conflicts sit in the top bar in the browser and in the panel head in the app, never over the artifact', async () => {
+test('addon: a saved draft says nothing; draft problems and conflicts sit in the browser bar or below the app sheet handle', async () => {
   const chrome = upstreamChrome();
   const run = await runAddon(new Map(), { chrome, online: true });
   const note = run.tools.children.find(el => el.className === 'mb-draft-note'), conflicts = run.tools.children.find(el => el.tagName === 'BUTTON');
@@ -551,16 +551,19 @@ test('addon: a saved draft says nothing; draft problems and conflicts sit in the
   assert.deepEqual([problem.children[0].attributes['aria-hidden'], problem.children[1].className, problem.children[1].textContent], ['true', 'mb-sr', 'Identità server non verificata: bozze solo in memoria'], 'screen readers read the words, not the icon');
   offline.deliver({ type: 'lavish-mb:draft', fields: { 'q0:choice': { value: 'yes' } }, conflicts: [] });
   assert.equal(problem.attributes.title, 'Bozze non persistenti in questo browser');
-  const appChrome = upstreamChrome(), panel = element('aside');
-  panel.className = 'panel'; panel.append(appChrome.title, element('div'));
+  const servedPanel = chrome => { const panel = element('aside'), head = element('div'), row = element('div'), scroll = element('div'); panel.className = 'panel'; head.className = 'panel-head'; row.className = 'panel-head-row'; scroll.className = 'panel-scroll'; row.append(chrome.title); head.append(row); panel.append(head, scroll); return { panel, head, scroll }; };
+  const appChrome = upstreamChrome(), { panel, head, scroll } = servedPanel(appChrome);
   const app = await runAddon(new Map(), { chrome: appChrome, panel, appMode: 'dark' });
-  assert.deepEqual([app.tools.parent, panel.children.indexOf(app.tools), app.tools.classList.contains('mb-tools-panel')], [panel, 1, true], 'the app hides the served bar: the tools go right under the panel title');
-  const late = upstreamChrome(), latePanel = element('aside');
-  latePanel.className = 'panel'; latePanel.append(late.title);
+  assert.deepEqual([app.tools.parent, panel.children.indexOf(app.tools), app.tools.classList.contains('mb-tools-panel')], [panel, 1, true], 'the app hides the served bar: the tools go right under the panel head');
+  assert.deepEqual([app.tools.closest('.panel-head'), panel.children.indexOf(scroll)], [null, 2], 'never inside the head that drags the sheet, and before the conversation');
+  assert.equal(head.children.length, 1);
+  const late = upstreamChrome(), { panel: latePanel } = servedPanel(late);
   const browserFirst = await runAddon(new Map(), { chrome: late, panel: latePanel });
   assert.equal(browserFirst.tools.parent, late.bar);
   browserFirst.root.dataset.mbAppMode = 'transparent'; browserFirst.observers.filter(o => o.target === browserFirst.root).forEach(o => o.fn());
   assert.deepEqual([browserFirst.tools.parent, browserFirst.tools.classList.contains('mb-tools-panel')], [latePanel, true], 'the app sets its mode after the load; the tools move then');
+  delete browserFirst.root.dataset.mbAppMode; browserFirst.observers.filter(o => o.target === browserFirst.root).forEach(o => o.fn());
+  assert.deepEqual([browserFirst.tools.parent, browserFirst.tools.classList.contains('mb-tools-panel')], [late.bar, false], 'returning to the browser restores the bar controls');
 });
 
 test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {

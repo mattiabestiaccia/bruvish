@@ -252,9 +252,9 @@
     note.append(icon(warningShape), noteText);
     note.hidden = true;
     function placeTools() {
-        const title = document.querySelector('.panel h2');
-        if (root.dataset.mbAppMode !== undefined && title) {
-            title.after(tools);
+        const head = document.getElementById('panelHead');
+        if (root.dataset.mbAppMode !== undefined && head) {
+            head.after(tools);
             tools.classList.add('mb-tools-panel');
         }
         else {
