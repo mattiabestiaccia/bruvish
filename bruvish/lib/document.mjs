@@ -54,7 +54,9 @@ export function inline(value) {
 // bracket may come first). It is never a split point inside an inline mark, after a known abbreviation
 // (es., cfr., dott. ...), after a number abbreviation followed by a digit (pag. 3, art. 5, 20 nov. 2026),
 // or after a single letter (initials, S.p.A.). A list number (digits only) stays with the sentence it opens:
-// at the start of a string it is never a split point, and after a colon or a semicolon the split comes before it.
+// at the start of a string it is never a split point, and after a colon or a semicolon the split comes before it
+// when the next number opens a later sentence of the same string (1. ... 2. ...); otherwise it is a count that
+// ends its sentence (Errori: 0. Avvisi: 2.).
 // Decimals, versions and paths have no space after the point and never split.
 // A non-breaking space (U+00A0) after the point keeps two parts on one line.
 const ABBREVIATIONS = new Set(['es', 'p.es', 'p.e', 'cfr', 'dott', 'dott.ssa', 'sig', 'sigg', 'sig.ra', 'prof', 'ing', 'avv', 'arch', 'geom', 'rag', 'sen', 'ibid', 'cit', 'op', 'ed', 'trad', 'rif', 'vs', 'mr', 'mrs', 'ms', 'dr', 'st', 'jr', 'sr', 'e.g', 'i.e']);
@@ -77,12 +79,13 @@ export function splitSentences(value) {
                 continue;
             if (/^\d+$/.test(word)) {
                 const lead = before.slice(0, -word.length).trim();
-                if (/[:;]$/.test(lead) && !inside(at - word.length)) {
+                if (!lead)
+                    continue;
+                if (/[:;]$/.test(lead) && !inside(at - word.length) && new RegExp('[.!?…:;][»"”’\')\\]*`]*\\s+' + (Number(word) + 1) + '\\.\\s').test(text.slice(next))) {
                     parts.push(lead);
                     start = at - word.length;
-                }
-                if (!lead || /[:;]$/.test(lead))
                     continue;
+                }
             }
         }
         parts.push(text.slice(start, end).trim());

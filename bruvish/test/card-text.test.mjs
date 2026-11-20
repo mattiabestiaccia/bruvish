@@ -51,11 +51,19 @@ test('a string with several sentences is split at sentence ends, not at abbrevia
     'Vedi pag. 3 e art. 5 del testo. Fine.': ['Vedi pag. 3 e art. 5 del testo.', 'Fine.'],
     'Vale dal 3 ago. 2026. Poi scade.': ['Vale dal 3 ago. 2026.', 'Poi scade.'],
     'Due strade: 1. Tenere la regola. 2. Toglierla.': ['Due strade:', '1. Tenere la regola.', '2. Toglierla.'],
-    'Prima; 2. Seconda via.': ['Prima;', '2. Seconda via.'],
+    'Prima; 2. Seconda via. 3. Terza.': ['Prima;', '2. Seconda via.', '3. Terza.'],
+    // A number after a colon or a semicolon without the next number later is a count that ends its sentence.
+    'Errori: 0. Avvisi: 2.': ['Errori: 0.', 'Avvisi: 2.'],
+    'Regole trovate: 33. Ne tolgo 2.': ['Regole trovate: 33.', 'Ne tolgo 2.'],
+    'Totale: 3. Poi chiudo.': ['Totale: 3.', 'Poi chiudo.'],
+    'Voti; 12. Contrari 3.': ['Voti; 12.', 'Contrari 3.'],
+    '**Scelte: 1.** Prima. 2. Seconda.': ['**Scelte: 1.**', 'Prima.', '2. Seconda.'],
     'Ne restano 3. Poi basta.': ['Ne restano 3.', 'Poi basta.'],
     '**Scelte: 1. Una.** Fine.': ['**Scelte: 1. Una.**', 'Fine.'],
     // Known limit: a sentence ending with a single letter stays joined to the next one.
     'Premi il tasto A. Poi esci.': ['Premi il tasto A. Poi esci.'],
+    // Known limit: a string that opens with a number and a point keeps it joined to the next sentence.
+    '33. Poi basta.': ['33. Poi basta.'],
   };
   for (const [text, expected] of Object.entries(cases)) assert.deepEqual(splitSentences(text), expected, text);
   // A non-breaking space after the point keeps the two parts on one line.
