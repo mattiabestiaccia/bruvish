@@ -8806,6 +8806,52 @@ test("the artifact learns which elements carry a queued note, never the note its
   assert.deepEqual(JSON.parse(JSON.stringify(anchors)), { type: "lavish:queuedAnchors", selectors: ["main > h2"] });
 });
 
+test("the artifact learns which anchored notes were delivered, and a removed note is never reported as delivered", async () => {
+  const chrome = await createChromeHarness({ fetchImpl: async () => ({ ok: true }) });
+  const delivered = () =>
+    chrome.postedToFrame
+      .filter((message) => message.type === "lavish:deliveredAnchors")
+      .map((message) => JSON.parse(JSON.stringify(message)));
+  queueHeadingNote(chrome, "Drop this heading", "main > h3");
+  const [removeButton] = chrome.element("queuedLog").querySelectorAll(".queued-remove");
+  removeButton.click({ stopPropagation() {} });
+  assert.deepEqual(chrome.queued(), []);
+  assert.deepEqual(delivered(), [], "a removal is not a delivery");
+
+  queueHeadingNote(chrome);
+  chrome.sendFrameMessage({
+    type: "lavish:queuePrompt",
+    prompt: {
+      prompt: "Punchier",
+      selector: "main > p",
+      tag: "text",
+      text: "marketing site",
+      target: { type: "text-range", text: "marketing site", selector: "main > p" },
+    },
+  });
+  chrome.element("send").click();
+  const request = chrome.postedToFrame.filter((message) => message.type === "lavish:requestSnapshot").at(-1);
+  assert.deepEqual(delivered(), [], "nothing is reported before the server accepts the send");
+  chrome.sendFrameMessage({
+    type: "lavish:snapshot",
+    snapshot: "uid=1 body",
+    snapshot_request_id: request.snapshot_request_id,
+  });
+  await flushPromises();
+
+  assert.deepEqual(chrome.queued(), []);
+  assert.deepEqual(
+    delivered(),
+    [{ type: "lavish:deliveredAnchors", selectors: ["main > h2"] }],
+    "only element-anchored notes, only selectors",
+  );
+  const types = chrome.postedToFrame.map((message) => message.type);
+  assert.ok(
+    types.indexOf("lavish:deliveredAnchors") < types.lastIndexOf("lavish:queuedAnchors"),
+    "the delivery is reported before the queue list that drops the note",
+  );
+});
+
 // The artifact walks the list newest first, so a selector a newer note carries again must sit at
 // that newer note, after a selector queued in between; otherwise the in-between note would win.
 test("the artifact's queued-anchor list places each selector at its newest note", async () => {

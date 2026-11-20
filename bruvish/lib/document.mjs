@@ -145,10 +145,10 @@ export function renderRecord(html) {
     }
 }
 // How to answer is said once, in the usage guide, never in each card. Only pages with a question carry it.
-const ANSWER_HELP = ['Tocca una risposta per sceglierla, toccala di nuovo per accodarla.', 'Con la tastiera, premi Spazio sull’opzione scelta per accodarla.', 'Accanto alla risposta accodata compare «✓ in coda».'];
-// The mark next to an option that is in the queue. It is hidden until artifact.js sees the option among the
-// chrome's queued anchors; when shown, "in coda" becomes part of the option's accessible name.
-const QUEUED_MARK = '<span class="mb-queued-mark"><span aria-hidden="true">✓ </span>in coda</span>';
+const ANSWER_HELP = ['Tocca una risposta per sceglierla, toccala di nuovo per accodarla.', 'Con la tastiera, premi Spazio sull’opzione scelta per accodarla.', 'Accanto alla risposta accodata compare «✓ in coda», e dopo l’invio «✓ inviata».'];
+// The marks next to an option that is in the queue or was sent. They are hidden until artifact.js sees the option
+// among the chrome's queued or delivered anchors; when shown, the mark's words become part of the option's accessible name.
+const QUEUED_MARK = '<span class="mb-queued-mark"><span aria-hidden="true">✓ </span>in coda</span><span class="mb-sent-mark"><span aria-hidden="true">✓ </span>inviata</span>';
 const sameCards = (a, b) => { const ka = Object.keys(a || {}), kb = Object.keys(b || {}); return ka.length === kb.length && ka.every(k => a[k] === b[k]); };
 export async function renderDocument(input, options = {}) {
     if (!input.title || !input.guide)

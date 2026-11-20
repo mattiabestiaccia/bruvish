@@ -238,7 +238,8 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         assert.equal(await new Promise(r => poll.on('exit', r)), 0);
         assert(/choice\W+yes/.test(feedback), feedback);
         assert(feedback.includes('q0'), feedback);
-        await until(async()=>(await client.evaluate(q0Mark,true))[0]===false,'the sent answer leaves the queue and loses its mark');
+        const q0Sent='(()=>{const label=document.querySelector("[data-mb-question=q0] input[value=yes]").closest("label"),mark=label.querySelector(".mb-sent-mark");return [label.classList.contains("mb-queued"),label.querySelector(".mb-queued-mark").checkVisibility(),mark.checkVisibility(),mark.textContent]})()';
+        await until(async()=>JSON.stringify(await client.evaluate(q0Sent,true))===JSON.stringify([false,false,true,'✓ inviata']),'the sent answer leaves the queue and shows it was sent');
         // Frame style of the approved mock-up as the browser computes it: agent replies inline without a bubble,
         // the reader's messages on a very light green, the restyled frame text never under 13px.
         await until(() => client.evaluate('document.querySelector(".bubble.user")!==null&&document.querySelector(".bubble.agent .chat-md")!==null'), 'reader and agent messages in the conversation');

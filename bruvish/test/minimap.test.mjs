@@ -522,9 +522,11 @@ function runQuestions({ forms: spec = { q0: ['yes', 'no'] }, lavish = null } = {
   // A tap checks the option, as the browser does before the click event, then fires the form's click listeners.
   const tap = (id, value) => { const input = option(id, value); form(id).inputs.forEach(i => { i.checked = i === input; }); form(id).listeners.click.forEach(fn => fn({ target: input })); };
   const anchors = (selectors, source = parent) => listeners.window.message.forEach(fn => fn({ source, data: { type: 'lavish:queuedAnchors', selectors } }));
+  const delivered = (selectors, source = parent) => listeners.window.message.forEach(fn => fn({ source, data: { type: 'lavish:deliveredAnchors', selectors } }));
   const marked = id => form(id).inputs.filter(i => i.label.classList.contains('mb-queued')).map(i => i.value);
+  const sent = id => form(id).inputs.filter(i => i.label.classList.contains('mb-sent')).map(i => i.value);
   const armed = id => form(id).inputs.filter(i => i.label.classList.contains('mb-armed')).map(i => i.value);
-  return { form, option, tap, anchors, marked, armed, queued };
+  return { form, option, tap, anchors, delivered, marked, sent, armed, queued };
 }
 
 test('interview: a first tap selects an option, a second tap on the same option queues the answer', () => {
@@ -586,9 +588,35 @@ test('the queued answer carries a check mark that follows the chrome queue: it m
   assert.deepEqual(run.armed('q0'), ['yes'], 'another option still arms while the queued one keeps its mark');
   assert.deepEqual(run.marked('q0'), ['no']);
   run.anchors([quoted]);
-  assert.deepEqual([run.marked('q0'), run.form('q0').status.textContent], [[], 'Risposta tolta dalla coda.'], 'removed from the queue or sent: the mark goes away');
+  assert.deepEqual([run.marked('q0'), run.sent('q0'), run.form('q0').status.textContent], [[], [], 'Risposta tolta dalla coda.'], 'removed from the queue without a send: the mark goes away');
   run.anchors([], {});
   assert.deepEqual(run.marked('q1'), ['a"b\\c'], 'only the chrome (the parent window) moves the marks');
   run.anchors([]);
   assert.deepEqual(run.marked('q1'), []);
+});
+
+test('a sent answer shows "inviata" until another answer to the same question enters the queue; a removal is never shown as sent', () => {
+  const run = runQuestions({ forms: { q0: ['yes', 'no'], q1: ['a', 'b'] }, lavish: true });
+  const queue = (id, value) => { run.tap(id, value); run.tap(id, value); return run.queued.at(-1).options.selector; };
+  const yes = queue('q0', 'yes'), a = queue('q1', 'a');
+  run.anchors([yes, a]);
+  run.delivered([yes, a, 'article#x > p']);
+  assert.deepEqual([run.marked('q0'), run.sent('q0')], [['yes'], []], 'while the chrome still lists it as queued, the answer stays "in coda"');
+  run.anchors([]);
+  assert.deepEqual([run.marked('q0'), run.sent('q0'), run.sent('q1')], [[], ['yes'], ['a']], 'once it leaves the queue after delivery, it is marked as sent');
+  assert.equal(run.form('q0').status.textContent, 'Risposta «YES» inviata.', 'the send is said to screen readers');
+  const no = queue('q0', 'no');
+  run.anchors([no]);
+  assert.deepEqual([run.marked('q0'), run.sent('q0'), run.sent('q1')], [['no'], [], ['a']], 'a new answer to the same question clears its sent mark, other questions keep theirs');
+  assert.equal(run.form('q0').status.textContent, 'Risposta «NO» in coda.');
+  run.anchors([]);
+  assert.deepEqual([run.marked('q0'), run.sent('q0'), run.form('q0').status.textContent], [[], [], 'Risposta tolta dalla coda.'], 'removed without a send: no mark, not "inviata"');
+  const again = queue('q1', 'a');
+  run.anchors([again]);
+  assert.deepEqual([run.marked('q1'), run.sent('q1')], [['a'], []], 'the sent answer queued again shows "in coda"');
+  run.anchors([]);
+  assert.deepEqual(run.sent('q1'), [], 'and its removal does not bring "inviata" back');
+  run.delivered([yes], {});
+  run.anchors([]);
+  assert.deepEqual(run.sent('q0'), [], 'only the chrome (the parent window) reports deliveries');
 });

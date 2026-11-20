@@ -12,7 +12,9 @@
         // The queued answer is marked next to the option itself, never with a sentence in the card. The answer is
         // queued with a selector that names the chosen option, so the chrome's queued-anchor list (lavish:queuedAnchors,
         // sent after every queue change and on each load) says which option of which question is in the queue:
-        // the mark moves when the answer changes and goes away when the answer leaves the queue (removed or sent).
+        // the mark moves when the answer changes and goes away when the answer is removed from the queue. An answer
+        // the chrome reports as delivered (lavish:deliveredAnchors) shows "inviata" instead, until the page reloads
+        // or another answer to the same question enters the queue.
         const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/\n/g, '\\a ');
         const optionSelector = (form, input) => '[data-mb-question="' + form.dataset.mbQuestion + '"] input[value="' + quoted(input.value) + '"]';
         // The status region stays out of sight; it only speaks to screen readers, unless it has a problem to show.
@@ -36,16 +38,23 @@
         } document.querySelectorAll('.mb-armed').forEach(option => option.classList.remove('mb-armed')); const label = input.closest('label'); armed = label?.classList.contains('mb-queued') ? null : input; if (armed)
             label.classList.add('mb-armed'); }));
         // The first list after a load only restores the marks; later changes are also said to screen readers.
-        let marksRestored = false;
-        window.addEventListener('message', event => { const message = event.data; if (event.source !== window.parent || !message || message.type !== 'lavish:queuedAnchors')
-            return; const queued = new Set(Array.isArray(message.selectors) ? message.selectors.map(String) : []); document.querySelectorAll('[data-mb-question]').forEach(form => { let change = ''; form.querySelectorAll('input[name="choice"]').forEach(input => { const label = input.closest('label'); const on = queued.has(optionSelector(form, input)); if (!label || label.classList.contains('mb-queued') === on)
-            return; label.classList.toggle('mb-queued', on); if (on) {
+        let marksRestored = false, queued = new Set();
+        const sent = new Set();
+        window.addEventListener('message', event => { const message = event.data; if (event.source !== window.parent || !message || (message.type !== 'lavish:queuedAnchors' && message.type !== 'lavish:deliveredAnchors'))
+            return; const selectors = Array.isArray(message.selectors) ? message.selectors.map(String) : []; if (message.type === 'lavish:deliveredAnchors')
+            selectors.forEach(selector => sent.add(selector));
+        else
+            queued = new Set(selectors); document.querySelectorAll('[data-mb-question]').forEach(form => { const options = [...form.querySelectorAll('input[name="choice"]')].map(input => ({ input, label: input.closest('label'), selector: optionSelector(form, input) })).filter(option => option.label); if (options.some(option => queued.has(option.selector) && !option.label.classList.contains('mb-queued')))
+            options.forEach(option => sent.delete(option.selector)); let change = ''; options.forEach(({ input, label, selector }) => { const isQueued = queued.has(selector), isSent = !isQueued && sent.has(selector), wasQueued = label.classList.contains('mb-queued'); if (wasQueued === isQueued && label.classList.contains('mb-sent') === isSent)
+            return; label.classList.toggle('mb-queued', isQueued); label.classList.toggle('mb-sent', isSent); const name = label.querySelector('span')?.textContent || input.value; if (isQueued) {
             label.classList.remove('mb-armed');
             if (armed === input)
                 armed = null;
-            change = 'Risposta «' + (label.querySelector('span')?.textContent || input.value) + '» in coda.';
+            change = 'Risposta «' + name + '» in coda.';
         }
-        else if (!change)
+        else if (isSent)
+            change = 'Risposta «' + name + '» inviata.';
+        else if (wasQueued && !change)
             change = 'Risposta tolta dalla coda.'; }); if (change && marksRestored)
             say(form, change); }); marksRestored = true; });
     };
