@@ -82,19 +82,28 @@ export function splitSentences(value) {
 // (card paragraphs, field paragraphs, question reason) is a string or an array of paragraphs.
 const block = value => value === undefined || value === null ? [] : Array.isArray(value) ? value : [value];
 const sentencesOf = paragraph => (Array.isArray(paragraph) ? paragraph : [paragraph]).flatMap(sentence => {
-    const object = sentence && typeof sentence === 'object';
+    const object = sentence !== null && typeof sentence === 'object' && !Array.isArray(sentence);
+    if (typeof (object ? sentence.text : sentence) !== 'string')
+        throw new Error('A sentence is a string or { "text": "Una frase.", "highlight": true }, not ' + JSON.stringify(sentence));
     return splitSentences(object ? sentence.text : sentence).map(text => '<span class="sentence">' + (object && sentence.highlight ? '<mark>' + inline(text) + '</mark>' : inline(text)) + '</span>');
 });
 function paragraphs(value) { return block(value).map(p => '<p>' + sentencesOf(p).join('') + '</p>').join(''); }
+function filledParagraphs(value, error) {
+    const html = paragraphs(value);
+    if (!html.includes('class="sentence"'))
+        throw new Error(error);
+    return html;
+}
 // Recurring entries of a card (for example Oggi, Proposta, Effetto pratico) as a two-column table: the label from
 // the JSON, the content with the same sentence and paragraph rules as the card body.
 function fieldsTable(rows, className = 'mb-fields') { return '<table class="' + className + '"><tbody>' + rows.map(([label, content]) => '<tr><th scope="row">' + label + '</th><td>' + content + '</td></tr>').join('') + '</tbody></table>'; }
 function cardFields(card) {
     if (card.fields === undefined)
         return '';
-    if (!Array.isArray(card.fields) || card.fields.some(f => !f || typeof f !== 'object' || typeof f.label !== 'string' || !f.label.trim() || f.paragraphs === undefined))
-        throw new Error('Card ' + card.id + ': fields must be an array of { "label": "Oggi", "paragraphs": ["Una frase."] }, each with a non-empty label and its text');
-    return card.fields.length ? fieldsTable(card.fields.map(f => [inline(f.label), paragraphs(f.paragraphs)])) : '';
+    const shape = 'Card ' + card.id + ': fields must be an array of { "label": "Oggi", "paragraphs": ["Una frase."] }, each with a non-empty label and its text';
+    if (!Array.isArray(card.fields) || card.fields.some(f => !f || typeof f !== 'object' || typeof f.label !== 'string' || !f.label.trim()))
+        throw new Error(shape);
+    return card.fields.length ? fieldsTable(card.fields.map(f => [inline(f.label), filledParagraphs(f.paragraphs, shape)])) : '';
 }
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
@@ -159,10 +168,7 @@ export async function renderDocument(input, options = {}) {
                 if (q.reason !== undefined) {
                     if (!q.options.some(o => o.recommended === true))
                         throw new Error('Card ' + card.id + ': question.reason explains the recommended option; mark that option with "recommended": true or drop the reason');
-                    const text = paragraphs(q.reason);
-                    if (!text.includes('class="sentence"'))
-                        throw new Error('Card ' + card.id + ': question.reason is empty; write the reason in one or two sentences');
-                    reason = fieldsTable([['Motivazione', text]], 'mb-fields mb-reason');
+                    reason = fieldsTable([['Motivazione', filledParagraphs(q.reason, 'Card ' + card.id + ': question.reason is empty; write the reason in one or two sentences')]], 'mb-fields mb-reason');
                 }
                 question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + inline(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + inline(o.label) + '</span></label>').join('') + reason + '<p class="mb-hint">Tocca una risposta per sceglierla, toccala di nuovo per accodarla. Con la tastiera, premi Spazio sull’opzione scelta per accodarla.</p><span class="queue-status" role="status"></span></fieldset></form>';
             }
@@ -175,5 +181,5 @@ export async function renderDocument(input, options = {}) {
     const css = (await Promise.all(['fonts.css', 'artifact.css'].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = await readFile(asset('artifact.js'), 'utf8');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header><h1>' + escape(input.title) + '</h1>' + paragraphs(input.intro ? [input.intro] : []) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + paragraphs([input.guide]) + '</details><nav>' + input.sections.map(s => '<a href="#' + s.id + '">' + escape(s.title) + '</a>').join('') + '</nav>' + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header><h1>' + escape(input.title) + '</h1>' + paragraphs(input.intro ? [input.intro] : []) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + '</details><nav>' + input.sections.map(s => '<a href="#' + s.id + '">' + escape(s.title) + '</a>').join('') + '</nav>' + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }

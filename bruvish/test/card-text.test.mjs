@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import vm from 'node:vm';
 import { renderDocument, cardFingerprint, inline, splitSentences } from '../lib/document.mjs';
 const css = await readFile(new URL('../assets/artifact.css', import.meta.url), 'utf8');
 const artifactJs = await readFile(new URL('../assets/artifact.js', import.meta.url), 'utf8');
@@ -78,8 +79,19 @@ test('card fields render as a two-column table with labels from the JSON, after 
 });
 
 test('malformed fields are refused with an error that shows the expected shape', async () => {
-  for (const fields of ['Oggi', [{ paragraphs: ['x'] }], [{ label: ' ', paragraphs: ['x'] }], [{ label: 'Oggi' }], [null]])
+  for (const fields of ['Oggi', [{ paragraphs: ['x'] }], [{ label: ' ', paragraphs: ['x'] }], [{ label: 'Oggi' }], [null], ...[[], '', ' ', null, [[]]].map(paragraphs => [{ label: 'Oggi', paragraphs }])])
     await assert.rejects(renderDocument(doc([{ id: 'a', title: 'A', fields }])), /Card a: fields must be an array of \{ "label": "Oggi", "paragraphs": \["Una frase\."\] \}/);
+});
+
+test('a sentence of another shape stops the render instead of vanishing; intro, guide and clarification are one paragraph each', async () => {
+  for (const card of [{ clarification: [['Uno.'], ['Due.']] }, { paragraphs: [[['Annidata.']]] }, { paragraphs: [[null]] }, { paragraphs: [[{ highlight: true }]] }, { fields: [{ label: 'Oggi', paragraphs: [[3]] }] }])
+    await assert.rejects(renderDocument(doc([{ id: 'a', title: 'A', ...card }])), /A sentence is a string or \{ "text": "Una frase\.", "highlight": true \}/);
+  await assert.rejects(renderDocument(doc([{ id: 'a', title: 'A' }], { guide: ' ' })), /usage guide are required/);
+  const html = await renderDocument(doc([{ id: 'a', title: 'A', clarification: ['Uno.', 'Due.'] }], { intro: ['Prima.', 'Seconda.'], guide: ['Leggi.', 'Rispondi.'] }));
+  for (const part of [html.match(/<header>[\s\S]*?<\/header>/)[0], html.match(/<details class="guide"[\s\S]*?<\/details>/)[0], cardHtml(html, 'a').match(/<details class="context"[\s\S]*?<\/details>/)[0]]) {
+    assert.equal((part.match(/<p>/g) || []).length, 1, part);
+    assert.equal(sentences(part).length, 2, part);
+  }
 });
 
 test('the reason for the recommended option sits right under the answers, before the hint, in the card style', async () => {
@@ -129,22 +141,95 @@ test('fields are part of the card fingerprint; cards without fields keep the fin
   assert.match(next, /<article class="card" id="q"[^>]* data-mb-new="changed"/);
 });
 
+// The stylesheet as rules: comments dropped, each rule a selector list and its declarations, with the media query it sits in.
+function cssRules(source) {
+  const rules = [];
+  const walk = (text, media) => {
+    for (let i = 0; i < text.length;) {
+      const open = text.indexOf('{', i);
+      if (open < 0) break;
+      const head = text.slice(i, open).trim();
+      let depth = 1, j = open + 1;
+      for (; depth; j++) depth += text[j] === '{' ? 1 : text[j] === '}' ? -1 : 0;
+      const inner = text.slice(open + 1, j - 1);
+      if (head.startsWith('@media')) walk(inner, head.slice(6).replace(/\s+/g, ''));
+      else if (!head.startsWith('@')) rules.push({ media, selectors: head.split(',').map(x => x.trim()), declarations: Object.fromEntries(inner.split(';').map(d => d.split(':')).filter(d => d.length > 1).map(([k, ...v]) => [k.trim(), v.join(':').trim()])) });
+      i = j;
+    }
+  };
+  walk(source.replace(/\/\*[\s\S]*?\*\//g, ''), null);
+  return rules;
+}
+const rules = cssRules(css);
+const declared = (selector, property, media = null) => rules.filter(r => r.media === media && r.selectors.includes(selector) && property in r.declarations).map(r => r.declarations[property]).at(-1);
+const ems = value => Number(/^([\d.]+)em$/.exec(value.split(/\s+/)[2] ?? value)[1]);
+
 test('inline marks use the vaporbrus dark palette and spacing grows from lines to sentences to paragraphs, in cells too', () => {
-  assert.match(css, /strong\{color:#e5c07b;/);
-  assert.match(css, /em\{color:#e9d5ff;/);
-  assert.match(css, /code\{color:#ffb38a;/);
-  const em = (rule, prop) => Number(new RegExp(rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\{[^}]*' + prop + ':([\\d.]+)em').exec(css)[1]);
-  const lineGap = 1.45 - 1, sentenceGap = em('.sentence+.sentence', 'margin-top'), paragraphGap = Number(/(?:^|\})p\{margin:0 0 ([\d.]+)em/m.exec(css)[1]), cellParagraphGap = Number(/\.mb-fields td p\{margin:0 0 ([\d.]+)em/.exec(css)[1]);
-  assert.match(css, /body\{[^}]*font:19px\/1\.45 /);
+  // vaporbrus dark palette (agenti-comune template rules): bold yellow, italic lilac, inline code peach.
+  assert.deepEqual(['strong', 'em', 'code'].map(tag => declared(tag, 'color')), ['#e5c07b', '#e9d5ff', '#ffb38a']);
+  const lineGap = Number(/\/([\d.]+)\s/.exec(declared('body', 'font'))[1]) - 1;
+  const sentenceGap = ems(declared('.sentence+.sentence', 'margin-top'));
+  const paragraphGap = ems(declared('p', 'margin'));
+  const cellParagraphGap = ems(declared('.mb-fields td p', 'margin'));
   assert(lineGap < sentenceGap && sentenceGap < paragraphGap, 'body: ' + [lineGap, sentenceGap, paragraphGap]);
   assert(sentenceGap < cellParagraphGap, 'cells: ' + [sentenceGap, cellParagraphGap]);
-  assert.match(css, /\.mb-fields th\{width:1%;white-space:nowrap;vertical-align:top;color:var\(--title\)/);
-  assert.match(css, /@media\(max-width:600px\)\{\.mb-fields th,\.mb-fields td\{display:block/, 'phones stack label above content');
+  assert.deepEqual(['width', 'white-space'].map(p => declared('.mb-fields th', p)), ['1%', 'nowrap'], 'the label column fits its text');
+  assert.deepEqual(['.mb-fields th', '.mb-fields td'].map(s => declared(s, 'display', '(max-width:600px)')), ['block', 'block'], 'phones stack label above content');
 });
 
-test('the voice reads the field table, label then sentences', () => {
-  assert.match(artifactJs, /:scope>p, :scope>\.mb-fields tr/);
-  assert.match(artifactJs, /querySelector\('th'\)\.textContent \+ ': '/);
+// A small DOM built from the rendered page, enough to run artifact.js: elements, text, and selectors made of
+// tags, classes and attributes joined by descendant or child combinators, with :scope.
+function parseHtml(html) {
+  const decode = text => text.replace(/&(lt|gt|quot|#39|amp);/g, (_, e) => ({ lt: '<', gt: '>', quot: '"', '#39': "'", amp: '&' })[e]);
+  const make = (tagName, attributes = {}) => ({ tagName, attributes, children: [], parent: null, listeners: {},
+    get classes() { return (this.attributes.class || '').split(/\s+/).filter(Boolean); },
+    get textContent() { return this.children.map(c => typeof c === 'string' ? c : c.textContent).join(''); },
+    get elements() { return this.children.filter(c => typeof c !== 'string'); },
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
+    matches(selector) { return matchesList(this, selector, null); },
+    closest(selector) { for (let el = this; el; el = el.parent) if (el.tagName && el.matches(selector)) return el; return null; },
+    querySelectorAll(selector) { const found = [], visit = el => el.elements.forEach(c => { if (matchesList(c, selector, this)) found.push(c); visit(c); }); visit(this); return found; },
+    querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; } });
+  const root = make(''), stack = [root];
+  for (const [, text, close, tag, attrs] of html.matchAll(/([^<]*)(?:<(\/?)([a-z0-9]+)([^>]*)>|$)/g)) {
+    if (text) stack.at(-1).children.push(decode(text));
+    if (!tag) continue;
+    if (close) { stack.pop(); continue; }
+    const el = make(tag, Object.fromEntries([...attrs.matchAll(/([\w-]+)(?:="([^"]*)")?/g)].map(([, k, v]) => [k, decode(v ?? '')])));
+    el.parent = stack.at(-1); el.parent.children.push(el);
+    if (!['input', 'meta', 'br', 'img'].includes(tag)) stack.push(el);
+  }
+  return root;
+}
+function matchesList(el, list, scope) {
+  return list.split(',').some(selector => {
+    const tokens = selector.trim().replace(/\s*>\s*/g, ' > ').split(/\s+/);
+    const compound = (node, token) => {
+      if (token === ':scope') return node === scope;
+      const m = /^([a-z0-9]*)((?:\.[\w-]+|\[[\w-]+\])*)$/.exec(token);
+      if (!m) throw new Error('selector not supported by the test DOM: ' + token);
+      return !!node.tagName && (!m[1] || node.tagName === m[1]) && [...m[2].matchAll(/\.([\w-]+)/g)].every(c => node.classes.includes(c[1])) && [...m[2].matchAll(/\[([\w-]+)\]/g)].every(a => a[1] in node.attributes);
+    };
+    const from = (node, i) => {
+      if (!node || !compound(node, tokens[i])) return false;
+      if (i === 0) return true;
+      if (tokens[i - 1] === '>') return from(node.parent, i - 2);
+      for (let up = node.parent; up; up = up.parent) if (from(up, i - 1)) return true;
+      return false;
+    };
+    return from(el, tokens.length - 1);
+  });
+}
+
+test('the voice reads the title, the body sentences one by one, then each field as label and its sentences', async () => {
+  const card = { id: 'a', title: 'Una `scheda`', status: 'waiting', paragraphs: ['Prima. Seconda.'], fields: [{ label: 'Oggi', paragraphs: ['Frase uno. Frase due.'] }], clarification: 'Dettaglio nascosto.', question: { options: [{ value: 'x', label: 'X', recommended: true }], reason: 'Perché sì.' } };
+  const root = parseHtml(cardHtml(await renderDocument(doc([card])), 'a'));
+  const spoken = [];
+  const context = { document: { documentElement: { dataset: {} }, readyState: 'complete', querySelectorAll: selector => root.querySelectorAll(selector), addEventListener() { } }, HTMLInputElement: class { }, SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } }, speechSynthesis: { speaking: false, speak: utterance => spoken.push(utterance), cancel() { } } };
+  context.window = context;
+  vm.runInNewContext(artifactJs, context);
+  root.querySelector('[data-mb-voice]').listeners.click.forEach(fn => fn({}));
+  assert.deepEqual(spoken.map(u => [u.text, u.lang]), [['Una scheda Prima. Seconda. Oggi: Frase uno. Frase due.', 'it-IT']]);
 });
 
 test('the example with every card novelty renders through the CLI', async () => {
