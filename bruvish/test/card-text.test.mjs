@@ -67,6 +67,9 @@ test('a string with several sentences is split at sentence ends, not at abbrevia
     'Premi il tasto A. Poi esci.': ['Premi il tasto A. Poi esci.'],
     // Known limit: a string that opens with a number and a point keeps it joined to the next sentence.
     '33. Poi basta.': ['33. Poi basta.'],
+    // Known limits of inline lists: a number abbreviation that looks like the next item, and items split by semicolons.
+    'Errori: 1. Vedi pag. 2. Fine.': ['Errori:', '1. Vedi pag. 2.', 'Fine.'],
+    'Due strade: 1. Tenere la regola; 2. Toglierla.': ['Due strade: 1.', 'Tenere la regola; 2.', 'Toglierla.'],
   };
   for (const [text, expected] of Object.entries(cases)) assert.deepEqual(splitSentences(text), expected, text);
   // A non-breaking space after the point keeps the two parts on one line.
