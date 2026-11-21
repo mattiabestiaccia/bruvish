@@ -1,6 +1,54 @@
 (() => {
     // Behaviour of the building blocks (tabs, help, free text in answers, line comments). Embedded only in pages that use them.
     const init = () => {
+        // Tabs: the index bar shows one section at a time. The hash, a link or a reveal of the frame pointing into a hidden
+        // section opens its tab first. The minimap follows, since it maps only the visible cards.
+        const bar = document.querySelector('nav.mb-tabs');
+        if (bar) {
+            const links = [...bar.querySelectorAll('a[data-mb-tab]')];
+            const panels = links.map(link => document.getElementById(link.dataset.mbTab)).filter(Boolean);
+            const show = id => {
+                if (!panels.some(panel => panel.id === id))
+                    return;
+                panels.forEach(panel => { panel.hidden = panel.id !== id; });
+                links.forEach(link => { if (link.dataset.mbTab === id)
+                    link.setAttribute('aria-current', 'page');
+                else
+                    link.removeAttribute('aria-current'); });
+            };
+            const panelOf = el => panels.find(panel => panel === el || panel.contains(el)) || null;
+            const target = () => { let id = ''; try {
+                id = decodeURIComponent(String(location.hash || '').slice(1));
+            }
+            catch { } return id ? document.getElementById(id) : null; };
+            show(panelOf(target())?.id || panels[0]?.id);
+            links.forEach(link => link.addEventListener('click', event => {
+                event.preventDefault();
+                show(link.dataset.mbTab);
+                try {
+                    history.replaceState(null, '', '#' + link.dataset.mbTab);
+                }
+                catch { }
+            }));
+            window.addEventListener('hashchange', () => { const el = target(), panel = el && panelOf(el); if (!panel)
+                return; show(panel.id); if (el !== panel)
+                el.scrollIntoView({ block: 'start' }); });
+            window.addEventListener('message', event => {
+                const m = event.data || {};
+                if (event.source !== window.parent || !['lavish:revealElement', 'lavish:annotateElement'].includes(m.type) || typeof m.selector !== 'string')
+                    return;
+                let el = null;
+                try {
+                    el = document.querySelector(m.selector);
+                }
+                catch { }
+                const panel = el && panelOf(el);
+                if (!panel || !panel.hidden)
+                    return;
+                show(panel.id);
+                el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+            });
+        }
         // Help of a card: a click on «?» opens the panel in the flow of the card, another click closes it. Never on hover.
         document.querySelectorAll('[data-mb-help]').forEach(button => button.addEventListener('click', () => {
             const panel = document.getElementById(button.getAttribute('aria-controls'));

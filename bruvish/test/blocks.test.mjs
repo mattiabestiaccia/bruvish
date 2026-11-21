@@ -285,3 +285,45 @@ test('a question may ask for a text, shown for the options listed in "for"; the 
   for (const text of ['x', { for: ['z'] }, { for: 'b' }, { label: 3 }])
     await assert.rejects(render(doc([card({ question: { ...question, text } })])), /Card a: question\.text/);
 });
+
+test('a page in tabs turns every section into a tab of the index bar, with a counter; without JS the sections stay one under the other', async () => {
+  const input = { title: 'Prova', guide: 'Leggi.', tabs: true, sections: [{ id: 'sintesi', title: 'Sintesi', cards: [card()] }, { id: 'file', title: 'File modificati', count: 3, cards: [card({ id: 'b' }), card({ id: 'c' })] }] };
+  const html = await render(input);
+  assert.match(html, /<nav class="mb-tabs" aria-label="Schede"><a href="#sintesi" data-mb-tab="sintesi">Sintesi<\/a><a href="#file" data-mb-tab="file">File modificati<span class="mb-count">3<\/span><\/a><\/nav><section id="sintesi">/);
+  assert.doesNotMatch(html, /<section[^>]* hidden/, 'every section is visible without JS');
+  assert.equal(await render({ ...input, tabs: undefined, layout: 'schede' }), html, 'layout "schede" is the same as tabs: true');
+  const { document, window } = boot(html);
+  const [first, second] = ['sintesi', 'file'].map(id => document.getElementById(id));
+  const [tabA, tabB] = document.querySelectorAll('nav.mb-tabs a');
+  assert.deepEqual([first.hidden, second.hidden], [false, true]);
+  assert.equal(tabA.getAttribute('aria-current'), 'page');
+  let prevented = document.dispatch(tabB, 'click').defaultPrevented;
+  assert(prevented);
+  assert.deepEqual([first.hidden, second.hidden], [true, false]);
+  assert.equal(tabB.getAttribute('aria-current'), 'page');
+  assert.equal(tabA.getAttribute('aria-current'), null);
+  assert.equal(window.location.hash, '#file');
+  // A link or a reveal that points into a hidden tab opens that tab first.
+  window.location.hash = '#a';
+  window.fire('hashchange');
+  assert.deepEqual([first.hidden, second.hidden], [false, true]);
+  assert(document.getElementById('a').scrolled > 0);
+  window.post({ type: 'lavish:revealElement', selector: '#c' });
+  assert.deepEqual([first.hidden, second.hidden], [true, false]);
+  // Opening on a hash shows its tab.
+  const deep = boot(html, { hash: '#b' });
+  assert.equal(deep.document.getElementById('file').hidden, false);
+  // A counter also shows in a page without tabs.
+  assert.match(await render({ ...doc([card()]), sections: [{ id: 's', title: 'Sezione', count: '2 nuove', cards: [card()] }] }), /<nav><a href="#s">Sezione<span class="mb-count">2 nuove<\/span><\/a><\/nav>/);
+  assert.match(blocksCss, /nav\.mb-tabs a\[aria-current=page\]\{/);
+  assert.doesNotMatch(blocksCss, /nav\.mb-tabs\{[^}]*position:sticky/);
+  for (const bad of [{ tabs: 'si' }, { layout: 'colonne' }]) await assert.rejects(render({ ...input, tabs: undefined, ...bad }), /tabs/);
+  await assert.rejects(render({ ...input, sections: [{ ...input.sections[0], count: [1] }] }), /Section sintesi: count/);
+});
+
+test('every new card field enters the fingerprint only when present', () => {
+  const plain = card({ status: 'waiting', question: { options: [{ value: 'a', label: 'A', recommended: true }] } });
+  const extras = { tone: 'rosso', labels: [{ text: 'x', tone: 'blu' }], help: 'Aiuto.', table: { rows: [['x']] }, notes: ['Nota.'], diff: { text: DIFF }, events: [{ text: 'x', tone: 'verde' }], question: { ...plain.question, text: { label: 'Note' } } };
+  for (const [key, value] of Object.entries(extras))
+    assert.notEqual(cardFingerprint({ ...plain, [key]: value }), cardFingerprint(plain), key);
+});
