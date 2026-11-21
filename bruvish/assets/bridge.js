@@ -168,7 +168,11 @@
             best = distance;
             current = item.id;
         }
-    } send('position', { current }); }
+    }
+    // At the end of a page that scrolls, the last cards can never reach the reading line: the last visible
+    // card is the current one there, so choosing it in the minimap also marks it.
+    if (list.length && scrollY > 0 && scrollY + innerHeight >= document.documentElement.scrollHeight - 1)
+        current = list[list.length - 1].id; send('position', { current }); }
     function schedule() { if (!token || pendingFrame)
         return; pendingFrame = requestAnimationFrame(() => { pendingFrame = 0; outline(); }); }
     addEventListener('message', event => { if (event.source !== parent)

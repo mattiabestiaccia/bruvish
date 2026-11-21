@@ -38,6 +38,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     get activeElement() { return active?.() ?? document.body; },
     querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : selector === '.mb-mode,[data-mb-mode-switch]' ? legacyControls : [],
     querySelector: selector => { if (!/^#[\w-]+$/.test(selector)) throw new SyntaxError('bad selector'); return nodes.find(node => '#' + node.id === selector) ?? null; },
+    getElementById: id => nodes.find(node => node.id === id) ?? null,
     addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
   const getComputedStyle = el => ({
@@ -58,7 +59,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
   }
   const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
-  return { posted, observed: context.observed, mutated: records => context.mutated(records), frames, root, dispatch, deliver, styles, scrolls, nodes };
+  return { posted, observed: context.observed, mutated: records => context.mutated(records), frames, root, dispatch, deliver, styles, scrolls, nodes, view: Object.assign(context, { listeners }) };
 }
 
 test('handwritten card classes supply status colours and answered-card counts without generated metadata',()=>{
@@ -211,6 +212,25 @@ test('bridge: each minimap entry carries the novelty of its card and the outline
   assert(observed.includes('data-mb-new'), 'a changed novelty refreshes the minimap');
 });
 
+test('bridge: at the end of a page that scrolls, the last visible card is the current one', () => {
+  const cards = ['a', 'b', 'c', 'd'].map(id => ({ id, state: 'info', color: '#6bb5ff' }));
+  const current = run => run.posted.filter(m => m.type === 'lavish-mb:position').at(-1).current;
+  const scrolled = (scrollY, scrollHeight) => {
+    const run = runBridge(cards);
+    run.root.scrollHeight = scrollHeight;
+    run.view.scrollY = scrollY;
+    run.view.listeners.scroll.forEach(fn => fn());
+    run.frames.splice(0).forEach(fn => fn());
+    return current(run);
+  };
+  // Card tops in the harness: a 0, b 100, c 200, d 300; the reading line is 80px below the top of the view.
+  assert.equal(scrolled(0, 4000), 'b', 'at the top the card nearest the reading line');
+  assert.equal(scrolled(20, 1020), 'd', 'scrolled to the end: the last card, even though b is nearer the reading line');
+  assert.equal(scrolled(18, 1020), 'b', 'two pixels before the end the reading line still decides');
+  assert.equal(scrolled(19.5, 1020), 'd', 'within a pixel of the end (fractional scrolling) is the end');
+  assert.equal(scrolled(0, 1000), 'b', 'a page that does not scroll keeps the reading line');
+});
+
 test('bridge: with a minimap and a fine pointer the native scrollbar of the document goes; touch screens and pages without a minimap keep it', () => {
   const cards = [{ id: 'a', state: 'info', color: '#6bb5ff' }, { id: 'b', state: 'waiting', color: '#d6ab32' }];
   assert.equal(runBridge(cards).root.style.scrollbarWidth, 'none', 'Mac and desktop browsers: the minimap is the only cursor');
@@ -276,9 +296,11 @@ test('only the Mac app bridge accepts transparent mode; browser and phone remain
 test('minimap shape and colours follow the approved mock-up; the new lines pulse in opacity unless motion is reduced', () => {
   assert.doesNotMatch(css + addon, /mb-position/, 'the scroll cursor is gone');
   const rule = selector => css.match(new RegExp(selector.replace(/[.[\]=]/g, '\\$&') + '\\{([^}]*)\\}'))?.[1] || '';
-  assert.match(rule('.mb-rail'), /gap:9px/);
+  assert.match(rule('.mb-rail'), /gap:2px/, 'rows closer than the mock-up: 20px from one line to the next instead of 31px');
   assert.match(rule('.mb-rail'), /overflow:auto;scrollbar-width:none/, 'a long minimap scrolls without a scrollbar of its own');
-  assert.match(rule('.mb-rail button'), /width:22px;height:22px/);
+  assert.match(rule('.mb-rail button'), /width:22px;height:18px/);
+  assert.match(rule('.mb-rail i'), /top:7px/, 'the line stays centred in the shorter row');
+  assert.match(rule('.mb-rail .mb-closed i'), /top:6\.5px/, 'and so does the dot of a closed card');
   assert.match(rule('.mb-rail i'), /height:4px;width:12px/);
   assert.match(rule('.mb-rail .current i'), /width:22px/);
   for (const [state, color] of Object.entries({ waiting: '#d6ab32', answered: '#63ca84', info: '#6bb5ff', blocked: '#fe8b83' }))
@@ -528,8 +550,27 @@ function runQuestions({ forms: spec = { q0: ['yes', 'no'] }, lavish = null } = {
   const marked = id => form(id).inputs.filter(i => i.label.classList.contains('mb-queued')).map(i => i.value);
   const sent = id => form(id).inputs.filter(i => i.label.classList.contains('mb-sent')).map(i => i.value);
   const armed = id => form(id).inputs.filter(i => i.label.classList.contains('mb-armed')).map(i => i.value);
-  return { form, option, tap, anchors, delivered, marked, sent, armed, queued };
+  // Space released on an option: Chrome fires no click when the option is already selected, only the keyup reaches the page.
+  const space = (id, value) => { let prevented = false; form(id).listeners.keyup.forEach(fn => fn({ key: ' ', target: option(id, value), preventDefault: () => { prevented = true; } })); return prevented; };
+  return { form, option, tap, space, anchors, delivered, marked, sent, armed, queued };
 }
+
+test('keyboard: Space on the selected option arms it, a second Space queues it; Space on an option not yet selected is left to the browser', () => {
+  const run = runQuestions({ lavish: true });
+  assert.equal(run.space('q0', 'yes'), false, 'nothing selected yet: the browser selects the option and its click arms it');
+  assert.deepEqual([run.armed('q0'), run.queued.length], [[], 0]);
+  run.tap('q0', 'yes');
+  assert.deepEqual(run.armed('q0'), ['yes'], 'selected and armed by the click');
+  assert.equal(run.space('q0', 'yes'), true, 'Space on the selected option is handled here');
+  assert.deepEqual(run.queued.map(q => q.options.data.answer.choice), ['yes'], 'the second activation queues the answer');
+  assert.deepEqual(run.armed('q0'), [], 'queueing resets the two-tap state');
+  run.space('q0', 'yes');
+  assert.deepEqual([run.armed('q0'), run.queued.length], [['yes'], 1], 'on a selected option that is not armed, Space arms it first');
+  run.space('q0', 'yes');
+  assert.equal(run.queued.length, 2, 'and the next Space queues it');
+  run.form('q0').listeners.keyup.forEach(fn => fn({ key: 'Enter', target: run.option('q0', 'yes'), preventDefault() { assert.fail('only Space is handled'); } }));
+  assert.equal(run.queued.length, 2);
+});
 
 test('addon: a saved draft says nothing; draft problems and conflicts sit in the browser bar or below the app sheet handle', async () => {
   const chrome = upstreamChrome();

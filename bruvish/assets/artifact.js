@@ -35,6 +35,14 @@
             form.requestSubmit();
             return;
         } document.querySelectorAll('.mb-armed').forEach(option => option.classList.remove('mb-armed')); armed = input; input.closest('label')?.classList.add('mb-armed'); }));
+        // Chrome fires no click when Space is released on a radio that is already selected, so Space on the selected
+        // option is handled here: it arms the option like a first tap, or queues it if it is already armed. Space on an
+        // option that is not selected yet keeps the browser's own behaviour (select it, then the click above arms it).
+        document.querySelectorAll('[data-mb-question]').forEach(form => form.addEventListener('keyup', event => { const input = event.target; if (event.key !== ' ' || !(input instanceof HTMLInputElement) || input.type !== 'radio' || !input.checked)
+            return; event.preventDefault(); if (armed === input) {
+            form.requestSubmit();
+            return;
+        } document.querySelectorAll('.mb-armed').forEach(option => option.classList.remove('mb-armed')); armed = input; input.closest('label')?.classList.add('mb-armed'); }));
         // The first list after a load only restores the marks; later changes are also said to screen readers.
         let marksRestored = false, queued = new Set();
         const sent = new Set();

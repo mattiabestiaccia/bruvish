@@ -91,9 +91,10 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         assert.deepEqual(await client.evaluate('(()=>{const card=getComputedStyle(document.querySelector(".card")),body=getComputedStyle(document.body);return {font:body.fontSize,borderLeft:card.borderLeftWidth,borderLeftColor:card.borderLeftColor===card.borderTopColor,family:document.documentElement.dataset.mbFamily.length>0}})()',true),{font:'19px',borderLeft:'1px',borderLeftColor:true,family:true});
         assert.equal(await client.evaluate('document.documentElement.dataset.mbMode',true),'dark','browsers default to the dark mode');
         assert.equal(await client.evaluate('getComputedStyle(document.body,"::before").backgroundColor',true),'rgb(31, 32, 35)');
-        // Minimap as in the approved mock-up (cornice.html): 4px lines, 12px long, current 22px, 22px rows 9px apart.
+        // Minimap lines as in the approved mock-up (cornice.html): 4px lines, 12px long, current 22px; rows packed closer than the
+        // mock-up (18px rows 2px apart, 20px from one line to the next, was 31px).
         assert.deepEqual(await client.evaluate('[document.querySelector(".mb-rail button:not(.current):not(.mb-closed) i").getBoundingClientRect().width,document.querySelector(".mb-rail .current i").getBoundingClientRect().width,document.querySelector(".mb-rail i").getBoundingClientRect().height]'),[12,22,4]);
-        assert.equal(await client.evaluate('(()=>{const [a,b]=document.querySelectorAll(".mb-rail button");return b.getBoundingClientRect().top-a.getBoundingClientRect().top})()'),31);
+        assert.equal(await client.evaluate('(()=>{const [a,b]=document.querySelectorAll(".mb-rail button");return b.getBoundingClientRect().top-a.getBoundingClientRect().top})()'),20);
         assert.equal(await client.evaluate('document.querySelector(".mb-position")'),null,'the minimap is the only cursor');
         // Frame from the approved mock-up: BRUVISH mark, labelless icon switches, closed cards hidden by default (q1 and q5 are answered and not new).
         assert.deepEqual(await client.evaluate('(()=>{const a=document.getElementById("annotation"),c=document.querySelector(".mb-closed-switch");return {brand:document.querySelector(".brand-mark").textContent,role:a.getAttribute("role"),checked:a.getAttribute("aria-checked"),label:a.textContent.trim(),closedShown:getComputedStyle(c).display!=="none",closedChecked:c.getAttribute("aria-checked"),dots:Array.from(document.querySelectorAll(".mb-rail .mb-closed")).map(b=>b.dataset.target),title:document.querySelector(".panel h2").textContent,font:getComputedStyle(document.querySelector(".bar")).fontFamily}})()'),{brand:'BRUVISH',role:'switch',checked:'true',label:'',closedShown:true,closedChecked:'false',dots:['q1','q5'],title:'Conversazione',font:'"Atkinson Hyperlegible Next", system-ui, sans-serif'});
@@ -189,9 +190,23 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await client.evaluate('if(!document.body.classList.contains("sheet-open"))document.getElementById("panelToggle").click()');
         await until(() => client.evaluate('getComputedStyle(document.getElementById("panel")).transform==="none"'), 'app sheet fully open');
         const conflictPoint = await client.evaluate('(()=>{const r=document.querySelector(".mb-conflict-button").getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()');
-        await client.call('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...conflictPoint });
-        await client.call('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...conflictPoint });
-        await until(() => client.evaluate('!!document.querySelector(".mb-conflict-dialog")'), 'app conflict dialog opens on a pointer click');
+        // A real pointer reaches the button before pressing it. Right after the sheet's transition Chrome can still
+        // route input at this point to the artifact iframe that the sheet now covers, so the pointer moves onto the
+        // button until the button itself reports it (pointermove in this document); only then is it pressed. If the
+        // input never reached the button, this wait fails instead of hiding the problem.
+        // The sheet has stopped moving (computed transform none); two more frames let Chrome publish where things now are.
+        await client.evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r(true))))');
+        await client.evaluate('(()=>{window.__mbPointerOnConflict=false;window.__mbConflictPress=[];const b=document.querySelector(".mb-conflict-button");b.addEventListener("pointermove",()=>{window.__mbPointerOnConflict=true});for(const type of ["pointerdown","pointerup","click"])b.addEventListener(type,()=>window.__mbConflictPress.push(type))})()');
+        let pointerNudge = 0;
+        await until(async () => {
+            pointerNudge = 1 - pointerNudge;
+            await client.call('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'none', x: conflictPoint.x + pointerNudge, y: conflictPoint.y });
+            return client.evaluate('window.__mbPointerOnConflict');
+        }, 'pointer reaches the conflict button');
+        await client.call('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'none', ...conflictPoint });
+        await client.call('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', buttons: 1, clickCount: 1, ...conflictPoint });
+        await client.call('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', buttons: 0, clickCount: 1, ...conflictPoint });
+        await until(() => client.evaluate('!!document.querySelector(".mb-conflict-dialog")'), 'app conflict dialog opens on a pointer click (events on the button: ' + await client.evaluate('JSON.stringify(window.__mbConflictPress)') + ')');
         assert.equal(await client.evaluate('document.body.classList.contains("sheet-open")'), true, 'opening conflicts never toggles the sheet');
         assert.equal(await client.evaluate('(()=>{const button=document.querySelector(".mb-conflict-dialog button"),r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2))})()'), true, 'conflict actions stay above the open sheet');
         await client.evaluate('document.querySelector(".mb-conflict-dialog > button").click();document.getElementById("panelToggle").click();delete document.documentElement.dataset.mbAppMode');
@@ -223,7 +238,11 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         const artifactScrollbar = 'document.documentElement&&[getComputedStyle(document.documentElement).scrollbarWidth,innerWidth-document.documentElement.clientWidth,matchMedia("(pointer: fine)").matches]';
         await until(async () => { const state = JSON.stringify(await client.evaluate(artifactScrollbar, true)); if (state !== JSON.stringify(['none', 0, true])) throw new Error(state); return true; }, 'no native scrollbar in the artifact');
         assert.equal(await client.evaluate('getComputedStyle(document.querySelector(".mb-rail")).scrollbarWidth'), 'none');
-        await client.evaluate('window.focus()', true);
+        // Keys go to the focused frame. The real click on the app's conflict button left the focus in this frame, and
+        // the artifact cannot reliably take it back on its own (window.focus() from inside the iframe), so the frame
+        // hands it over first, as a reader's click into the artifact would.
+        const focusArtifact = async () => { await client.evaluate('document.getElementById("artifact").focus()'); await client.evaluate('window.focus()', true); };
+        await focusArtifact();
         await client.call('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Home', code: 'Home', windowsVirtualKeyCode: 36 });
         await client.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Home', code: 'Home', windowsVirtualKeyCode: 36 });
         await until(() => client.evaluate('scrollY===0', true), 'keyboard scroll without scrollbar');
@@ -239,6 +258,7 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await until(()=>client.evaluate('document.getElementById("q0").getClientRects().length>0',true),'keyboard fixture card visible');
         assert.equal(await client.evaluate('document.querySelector("[data-mb-question=q0] button[type=submit]")', true),null,'questions have no redundant submit button');
         const queuedBeforeSpace=await client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length');
+        await focusArtifact();
         await client.evaluate('(()=>{const input=document.querySelector("[data-mb-question=q0] input[value=yes]");input.scrollIntoView({block:"center"});input.focus();input.click()})()',true);
         assert.equal(await client.evaluate('document.querySelectorAll("#queuedLog .bubble.queued").length'),queuedBeforeSpace,'first option activation does not submit');
         await client.call('Input.dispatchKeyEvent',{type:'rawKeyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
