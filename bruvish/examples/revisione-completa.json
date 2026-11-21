@@ -1,0 +1,200 @@
+{
+  "id": "revisione-completa",
+  "title": "Bruvish · Revisione completa",
+  "intro": "Un esempio di ogni mattone della pagina: schede, testata, pillole, colori delle carte, etichette, aiuto, tabelle, note, diff con commenti, testo nelle risposte e cronologia.",
+  "guide": [
+    "Le schede in alto mostrano una sezione alla volta. Il «?» accanto al titolo apre l’aiuto della carta. Nei diff, «commenta» su una riga apre un campo per un commento."
+  ],
+  "tabs": true,
+  "header": {
+    "badge": {
+      "text": "Aperta",
+      "tone": "verde",
+      "icon": "pr-open"
+    },
+    "subtitle": "Unisce `fase2-mattoni-revisione` in `carry`",
+    "meta": ["mattiabestiaccia/bruvish", "21 novembre 2026", "2 file · **+5** · **−1**"]
+  },
+  "pills": [
+    {
+      "text": "rischio **basso**",
+      "tone": "verde"
+    },
+    {
+      "text": "tocca i **permessi**",
+      "tone": "decidi"
+    },
+    {
+      "text": "prove `verdi`",
+      "tone": "blu"
+    }
+  ],
+  "state": {
+    "revision": 0,
+    "answers": {},
+    "comments": []
+  },
+  "sections": [
+    {
+      "id": "sintesi",
+      "title": "Sintesi",
+      "cards": [
+        {
+          "id": "cosa-cambia",
+          "title": "Cosa cambia",
+          "tone": "blu",
+          "labels": [
+            {
+              "text": "informazione",
+              "tone": "blu"
+            }
+          ],
+          "help": "Riassume la PR in poche frasi. Leggila per prima: dice cosa cambia e perché.",
+          "paragraphs": [
+            "La regola che lasciava passare il push su `main` senza conferma va via. Il push resta possibile, ma lo valuta il classificatore."
+          ],
+          "table": {
+            "headers": ["Tema", "Rischio", "File"],
+            "rows": [
+              [
+                "Permessi",
+                {
+                  "text": "medio",
+                  "tone": "giallo"
+                },
+                "`bruvish/lib/regole.mjs` · `docs/regole.md`"
+              ],
+              [
+                "Documentazione",
+                {
+                  "text": "basso",
+                  "tone": "verde"
+                },
+                "`docs/regole.md`"
+              ]
+            ]
+          },
+          "notes": ["Il rischio lo stima il gate; la tabella lo riporta senza cambiarlo."]
+        },
+        {
+          "id": "controlli",
+          "title": "Controlli",
+          "tone": "verde",
+          "labels": [
+            {
+              "text": "CI",
+              "tone": "verde"
+            }
+          ],
+          "paragraphs": ["Tutti i controlli sono passati."],
+          "events": [
+            {
+              "text": "Aperta da **Mattia**",
+              "tone": "blu"
+            },
+            {
+              "text": "Revisione del gate: nessun rilievo",
+              "tone": "verde"
+            },
+            {
+              "text": "Prove: `node --test` verde",
+              "tone": "verde"
+            },
+            {
+              "text": "Unione in attesa della decisione",
+              "tone": "viola"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "file",
+      "title": "File modificati",
+      "count": 2,
+      "cards": [
+        {
+          "id": "diff",
+          "title": "Diff completo",
+          "labels": [
+            {
+              "text": "2 file",
+              "tone": "blu"
+            }
+          ],
+          "help": "Ogni file si chiude toccando il nome. Le note del revisore stanno sotto la riga. «commenta» su una riga accoda un commento per l’agente.",
+          "paragraphs": ["Il diff è per esteso, un blocco per file."],
+          "diff": {
+            "text": "diff --git a/bruvish/lib/regole.mjs b/bruvish/lib/regole.mjs\nindex 3f2a1c0..8b7d9e4 100644\n--- a/bruvish/lib/regole.mjs\n+++ b/bruvish/lib/regole.mjs\n@@ -1,6 +1,7 @@\n // Regole di permesso del profilo.\n export const regole = [\n-  \"Bash(git push origin main)\",\n+  // Il push su main passa dal classificatore.\n+  \"Bash(git status)\",\n   \"Bash(git diff)\",\n ];\n export const versione = 2;\ndiff --git a/docs/regole.md b/docs/regole.md\nnew file mode 100644\n--- /dev/null\n+++ b/docs/regole.md\n@@ -0,0 +1,3 @@\n+# Regole\n+\n+Il push su `main` non parte più da solo.\n",
+            "notes": {
+              "bruvish/lib/regole.mjs:4": "Al posto della regola tolta: il **classificatore** decide.",
+              "docs/regole.md:3": "Frase per chi legge le regole."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "decisione",
+      "title": "Decisione",
+      "cards": [
+        {
+          "id": "unione",
+          "title": "Unisco la PR?",
+          "status": "waiting",
+          "tone": "decidi",
+          "labels": [
+            {
+              "text": "decidi tu",
+              "tone": "decidi"
+            },
+            {
+              "text": "permessi",
+              "tone": "giallo"
+            }
+          ],
+          "help": "Qui scegli cosa fare della PR. Con «Chiedi modifiche» scrivi quali, nel campo che compare.",
+          "paragraphs": ["La PR tocca un permesso. Serve la tua decisione."],
+          "question": {
+            "label": "Cosa faccio?",
+            "options": [
+              {
+                "value": "unisci",
+                "label": "Unisci",
+                "recommended": true
+              },
+              {
+                "value": "modifiche",
+                "label": "Chiedi modifiche"
+              },
+              {
+                "value": "chiudi",
+                "label": "Chiudi senza unire"
+              }
+            ],
+            "reason": "Le prove sono verdi e il rischio è basso; il push resta possibile con conferma.",
+            "text": {
+              "label": "Quali modifiche?",
+              "placeholder": "Scrivi cosa cambiare…",
+              "for": ["modifiche"]
+            }
+          },
+          "notes": ["L’unione la fai tu: questa pagina accoda solo la scelta."]
+        },
+        {
+          "id": "blocco",
+          "title": "Un blocco di esempio",
+          "status": "blocked",
+          "tone": "rosso",
+          "labels": [
+            {
+              "text": "bloccante",
+              "tone": "rosso"
+            }
+          ],
+          "paragraphs": ["Una carta rossa segnala un problema che ferma il lavoro."]
+        }
+      ]
+    }
+  ]
+}

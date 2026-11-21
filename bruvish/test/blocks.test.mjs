@@ -327,3 +327,23 @@ test('every new card field enters the fingerprint only when present', () => {
   for (const [key, value] of Object.entries(extras))
     assert.notEqual(cardFingerprint({ ...plain, [key]: value }), cardFingerprint(plain), key);
 });
+
+test('the example revisione-completa uses every building block and renders through the CLI', async () => {
+  const input = await example('revisione-completa');
+  const cards = input.sections.flatMap(s => s.cards);
+  assert(input.tabs && input.header.badge.icon && input.header.subtitle && input.header.meta.length && input.pills.length && input.sections.some(s => s.count !== undefined));
+  for (const key of ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events']) assert(cards.some(c => c[key] !== undefined), key);
+  assert(cards.some(c => c.diff?.notes && Object.keys(c.diff.notes).length) && cards.some(c => c.question?.text?.for) && cards.some(c => c.tone === 'decidi'));
+  const { spawnSync } = await import('node:child_process');
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const os = await import('node:os'), path = await import('node:path');
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'bruvish-blocks-'));
+  try {
+    const output = path.join(dir, 'page.html');
+    const cli = new URL('../bin/bruvish.mjs', import.meta.url).pathname, file = new URL('../examples/revisione-completa.json', import.meta.url).pathname;
+    const r = spawnSync(process.execPath, [cli, 'render', file, '--output', output], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const html = await readFile(output, 'utf8');
+    for (const needle of ['nav class="mb-tabs"', 'mb-badge', 'mb-pill', 'data-mb-tone="decidi"', 'mb-label', 'mb-help', 'mb-table', 'mb-level', 'mb-notes', 'mb-diff-file', 'mb-line-note', 'data-mb-comment', 'mb-answer-text', 'mb-event']) assert(html.includes(needle), needle);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
