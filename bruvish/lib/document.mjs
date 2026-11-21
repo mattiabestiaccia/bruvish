@@ -136,7 +136,7 @@ function taggedList(list, where) {
         throw new Error(where + ' must be an array of { "text": "Bloccante", "tone": "rosso" }, each with a non-empty text and a tone among ' + TONES.join(', '));
     return list;
 }
-// Title row of a card: the title, then its labels on the same line, then the «?» that opens the help bubble over the card.
+// Title row of a card: the title, then its labels on the same line, then the «?» that opens the help panel in the flow.
 function cardHead(card) {
     const title = '<h3>' + inline(card.title) + '</h3>';
     const labels = card.labels === undefined ? [] : taggedList(card.labels, 'Card ' + card.id + ': labels');
@@ -347,9 +347,11 @@ function sectionIndex(input) {
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events'];
 const PAGE_BLOCKS = ['tabs', 'header', 'pills'];
-const usesBlocks = input => PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
+const usesBlocks = input => NAMED_THEMES.includes(input.theme) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
+// Themes asked by name only, never drawn: «revisione» is the look of the approved review page (S53, 22 novembre 2026).
+export const NAMED_THEMES = ['revisione'];
 export function familyFor(seed) { return FAMILIES[createHash('sha256').update(String(seed)).digest().readUInt32BE(0) % FAMILIES.length]; }
 // Canonical JSON: key order in input.json never changes a fingerprint.
 const canonical = value => Array.isArray(value) ? '[' + value.map(canonical).join(',') + ']' : value && typeof value === 'object' ? '{' + Object.keys(value).sort().filter(k => value[k] !== undefined).map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}' : JSON.stringify(value ?? null);
@@ -382,8 +384,8 @@ export async function renderDocument(input, options = {}) {
         throw new Error('title and a collapsible usage guide are required');
     const state = input.state || { revision: 0, answers: {}, comments: [] };
     const previous = typeof options.previous === 'string' ? renderRecord(options.previous) : (options.previous || null);
-    if (input.theme !== undefined && !FAMILIES.includes(input.theme))
-        throw new Error('Unknown theme family: ' + input.theme + ' (expected ' + FAMILIES.join(', ') + ')');
+    if (input.theme !== undefined && !FAMILIES.includes(input.theme) && !NAMED_THEMES.includes(input.theme))
+        throw new Error('Unknown theme family: ' + input.theme + ' (expected ' + FAMILIES.concat(NAMED_THEMES).join(', ') + ')');
     const family = input.theme || (FAMILIES.includes(previous?.theme) ? previous.theme : familyFor(input.id ?? options.id ?? input.title));
     const fingerprints = {};
     for (const section of input.sections || [])

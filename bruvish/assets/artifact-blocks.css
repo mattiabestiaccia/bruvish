@@ -25,14 +25,13 @@
 [data-tone=decidi]{--mb-tone:#e8c35a}
 .mb-label[data-tone],.mb-pill[data-tone]{box-shadow:0 0 0 1px color-mix(in srgb,var(--mb-tone) 40%,transparent)}
 .mb-label[data-tone=decidi],.mb-pill[data-tone=decidi]{box-shadow:0 0 0 1.5px #e8c35acc,0 0 10px #e8c35a66}
-/* Help: opens and closes with a click on «?», never on hover; a speech bubble over the card with an opaque dark background. */
-.mb-help-toggle{margin-left:auto;width:26px;height:26px;padding:0;border-radius:50%;font:600 15px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);opacity:.7}
-.mb-help-toggle:hover,.mb-help-toggle:focus-visible,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
-/* A speech bubble over the card (.carta > .fumetto of revisione.css): under the title row, right-aligned under «?»,
-   above the card content and out of the flow, so nothing moves. Mattia wants it over the text: Lavish may report the
-   covered text as a layout problem. artifact-blocks.js sets --mb-help-top and --mb-help-tip when it opens. */
-.mb-help{position:absolute;top:var(--mb-help-top,58px);right:12px;width:min(420px, calc(100% - 24px));z-index:5;margin:0;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
-.mb-help::before{content:"";position:absolute;top:-7px;right:var(--mb-help-tip,8px);width:12px;height:12px;background:#0b1114;border-left:1px solid var(--title);border-top:1px solid var(--title);transform:rotate(45deg)}
+/* Help, as on the approved review page (.carta > .aiuto and .fumetto of revisione.css): a round «?» in the top right
+   corner of the card, half transparent until the card is hovered or focused; a click opens the bubble right under the
+   title row, before the content; another click, a click outside it or Esc closes it. Never on hover. */
+.card:has(.mb-help-toggle) .mb-card-head{padding-right:34px}
+.mb-help-toggle{position:absolute;top:10px;right:10px;width:24px;height:24px;padding:0;border:1px solid var(--line);border-radius:50%;font:600 14px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);cursor:help;opacity:.55;transition:opacity .2s}
+.card:hover .mb-help-toggle,.card:focus-within .mb-help-toggle,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
+.mb-help{margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
 .mb-help-title{display:block;margin-bottom:4px;color:var(--title);font-family:STIXLocal,serif;font-variant-caps:small-caps;font-feature-settings:'smcp' 1;font-weight:650}
 .mb-help p{margin:0 0 .8em}
 .mb-help p:last-child{margin-bottom:0}
@@ -107,3 +106,34 @@ nav.mb-tabs{gap:4px}
 nav.mb-tabs a{padding:6px 12px;border:1px solid transparent;border-radius:7px;color:var(--muted);text-decoration:none;font-size:17px}
 nav.mb-tabs a:hover,nav.mb-tabs a:focus-visible{color:var(--ink);border-color:var(--line)}
 nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-color:var(--title)}
+/* Theme «revisione» (S53, 22 novembre 2026): the look of the approved review page, value by value
+   (laboratorio-stile/lavish/revisione-pr/mockup-pr-postit-6.html and agenti-comune/tools/pr-revisione/revisione.css).
+   Asked by name with "theme": "revisione"; never drawn at random. */
+:root[data-mb-family=revisione]{--card:rgba(5,40,44,0.5);--line:#245156;--ink:#d1e9eb;--muted:#95babe;--title:#4ed1de;--field:rgba(0,0,0,.18);--highlight:rgba(236,214,120,.30)}
+[data-mb-family=revisione] p{margin:0 0 .7em}
+[data-mb-family=revisione] .sentence+.sentence{margin-top:0}
+[data-mb-family=revisione] h1{font-size:34px}
+[data-mb-family=revisione] h3{font-size:20px}
+[data-mb-family=revisione] code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.86em;background:none;padding:0}
+[data-mb-family=revisione] mark{border-radius:3px;padding:0 .15em}
+/* cards: 20% narrower, in a central column; still glows, no pulse; very light tint of the category */
+[data-mb-family=revisione] .card{width:calc((100% - 18px) * .8);margin:0 auto 18px;padding:20px;border-radius:10px}
+@media(max-width:600px){[data-mb-family=revisione] .card{width:100%}}
+[data-mb-family=revisione] .card[data-mb-new]::after{animation:none}
+[data-mb-family=revisione] .card[data-mb-tone=verde]:not([data-mb-state=answered]),[data-mb-family=revisione] .card[data-mb-state=answered]{box-shadow:0 0 0 1px #63ca84aa,0 0 18px #63ca8466,inset 0 0 20px #63ca841f;background:linear-gradient(rgba(99,202,132,.07),rgba(99,202,132,.07)),var(--card)}
+[data-mb-family=revisione] .card[data-mb-state=info]:not([data-mb-tone]),[data-mb-family=revisione] .card[data-mb-tone=blu]:not([data-mb-state=answered]){box-shadow:0 0 0 1px #6bb5ffaa,0 0 18px #6bb5ff66,inset 0 0 20px #6bb5ff1f;background:linear-gradient(rgba(107,181,255,.07),rgba(107,181,255,.07)),var(--card)}
+[data-mb-family=revisione] .card[data-mb-state=blocked]:not([data-mb-tone]),[data-mb-family=revisione] .card[data-mb-tone=rosso]:not([data-mb-state=answered]){box-shadow:0 0 0 1px #fe8b83aa,0 0 18px #fe8b8366,inset 0 0 20px #fe8b831f;background:linear-gradient(rgba(254,139,131,.08),rgba(254,139,131,.08)),var(--card)}
+/* title row and tables as on the review page */
+[data-mb-family=revisione] .mb-card-head{gap:12px;margin-bottom:10px}
+[data-mb-family=revisione] .mb-table,[data-mb-family=revisione] table{font-size:17px}
+[data-mb-family=revisione] th,[data-mb-family=revisione] td{padding:8px 6px}
+[data-mb-family=revisione] .mb-notes p{font-size:15px;opacity:.8}
+/* page header with a bottom rule; the tab bar sticks to the top with a blur, the active tab framed in the accent */
+[data-mb-family=revisione] header{border-bottom:1px solid var(--line);padding-bottom:16px}
+[data-mb-family=revisione] nav.mb-tabs{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:4px;padding:10px 0;margin-bottom:14px;border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+[data-mb-family=revisione] nav.mb-tabs a{font-size:17px;padding:6px 12px;border-radius:7px}
+[data-mb-family=revisione] .mb-count{background:none;border:0;padding:0;font-size:14px}
+/* diffs: each file a card-like block of the same narrower column */
+[data-mb-family=revisione] .mb-diff-file{background:var(--card);border-radius:10px;margin:0 0 14px}
+[data-mb-family=revisione] .mb-diff-file>summary{padding:12px 16px}
+[data-mb-family=revisione] .card[data-mb-state=waiting]:not([data-mb-tone]){border-color:#d6ab32cc;box-shadow:0 0 0 1.5px #e8c35acc,0 0 22px #e8c35a88,0 0 46px #d6ab3240,inset 0 0 24px #e8c35a22;background:linear-gradient(rgba(232,195,90,.08),rgba(232,195,90,.08)),var(--card)}
