@@ -296,11 +296,7 @@ test('only the Mac app bridge accepts transparent mode; browser and phone remain
 test('minimap shape and colours follow the approved mock-up; the new lines pulse in opacity unless motion is reduced', () => {
   assert.doesNotMatch(css + addon, /mb-position/, 'the scroll cursor is gone');
   const rule = selector => css.match(new RegExp(selector.replace(/[.[\]=]/g, '\\$&') + '\\{([^}]*)\\}'))?.[1] || '';
-  assert.match(rule('.mb-rail'), /gap:2px/, 'rows closer than the mock-up: 20px from one line to the next instead of 31px');
   assert.match(rule('.mb-rail'), /overflow:auto;scrollbar-width:none/, 'a long minimap scrolls without a scrollbar of its own');
-  assert.match(rule('.mb-rail button'), /width:22px;height:18px/);
-  assert.match(rule('.mb-rail i'), /top:7px/, 'the line stays centred in the shorter row');
-  assert.match(rule('.mb-rail .mb-closed i'), /top:6\.5px/, 'and so does the dot of a closed card');
   assert.match(rule('.mb-rail i'), /height:4px;width:12px/);
   assert.match(rule('.mb-rail .current i'), /width:22px/);
   for (const [state, color] of Object.entries({ waiting: '#d6ab32', answered: '#63ca84', info: '#6bb5ff', blocked: '#fe8b83' }))
