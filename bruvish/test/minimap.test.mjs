@@ -174,8 +174,7 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
     querySelector: selector => bySelector[selector] ?? null,
     createTreeWalker: scope => { const nodes = descendants(scope); let i = 0; return { nextNode: () => nodes[i++] ?? null }; },
     get activeElement() { return active?.() ?? body; },
-    addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); },
-    dispatchEvent: event => { events.push(event.type); return true; }
+    addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
   };
   const context = {
     document, posted,
