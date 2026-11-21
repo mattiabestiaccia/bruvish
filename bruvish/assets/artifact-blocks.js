@@ -103,7 +103,29 @@
             window.lavish.queuePrompt('Risposta per ' + question, { tag: 'choice', text: 'Risposta: ' + question, element: input, selector: '[data-mb-question="' + question + '"] input[value="' + quoted(input.value) + '"]', queueKey: 'answer:' + question, data: { question, answer } });
             sayIn(form, '');
             form.querySelector('.mb-armed')?.classList.remove('mb-armed');
+            lastQueued = input;
         }, true);
+        // The submit above stops artifact.js, which therefore keeps that option armed: the next tap on it would queue it
+        // again at once. So the next tap (or Space) on the option just queued only arms it again, as a first tap does;
+        // the tap after that reaches artifact.js, which queues it. A tap on another option drops this memory.
+        let lastQueued = null;
+        const rearm = event => {
+            const input = event.target;
+            if (!lastQueued || !input || input.type !== 'radio' || (event.type === 'keyup' && event.key !== ' '))
+                return;
+            if (input !== lastQueued || !input.checked) {
+                lastQueued = null;
+                return;
+            }
+            const label = input.closest('label');
+            if (!label || label.classList.contains('mb-armed'))
+                return;
+            label.classList.add('mb-armed');
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            lastQueued = null;
+        };
+        textForms.forEach(form => { form.addEventListener('click', rearm, true); form.addEventListener('keyup', rearm, true); });
         // Line comments on a diff: «commenta» opens a text box under the line; «Aggiungi» queues the comment with the
         // line as anchor. The queued and sent marks follow the chrome's anchor lists, as for the answers.
         const lineSelector = key => 'tr[data-mb-line="' + quoted(key) + '"]';

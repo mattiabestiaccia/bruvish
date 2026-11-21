@@ -340,3 +340,28 @@ test('yellow is always intense: tone giallo has the glow, tint and colour of dec
     assert.match(declarations(tone), /background:linear-gradient\(rgba\(232,195,90,\.08\)/, tone);
   }
 });
+
+test('after an answer with text is queued, the next tap on the same option arms it again and only the one after queues', async () => {
+  const question = { options: [{ value: 'a', label: 'Unisci', recommended: true }, { value: 'b', label: 'Chiedi modifiche' }], text: { label: 'Quali?', for: ['b'] } };
+  const html = await render(doc([card({ status: 'waiting', question })]));
+  for (const way of ['click', 'space']) {
+    const { document, window } = boot(html);
+    const form = document.querySelector('[data-mb-question]'), [a, b] = form.querySelectorAll('input[name="choice"]');
+    form.querySelector('textarea').value = 'Togli la regola.';
+    const tap = input => { input.checked = true; if (way === 'click') document.dispatch(input, 'click'); else document.dispatch(input, 'keyup', { key: ' ' }); };
+    tap(b);
+    assert.equal(window.queued.length, 0, way + ': the first tap arms');
+    tap(b);
+    assert.equal(window.queued.length, 1, way + ': the second tap queues');
+    tap(b);
+    assert.equal(window.queued.length, 1, way + ': the tap after queueing arms again');
+    assert(b.closest('label').classList.contains('mb-armed'), way);
+    tap(b);
+    assert.equal(window.queued.length, 2, way + ': the next tap queues again');
+    // Another option in between drops the memory: it is armed and queued as usual.
+    tap(a);
+    assert.equal(window.queued.length, 2, way);
+    tap(a);
+    assert.equal(window.queued.length, 3, way);
+  }
+});

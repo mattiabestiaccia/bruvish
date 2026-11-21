@@ -108,7 +108,8 @@ export function createWindow(document, { lavish = true, hash = '' } = {}) {
   };
   if (lavish) window.lavish = { queuePrompt: (prompt, options) => window.queued.push({ prompt, ...options }) };
   window.window = window;
-  window.HTMLInputElement = class {};
+  // artifact.js checks event targets with instanceof: the inputs of this DOM count as input elements.
+  window.HTMLInputElement = class { static [Symbol.hasInstance](el) { return el?.tagName === 'input'; } };
   return window;
 }
 
