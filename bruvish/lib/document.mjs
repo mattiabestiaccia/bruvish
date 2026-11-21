@@ -150,6 +150,42 @@ function cardHead(card) {
     }
     return '<div class="mb-card-head">' + title + (labels.length ? '<span class="mb-labels">' + labels.map(l => '<span class="mb-label" data-tone="' + l.tone + '">' + inline(l.text) + '</span>').join('') + '</span>' : '') + toggle + '</div>' + help;
 }
+// Closed set of inline icons for the header badge: Octicons by GitHub, MIT licence (bruvish/licenses/Octicons-MIT.txt),
+// 16 px paths of git-pull-request, git-merge, git-pull-request-closed, git-pull-request-draft, check, x and dot-fill.
+const ICONS = {
+    'pr-open': 'M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z',
+    'pr-merged': 'M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218ZM4.25 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm8.5-4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM5 3.25a.75.75 0 1 0 0 .005V3.25Z',
+    'pr-closed': 'M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 5.5a.75.75 0 0 1 .75.75v3.378a2.251 2.251 0 1 1-1.5 0V7.25a.75.75 0 0 1 .75-.75Zm-2.03-5.273a.75.75 0 0 1 1.06 0l.97.97.97-.97a.748.748 0 0 1 1.265.332.75.75 0 0 1-.205.729l-.97.97.97.97a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018l-.97-.97-.97.97a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l.97-.97-.97-.97a.75.75 0 0 1 0-1.06ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z',
+    'pr-draft': 'M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 14a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM14 7.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Zm0-4.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Z',
+    check: 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z',
+    x: 'M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z',
+    dot: 'M8 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z',
+};
+const icon = name => '<svg class="mb-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="' + ICONS[name] + '"></path></svg>';
+// Page header: a badge (text, tone, optional icon), the meta items on the same row above the title, the subtitle under it.
+function headerParts(header) {
+    if (header === undefined)
+        return { before: '', after: '' };
+    if (!header || typeof header !== 'object' || Array.isArray(header))
+        throw new Error('header must be an object like { "badge": { "text": "Aperta", "tone": "verde", "icon": "pr-open" }, "subtitle": "...", "meta": ["..."] }');
+    let badge = '';
+    if (header.badge !== undefined) {
+        const b = header.badge;
+        if (!b || typeof b !== 'object' || typeof b.text !== 'string' || !b.text.trim())
+            throw new Error('header.badge must be { "text": "Aperta", "tone": "verde", "icon": "pr-open" } with a non-empty text');
+        toneOf(b.tone, 'header.badge');
+        if (b.icon !== undefined && !Object.hasOwn(ICONS, b.icon))
+            throw new Error('header.badge.icon must be one of ' + Object.keys(ICONS).join(', ') + ' (got ' + JSON.stringify(b.icon) + ')');
+        badge = '<span class="mb-badge" data-tone="' + b.tone + '">' + (b.icon === undefined ? '' : icon(b.icon)) + inline(b.text) + '</span>';
+    }
+    if (header.meta !== undefined && (!Array.isArray(header.meta) || header.meta.some(m => typeof m !== 'string')))
+        throw new Error('header.meta must be an array of strings, like ["repo **bruvish**", "21 novembre 2026"]');
+    if (header.subtitle !== undefined && typeof header.subtitle !== 'string')
+        throw new Error('header.subtitle must be a string');
+    const meta = (header.meta || []).map(m => '<span class="mb-meta-item">' + inline(m) + '</span>').join('');
+    return { before: badge || meta ? '<div class="mb-header-meta">' + badge + meta + '</div>' : '', after: header.subtitle ? '<p class="mb-subtitle">' + inline(header.subtitle) + '</p>' : '' };
+}
+const pillsOf = pills => pills === undefined ? '' : '<div class="mb-pills">' + taggedList(pills, 'pills').map(p => '<span class="mb-pill" data-tone="' + p.tone + '">' + inline(p.text) + '</span>').join('') + '</div>';
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events'];
@@ -234,9 +270,9 @@ export async function renderDocument(input, options = {}) {
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
-    const blocks = usesBlocks(input);
+    const blocks = usesBlocks(input), head = headerParts(input.header);
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header><h1>' + escape(input.title) + '</h1>' + paragraphs(input.intro ? [input.intro] : []) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details><nav>' + input.sections.map(s => '<a href="#' + s.id + '">' + escape(s.title) + '</a>').join('') + '</nav>' + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header>' + head.before + '<h1>' + escape(input.title) + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details><nav>' + input.sections.map(s => '<a href="#' + s.id + '">' + escape(s.title) + '</a>').join('') + '</nav>' + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }

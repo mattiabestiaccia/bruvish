@@ -93,3 +93,22 @@ test('help opens with a click on «?» in the flow of the card, closes with anot
   assert.deepEqual(spoken, ['Una carta Testo.']);
   await assert.rejects(render(doc([card({ help: '' })])), /Card a: help/);
 });
+
+test('the header carries a badge with a closed set of inline icons, a subtitle and meta items; pills follow under it', async () => {
+  const header = { badge: { text: 'Aperta', tone: 'verde', icon: 'pr-open' }, subtitle: 'Unisce `fase2` in `carry`', meta: ['repo **bruvish**', 'oggi <b>'] };
+  const html = await render(doc([card()], { header, intro: 'Una frase.', pills: [{ text: 'rischio **basso**', tone: 'verde' }, { text: 'tocca la sandbox', tone: 'decidi' }] }));
+  const head = /<header>[\s\S]*?<\/header>/.exec(html)[0];
+  assert.match(head, /^<header><div class="mb-header-meta"><span class="mb-badge" data-tone="verde"><svg class="mb-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M1\.5 3\.25[^"]*"><\/path><\/svg>Aperta<\/span><span class="mb-meta-item">repo <strong>bruvish<\/strong><\/span><span class="mb-meta-item">oggi &lt;b&gt;<\/span><\/div><h1>Prova<\/h1><p class="mb-subtitle">Unisce <code>fase2<\/code> in <code>carry<\/code><\/p><p><span class="sentence">Una frase\.<\/span><\/p><div class="mb-pills"><span class="mb-pill" data-tone="verde">rischio <strong>basso<\/strong><\/span><span class="mb-pill" data-tone="decidi">tocca la sandbox<\/span><\/div><\/header>$/);
+  for (const icon of ['pr-open', 'pr-merged', 'pr-closed', 'pr-draft', 'check', 'x', 'dot']) {
+    const page = await render(doc([card()], { header: { badge: { text: 'Stato', tone: 'viola', icon } } }));
+    assert.match(page, /<span class="mb-badge" data-tone="viola"><svg class="mb-icon" viewBox="0 0 16 16"[^>]*><path fill="currentColor" d="M[0-9][^"]+"><\/path><\/svg>Stato<\/span>/, icon);
+  }
+  assert.match(await render(doc([card()], { header: { badge: { text: 'Senza icona', tone: 'blu' } } })), /<span class="mb-badge" data-tone="blu">Senza icona<\/span>/);
+  await assert.rejects(render(doc([card()], { header: { badge: { text: 'x', tone: 'blu', icon: 'rocket' } } })), /header\.badge\.icon must be one of pr-open, pr-merged, pr-closed, pr-draft, check, x, dot/);
+  await assert.rejects(render(doc([card()], { header: { badge: { text: '', tone: 'blu' } } })), /header\.badge/);
+  await assert.rejects(render(doc([card()], { header: { meta: 'x' } })), /header\.meta/);
+  await assert.rejects(render(doc([card()], { pills: [{ text: 'x' }] })), /pills must be an array/);
+  assert.match(blocksCss, /\.mb-badge\{[^}]*color:#fff/);
+  const license = await readFile(new URL('../licenses/Octicons-MIT.txt', import.meta.url), 'utf8');
+  assert.match(license, /MIT License[\s\S]*GitHub/);
+});

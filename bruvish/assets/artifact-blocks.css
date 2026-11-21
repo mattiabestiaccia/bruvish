@@ -31,3 +31,14 @@
 .mb-help{margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:17px}
 .mb-help p{margin:0 0 .8em}
 .mb-help p:last-child{margin-bottom:0}
+/* Page header: badge and meta items above the title, subtitle under it, pills at the bottom. */
+.mb-header-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 12px;font-size:16px;color:var(--muted)}
+.mb-badge{display:inline-flex;align-items:center;gap:6px;color:#fff;font-size:15px;font-weight:600;border-radius:999px;padding:4px 12px 4px 10px;background:#1f6feb}
+.mb-badge[data-tone=verde]{background:#238636}
+.mb-badge[data-tone=viola]{background:#8957e5}
+.mb-badge[data-tone=rosso]{background:#da3633}
+.mb-badge[data-tone=giallo]{background:#9e6a03}
+.mb-badge[data-tone=decidi]{background:#bf8700;box-shadow:0 0 10px #e8c35a88}
+.mb-icon{flex:none}
+.mb-subtitle{margin:-6px 0 14px;font-size:17px;color:var(--muted)}
+.mb-pills{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:12px}
