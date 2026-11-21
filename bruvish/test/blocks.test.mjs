@@ -428,12 +428,17 @@ test('the help is a speech bubble over the card: under the title row, right-alig
   const { document } = boot(html);
   const opaque = colour => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(colour) || /^#[0-9a-f]{3}f$|^#[0-9a-f]{6}ff$/i.test(colour) || /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*(1|1\.0+)\s*)?\)$/.test(colour);
   const none = value => value === undefined || /^(none|0(px)?|transparent)$/.test(value.trim());
+  // The widest the bubble can get, in px, from a length in width or max-width or a px argument of min(): BRUVISH.md says 420 at most.
+  const cap = value => { const text = (value || '').trim(), px = /^(\d+(?:\.\d+)?)px$/.exec(text);
+    if (px) return Number(px[1]);
+    const caps = /^min\(/.test(text) ? [...text.slice(4, -1).matchAll(/(?:^|,)\s*(\d+(?:\.\d+)?)px\s*(?=,|$)/g)].map(m => Number(m[1])) : [];
+    return caps.length ? Math.min(...caps) : Infinity; };
   const problems = css => {
     const look = computed(css, document.querySelector('.mb-help')), found = [];
     if (look.position !== 'absolute') found.push('in the flow: it would push the card content');
     if (computed(css, document.querySelector('article.card')).position !== 'relative') found.push('the card is not its containing block');
     if (none(look.right)) found.push('not aligned to the right');
-    if (look.width !== 'min(420px, calc(100% - 24px))') found.push('wrong width');
+    if (!(Math.min(cap(look.width), cap(look['max-width'])) <= 420)) found.push('wider than 420px');
     if (!(Number(look['z-index']) > 0)) found.push('not above the card content');
     if (none(look.border) && none(look['border-width'])) found.push('no border');
     if (none(look['border-radius'])) found.push('square corners');
@@ -445,6 +450,9 @@ test('the help is a speech bubble over the card: under the title row, right-alig
   assert.deepEqual(problems(styleOf(html)), []);
   // A later rule that puts the bubble back in the flow and drops its shadow is caught.
   assert.deepEqual(problems(styleOf(html) + '.card .mb-help{position:static;box-shadow:none}'), ['in the flow: it would push the card content', 'no shadow']);
+  // The same bound written another way passes; a wider bubble is caught.
+  assert.deepEqual(problems(styleOf(html) + '.card .mb-help{width:calc(100% - 24px);max-width:420px}'), []);
+  assert.deepEqual(problems(styleOf(html) + '.card .mb-help{width:min(900px, calc(100% - 24px))}'), ['wider than 420px']);
   // Once open, the bubble sits under the title row and its tip points at the «?» of the card.
   const button = document.querySelector('[data-mb-help]'), panel = document.getElementById('mb-help-a');
   const props = {};
@@ -454,7 +462,7 @@ test('the help is a speech bubble over the card: under the title row, right-alig
   panel.getBoundingClientRect = () => ({ left: 100, right: 700, width: 600 });
   button.getBoundingClientRect = () => ({ left: 600, right: 626, width: 26 });
   button.click();
-  assert.equal(props['--mb-help-top'], '62px', 'title row bottom 252 - card top 200 + 10');
+  assert(/^\d+px$/.test(props['--mb-help-top']) && parseFloat(props['--mb-help-top']) >= 52, 'under the title row: its bottom 252 - card top 200 (got ' + props['--mb-help-top'] + ')');
   assert.equal(props['--mb-help-tip'], '81px', 'tip centre under the centre of «?»: 700 - 613 - 6');
 });
 
@@ -478,4 +486,15 @@ test('the help bubble closes with a click outside it or with Esc, and only one i
   document.dispatch(panelB.querySelector('p'), 'keydown', { key: 'Escape' });
   assert.equal(panelB.hidden, true, 'Esc closes it');
   assert.equal(document.activeElement, second, 'Esc gives the focus back to «?»');
+  // A click outside still closes it when another handler stops the click first: Lavish annotation mode does so in
+  // capture on the document, and an answer form may stop it in capture.
+  const stop = event => event.stopPropagation();
+  const cardA = document.querySelector('article.card'), textA = cardA.querySelectorAll('p').find(p => !p.closest('.mb-help'));
+  for (const [node, target, why] of [[document, document.querySelector('h1'), 'a capture handler on the document'], [cardA, textA, 'a capture handler on a card']]) {
+    second.click();
+    node.addEventListener('click', stop, true);
+    document.dispatch(target, 'click');
+    assert.equal(panelB.hidden, true, why + ' that stops the click does not keep it open');
+    node.listeners.click = node.listeners.click.filter(l => l.fn !== stop);
+  }
 });

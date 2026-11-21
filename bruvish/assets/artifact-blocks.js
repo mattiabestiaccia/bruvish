@@ -86,7 +86,7 @@
         }));
         if (helpButtons.length) {
             document.addEventListener('click', event => { if (!event.target?.closest?.('.mb-help, [data-mb-help]'))
-                helpButtons.forEach(closeHelp); });
+                helpButtons.forEach(closeHelp); }, true);
             document.addEventListener('keydown', event => {
                 if (event.key !== 'Escape')
                     return;

@@ -136,7 +136,7 @@ function taggedList(list, where) {
         throw new Error(where + ' must be an array of { "text": "Bloccante", "tone": "rosso" }, each with a non-empty text and a tone among ' + TONES.join(', '));
     return list;
 }
-// Title row of a card: the title, then its labels on the same line, then the «?» that opens the help panel in the flow.
+// Title row of a card: the title, then its labels on the same line, then the «?» that opens the help bubble over the card.
 function cardHead(card) {
     const title = '<h3>' + inline(card.title) + '</h3>';
     const labels = card.labels === undefined ? [] : taggedList(card.labels, 'Card ' + card.id + ': labels');
