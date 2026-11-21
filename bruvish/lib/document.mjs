@@ -347,7 +347,7 @@ function sectionIndex(input) {
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events'];
 const PAGE_BLOCKS = ['tabs', 'header', 'pills'];
-const usesBlocks = input => NAMED_THEMES.includes(input.theme) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
+const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
 // Themes asked by name only, never drawn: «revisione» is the look of the approved review page (S53, 22 novembre 2026).
@@ -386,7 +386,7 @@ export async function renderDocument(input, options = {}) {
     const previous = typeof options.previous === 'string' ? renderRecord(options.previous) : (options.previous || null);
     if (input.theme !== undefined && !FAMILIES.includes(input.theme) && !NAMED_THEMES.includes(input.theme))
         throw new Error('Unknown theme family: ' + input.theme + ' (expected ' + FAMILIES.concat(NAMED_THEMES).join(', ') + ')');
-    const family = input.theme || (FAMILIES.includes(previous?.theme) ? previous.theme : familyFor(input.id ?? options.id ?? input.title));
+    const family = input.theme || (FAMILIES.includes(previous?.theme) || NAMED_THEMES.includes(previous?.theme) ? previous.theme : familyFor(input.id ?? options.id ?? input.title));
     const fingerprints = {};
     for (const section of input.sections || [])
         for (const card of section.cards || [])
@@ -429,7 +429,7 @@ export async function renderDocument(input, options = {}) {
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
-    const blocks = usesBlocks(input), head = headerParts(input.header);
+    const blocks = usesBlocks(input, family), head = headerParts(input.header);
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };

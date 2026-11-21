@@ -31,20 +31,21 @@ function boot(html, options) {
 }
 
 // The declarations that reach one element through the cascade of a style sheet: every rule whose selector matches the
-// element (with its ancestors and earlier siblings), by importance, then specificity, then source order. The rules of
-// @media and @supports count whatever their condition; other at-rules, pseudo-elements and other pseudo-classes
-// (user actions, structure) never match.
-function computed(css, el) {
+// element (with its ancestors and earlier siblings), by importance, then specificity, then source order.
+function computed(css, el, width = 1024) {
   const split = (text, sep) => { const out = []; let depth = 0, quote = '', cur = ''; for (const c of text) { if (quote) { if (c === quote) quote = ''; } else if (c === '"' || c === "'") quote = c; else if ('([{'.includes(c)) depth++; else if (')]}'.includes(c)) depth--; else if (c === sep && !depth) { out.push(cur); cur = ''; continue; } cur += c; } return [...out, cur].map(x => x.trim()).filter(Boolean); };
   const rules = [];
   const walk = text => { for (let at = 0, open; (open = text.indexOf('{', at)) >= 0;) {
     let end = open + 1; for (let depth = 1; depth; end++) depth += text[end] === '{' ? 1 : text[end] === '}' ? -1 : 0;
     const prelude = text.slice(at, open).trim(), body = text.slice(open + 1, end - 1);
-    if (/^@(media|supports)\b/.test(prelude)) walk(body); else if (!prelude.startsWith('@')) rules.push({ selectors: split(prelude, ','), body });
+    if (/^@media\b/.test(prelude)) {
+      const limits = [...prelude.matchAll(/\((min|max)-width:\s*(\d+)px\)/g)];
+      if (limits.every(([, kind, px]) => kind === 'min' ? width >= Number(px) : width <= Number(px))) walk(body);
+    } else if (/^@supports\b/.test(prelude)) walk(body); else if (!prelude.startsWith('@')) rules.push({ selectors: split(prelude, ','), body });
     at = end;
   } };
   walk(css.replace(/\/\*[\s\S]*?\*\//g, ''));
-  const PART = /([a-z][\w-]*|\*)|#([\w-]+)|\.([\w-]+)|\[([\w-]+)(?:=("[^"]*"|'[^']*'|[^\]]*))?\]|:not\(([^()]*)\)|(::?[\w-]+(?:\([^()]*\))?)/gy;
+  const PART = /([a-z][\w-]*|\*)|#([\w-]+)|\.([\w-]+)|\[([\w-]+)(?:=("[^"]*"|'[^']*'|[^\]]*))?\]|:not\(([^()]*)\)|:where\(([^()]*)\)|(::?[\w-]+(?:\([^()]*\))?)/gy;
   const compound = (node, text) => { let ok = true, spec = [0, 0, 0], m; const part = new RegExp(PART);
     while (part.lastIndex < text.length) {
       const start = part.lastIndex; if (!(m = part.exec(text)) || m.index !== start) throw new Error('selector not supported by the test cascade: ' + text);
@@ -53,7 +54,8 @@ function computed(css, el) {
       else if (m[3]) { spec[1]++; ok &&= node.classList.contains(m[3]); }
       else if (m[4]) { spec[1]++; ok &&= m[4] in node.attributes && (m[5] === undefined || node.attributes[m[4]] === m[5].replace(/^["']|["']$/g, '')); }
       else if (m[6] !== undefined) { const inner = compound(node, m[6]); spec = spec.map((n, i) => n + inner.spec[i]); ok &&= !inner.ok; }
-      else { spec[m[7].startsWith('::') ? 2 : 1]++; ok &&= m[7] === ':root' && node.tagName === 'html'; }
+      else if (m[7] !== undefined) ok &&= compound(node, m[7]).ok;
+      else { spec[m[8].startsWith('::') ? 2 : 1]++; ok &&= m[8] === ':root' && node.tagName === 'html'; }
     }
     return { ok: ok && !!node.tagName && node.tagName !== '#root', spec };
   };
@@ -463,12 +465,75 @@ test('one help open at a time; a click outside the bubble or Esc closes it, a cl
   document.dispatch(document, 'keydown', { key: 'Escape' });
   assert.equal(two.hidden, true);
   assert.equal(second.getAttribute('aria-expanded'), 'false');
+  assert.equal(document.activeElement, second, 'Esc gives the focus back to «?»');
+  // A click outside still closes it when another handler stops the click first: Lavish annotation mode does so in
+  // capture on the document, and an answer form may stop it in capture.
+  const stop = event => event.stopPropagation();
+  const cardA = document.querySelector('article.card'), textA = cardA.querySelectorAll('p').find(p => !p.closest('.mb-help'));
+  for (const [node, target, why] of [[document, document.querySelector('h1'), 'a capture handler on the document'], [cardA, textA, 'a capture handler on a card']]) {
+    second.click();
+    node.addEventListener('click', stop, true);
+    document.dispatch(target, 'click');
+    assert.equal(two.hidden, true, why + ' that stops the click does not keep it open');
+    node.listeners.click = node.listeners.click.filter(l => l.fn !== stop);
+  }
 });
 
+// Values of the approved review page (agenti-comune/tools/pr-revisione/revisione.css): accent #4ed1de, cards 20%
+// narrower than the column minus their 18px indent, a sticky tab bar, tables at 17px with 8px 6px cells, and the diff
+// at 13.5px with 1px 8px cells (.diff table, .diff td).
 test('the theme «revisione» is asked by name, never drawn, and brings the look of the approved review page', async () => {
-  const html = await render({ ...doc([card()]), theme: 'revisione' });
+  const diff = { text: 'diff --git a/x.js b/x.js\n--- a/x.js\n+++ b/x.js\n@@ -1,1 +1,1 @@\n-a\n+b\n', notes: { 'x.js:1': 'Una nota.' } };
+  const input = doc([card({ table: { headers: ['A', 'B'], rows: [['1', '2']] }, fields: [{ label: 'Oggi', paragraphs: ['Un campo.', 'Un altro campo.'] }], clarification: 'Un chiarimento.', diff })], { tabs: true, theme: 'revisione', state: { comments: [{ card: 'a', text: 'Un commento.', response: 'Una risposta.' }] } });
+  const html = await render(input);
   assert.match(html, /data-mb-family="revisione"/);
-  assert.match(html, /\[data-mb-family=revisione\]/, 'its rules come with the building blocks');
+  const look = (page, selector) => { const { document } = boot(page); return computed(styleOf(page), document.querySelector(selector)); };
+  assert.equal(look(html, 'html')['--title'], '#4ed1de');
+  const cardLook = look(html, 'article.card');
+  assert.equal(cardLook.width, 'calc((100% - 18px) * .8)');
+  assert.equal(look(html, 'nav.mb-tabs').position, 'sticky');
+  assert.equal(look(html, '.mb-table')['font-size'], '17px');
+  assert.equal(look(html, '.mb-table td').padding, '8px 6px');
+  assert.equal(look(html, '.mb-diff-lines')['font-size'], '13.5px');
+  assert.equal(look(html, '.mb-diff-lines td').padding, '1px 8px');
+  const { document, window } = boot(html);
+  document.querySelector('[data-mb-comment]').click();
+  for (const width of [1024, 390]) {
+    const styles = selector => computed(styleOf(html), document.querySelector(selector), width);
+    assert.equal(styles('article.card').width, width === 390 ? '100%' : 'calc((100% - 18px) * .8)');
+    assert.equal(styles('.mb-diff-lines')['font-size'], '13.5px');
+    for (const selector of ['.mb-num', '.mb-code']) assert.equal(styles(selector).padding, '1px 8px', selector);
+    assert.equal(styles('.mb-cmt').padding, '0 6px');
+    for (const selector of ['.mb-note-row td', '.mb-comment-row td']) assert.equal(styles(selector).padding, '0', selector);
+    assert.equal(styles('.mb-fields td').padding, width === 390 ? '0 0 10px' : '10px 0');
+    assert.equal(styles('.mb-fields td p').margin, '0 0 1.2em');
+    for (const selector of ['.guide p', '.context p']) assert.equal(styles(selector).margin, '12px 0', selector);
+    const text = document.createElement('p');
+    document.querySelector('.followup').append(text);
+    assert.equal(computed(styleOf(html), text, width).margin, '8px 0');
+  }
+  const [observer] = window.resizeObservers;
+  assert.equal(observer.target, document.querySelector('nav.mb-tabs'));
+  for (const height of [59, 98, 176, 59]) {
+    observer.target.offsetHeight = height;
+    observer.callback();
+    const measured = document.documentElement.style.getPropertyValue('--mb-tabs-height');
+    const margin = cardLook['scroll-margin-top'].replace(/var\(--mb-tabs-height,[^)]*\)/, measured);
+    const [, barHeight, gap] = /^calc\(([\d.]+)px \+ ([\d.]+)px\)$/.exec(margin);
+    assert(Number(barHeight) + Number(gap) >= height + 24, 'a wrapped or resized tab bar leaves the title visible');
+  }
+  assert.equal(boot(await render(doc([card()], { tabs: true, theme: 'B' }))).window.resizeObservers.length, 0);
+  assert.equal(boot(await render(doc([card()], { theme: 'revisione' }))).window.resizeObservers.length, 0);
+  // A later render of the same page without "theme" keeps it, with its rules.
+  const again = await render(doc([card()]), { previous: html });
+  assert.match(again, /data-mb-family="revisione"/);
+  assert.equal(look(again, 'html')['--title'], '#4ed1de');
+  const { renderRecord } = await import('../lib/document.mjs');
+  const fromRecord = await render(doc([card()]), { previous: renderRecord(again) });
+  assert.equal(look(fromRecord, 'html')['--title'], '#4ed1de');
+  const replaced = await render(doc([card()], { theme: 'F' }), { previous: again });
+  assert.match(replaced, /data-mb-family="F"/);
+  assert.equal(look(replaced, 'html')['--title'], '#e1a3e4');
   await assert.rejects(render({ ...doc([card()]), theme: 'nessuno' }), /expected B, F, E2, G2, D3, revisione/);
   const { FAMILIES } = await import('../lib/document.mjs');
   assert.equal(FAMILIES.includes('revisione'), false);

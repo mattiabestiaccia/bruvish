@@ -11,6 +11,7 @@ export function createDocument(html) {
   const make = (tagName, attributes = {}) => {
     const el = {
       tagName, attributes: { ...attributes }, children: [], parent: null, listeners: {}, scrolled: 0,
+      style: { setProperty(name, value) { this[name] = value; }, getPropertyValue(name) { return this[name] || ''; } },
       value: attributes.value ?? '', checked: 'checked' in attributes,
       get type() { return this.attributes.type || ''; },
       get name() { return this.attributes.name || ''; },
@@ -101,6 +102,11 @@ export function createWindow(document, { lavish = true, hash = '' } = {}) {
   const listeners = {}, parent = {};
   const window = {
     document, parent, queued: [], location: { hash }, history: { replaceState: (a, b, url) => { window.location.hash = url; } },
+    resizeObservers: [],
+    ResizeObserver: class {
+      constructor(callback) { this.callback = callback; window.resizeObservers.push(this); }
+      observe(target) { this.target = target; }
+    },
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
     post(data) { (listeners.message || []).forEach(fn => fn({ source: parent, data })); },
     fire(type, event = {}) { (listeners[type] || []).forEach(fn => fn(event)); },

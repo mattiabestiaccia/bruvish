@@ -5,6 +5,8 @@
         // section opens its tab first. The minimap follows, since it maps only the visible cards.
         const bar = document.querySelector('nav.mb-tabs');
         if (bar) {
+            if (document.documentElement.dataset.mbFamily === 'revisione')
+                new ResizeObserver(() => document.documentElement.style.setProperty('--mb-tabs-height', bar.offsetHeight + 'px')).observe(bar);
             const links = [...bar.querySelectorAll('a[data-mb-tab]')];
             const panels = links.map(link => document.getElementById(link.dataset.mbTab)).filter(Boolean);
             const show = id => {

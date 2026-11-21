@@ -110,14 +110,14 @@ nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-
    (laboratorio-stile/lavish/revisione-pr/mockup-pr-postit-6.html and agenti-comune/tools/pr-revisione/revisione.css).
    Asked by name with "theme": "revisione"; never drawn at random. */
 :root[data-mb-family=revisione]{--card:rgba(5,40,44,0.5);--line:#245156;--ink:#d1e9eb;--muted:#95babe;--title:#4ed1de;--field:rgba(0,0,0,.18);--highlight:rgba(236,214,120,.30)}
-[data-mb-family=revisione] p{margin:0 0 .7em}
-[data-mb-family=revisione] .sentence+.sentence{margin-top:0}
-[data-mb-family=revisione] h1{font-size:34px}
-[data-mb-family=revisione] h3{font-size:20px}
-[data-mb-family=revisione] code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.86em;background:none;padding:0}
-[data-mb-family=revisione] mark{border-radius:3px;padding:0 .15em}
+:where([data-mb-family=revisione]) p{margin:0 0 .7em}
+:where([data-mb-family=revisione]) .sentence+.sentence{margin-top:0}
+:where([data-mb-family=revisione]) h1{font-size:34px}
+:where([data-mb-family=revisione]) h3{font-size:20px}
+:where([data-mb-family=revisione]) code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.86em;background:none;padding:0}
+:where([data-mb-family=revisione]) mark{border-radius:3px;padding:0 .15em}
 /* cards: 20% narrower, in a central column; still glows, no pulse; very light tint of the category */
-[data-mb-family=revisione] .card{width:calc((100% - 18px) * .8);margin:0 auto 18px;padding:20px;border-radius:10px}
+[data-mb-family=revisione] .card{width:calc((100% - 18px) * .8);margin:0 auto 18px;padding:20px;border-radius:10px;scroll-margin-top:calc(var(--mb-tabs-height,0px) + 24px)}
 @media(max-width:600px){[data-mb-family=revisione] .card{width:100%}}
 [data-mb-family=revisione] .card[data-mb-new]::after{animation:none}
 [data-mb-family=revisione] .card[data-mb-tone=verde]:not([data-mb-state=answered]),[data-mb-family=revisione] .card[data-mb-state=answered]{box-shadow:0 0 0 1px #63ca84aa,0 0 18px #63ca8466,inset 0 0 20px #63ca841f;background:linear-gradient(rgba(99,202,132,.07),rgba(99,202,132,.07)),var(--card)}
@@ -125,8 +125,8 @@ nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-
 [data-mb-family=revisione] .card[data-mb-state=blocked]:not([data-mb-tone]),[data-mb-family=revisione] .card[data-mb-tone=rosso]:not([data-mb-state=answered]){box-shadow:0 0 0 1px #fe8b83aa,0 0 18px #fe8b8366,inset 0 0 20px #fe8b831f;background:linear-gradient(rgba(254,139,131,.08),rgba(254,139,131,.08)),var(--card)}
 /* title row and tables as on the review page */
 [data-mb-family=revisione] .mb-card-head{gap:12px;margin-bottom:10px}
-[data-mb-family=revisione] .mb-table,[data-mb-family=revisione] table{font-size:17px}
-[data-mb-family=revisione] th,[data-mb-family=revisione] td{padding:8px 6px}
+:where([data-mb-family=revisione]) table{font-size:17px}
+:where([data-mb-family=revisione]) th,:where([data-mb-family=revisione]) td{padding:8px 6px}
 [data-mb-family=revisione] .mb-notes p{font-size:15px;opacity:.8}
 /* page header with a bottom rule; the tab bar sticks to the top with a blur, the active tab framed in the accent */
 [data-mb-family=revisione] header{border-bottom:1px solid var(--line);padding-bottom:16px}

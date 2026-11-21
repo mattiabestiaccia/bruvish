@@ -16,6 +16,7 @@ Card JSON (full example: bruvish/examples/carte-complete.json):
   question.reason: "..."                               why the recommended option, under the answers
 Building blocks (full example: bruvish/examples/revisione-completa.json), all optional:
   page: tabs: true, header: {badge: {text, tone, icon}, subtitle, meta: []}, pills: [{text, tone}]
+  page: theme: "revisione"                             look of the approved review page; asked by name only
   section: count                                       counter beside the title in the index or tab bar
   card: tone, labels: [{text, tone}], help, table: {headers, rows}, notes: [],
         events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}

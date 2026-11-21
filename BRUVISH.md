@@ -38,7 +38,7 @@ L'addon (`bruvish/assets/chrome-addon.css` e `chrome-addon.js`) dà alla barra i
 
 Schema del JSON:
 
-- Pagina: `title` e `guide` obbligatori; `id`, `intro`, `theme` (una delle famiglie), `state` (`revision`, `answers`, `comments`), `sections[]`.
+- Pagina: `title` e `guide` obbligatori; `id`, `intro`, `theme` (una delle famiglie, oppure `revisione`, che si chiede solo per nome), `state` (`revision`, `answers`, `comments`), `sections[]`.
 - Sezione: `id`, `title`, `cards[]`.
 - Carta: `id`, `title`, `status` (`waiting`, `answered`, `info`, `blocked`), `paragraphs`, `fields`, `metadata`, `clarification`, `question`.
 - `fields`: le voci che ricorrono da una carta all'altra (per esempio Oggi, Proposta, Effetto pratico), resi come tabella a due colonne dopo i paragrafi: `[{ "label": "Oggi", "paragraphs": ["Una frase."] }]`. L'etichetta viene dal JSON; ogni voce vuole un'etichetta non vuota e un testo, altrimenti il render si ferma con un errore che mostra la forma attesa.
