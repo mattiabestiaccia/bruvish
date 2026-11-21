@@ -49,22 +49,54 @@
                 el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
             });
         }
-        // Help of a card: a click on «?» opens the panel in the flow of the card, another click closes it. Never on hover.
-        document.querySelectorAll('[data-mb-help]').forEach(button => button.addEventListener('click', () => {
-            const panel = document.getElementById(button.getAttribute('aria-controls'));
+        // Help of a card: a click on «?» opens a speech bubble over the card, under the title row, right-aligned under the
+        // «?»; another click, a click outside the bubble or Esc closes it. One open at a time. Never on hover.
+        const helpButtons = [...document.querySelectorAll('[data-mb-help]')];
+        const panelOf = button => document.getElementById(button.getAttribute('aria-controls'));
+        const closeHelp = button => { const panel = panelOf(button); if (panel && !panel.hidden) {
+            panel.hidden = true;
+            button.setAttribute('aria-expanded', 'false');
+        } };
+        const place = (button, panel) => {
+            if (!panel.style || !panel.getBoundingClientRect || !button.getBoundingClientRect)
+                return;
+            const card = button.closest('.card'), head = button.closest('.mb-card-head');
+            if (card?.getBoundingClientRect && head?.getBoundingClientRect) {
+                const top = head.getBoundingClientRect().bottom - card.getBoundingClientRect().top + 10;
+                if (Number.isFinite(top) && top >= 0)
+                    panel.style.setProperty('--mb-help-top', Math.round(top) + 'px');
+            }
+            // The tip of the bubble points at the «?», wherever the title row puts it.
+            const box = panel.getBoundingClientRect(), mark = button.getBoundingClientRect();
+            const right = box.right - (mark.left + mark.width / 2) - 6;
+            if (Number.isFinite(right) && right >= 0)
+                panel.style.setProperty('--mb-help-tip', Math.round(right) + 'px');
+        };
+        helpButtons.forEach(button => button.addEventListener('click', () => {
+            const panel = panelOf(button);
             if (!panel)
                 return;
             const open = panel.hidden;
-            panel.hidden = !open;
-            button.setAttribute('aria-expanded', String(open));
-            // The tip of the bubble points at the «?», wherever the title row puts it.
-            if (open && panel.style && panel.getBoundingClientRect && button.getBoundingClientRect) {
-                const box = panel.getBoundingClientRect(), mark = button.getBoundingClientRect();
-                const right = box.right - (mark.left + mark.width / 2) - 6;
-                if (Number.isFinite(right) && right >= 0)
-                    panel.style.setProperty('--mb-help-tip', Math.round(right) + 'px');
-            }
+            helpButtons.forEach(closeHelp);
+            if (!open)
+                return;
+            panel.hidden = false;
+            button.setAttribute('aria-expanded', 'true');
+            place(button, panel);
         }));
+        if (helpButtons.length) {
+            document.addEventListener('click', event => { if (!event.target?.closest?.('.mb-help, [data-mb-help]'))
+                helpButtons.forEach(closeHelp); });
+            document.addEventListener('keydown', event => {
+                if (event.key !== 'Escape')
+                    return;
+                const open = helpButtons.find(button => panelOf(button) && !panelOf(button).hidden);
+                if (!open)
+                    return;
+                closeHelp(open);
+                open.focus();
+            });
+        }
         // Text in an answer: shown for the options listed in data-mb-for (always without it), also after the bridge restores
         // a draft without change events (mb:restored). When the form has a text,
         // the submit is handled here, before artifact.js: an option that asks for the text refuses an empty one, and the

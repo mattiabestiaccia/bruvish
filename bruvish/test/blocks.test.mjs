@@ -101,7 +101,7 @@ test('labels sit right after the card title, on the same line, with inline marks
     await assert.rejects(render(doc([card({ labels })])), /Card a: labels/);
 });
 
-test('help opens with a click on «?» in the flow of the card, closes with another click, never on hover, and is not read aloud', async () => {
+test('help opens with a click on «?» over the card, closes with another click, never on hover, and is not read aloud', async () => {
   const html = await render(doc([card({ help: 'Serve a **decidere**. Poi chiudi.' })]));
   const body = cardHtml(html);
   assert.match(body, /<div class="mb-card-head"><h3>Una carta<\/h3><button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="mb-help-a" aria-label="A cosa serve questa carta">\?<\/button><\/div><div class="mb-help" id="mb-help-a" hidden><b class="mb-help-title">A cosa ti serve<\/b><p><span class="sentence">Serve a <strong>decidere<\/strong>.<\/span><span class="sentence">Poi chiudi.<\/span><\/p><\/div><p>/);
@@ -423,14 +423,18 @@ test('after an answer with text is queued, the next tap on the same option arms 
   }
 });
 
-test('the help is a speech bubble in the flow of the card: accent border, rounded corners, shadow, opaque background and a tip toward «?»', async () => {
+test('the help is a speech bubble over the card: under the title row, right-aligned under «?», accent border, rounded corners, shadow, opaque background and a tip toward «?»', async () => {
   const html = await render(doc([card({ help: 'Serve.' })]));
   const { document } = boot(html);
   const opaque = colour => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(colour) || /^#[0-9a-f]{3}f$|^#[0-9a-f]{6}ff$/i.test(colour) || /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*(1|1\.0+)\s*)?\)$/.test(colour);
   const none = value => value === undefined || /^(none|0(px)?|transparent)$/.test(value.trim());
   const problems = css => {
     const look = computed(css, document.querySelector('.mb-help')), found = [];
-    if (/^(absolute|fixed)$/.test(look.position || '')) found.push('out of the flow: it would cover the text');
+    if (look.position !== 'absolute') found.push('in the flow: it would push the card content');
+    if (computed(css, document.querySelector('article.card')).position !== 'relative') found.push('the card is not its containing block');
+    if (none(look.right)) found.push('not aligned to the right');
+    if (look.width !== 'min(420px, calc(100% - 24px))') found.push('wrong width');
+    if (!(Number(look['z-index']) > 0)) found.push('not above the card content');
     if (none(look.border) && none(look['border-width'])) found.push('no border');
     if (none(look['border-radius'])) found.push('square corners');
     if (none(look['box-shadow'])) found.push('no shadow');
@@ -439,14 +443,39 @@ test('the help is a speech bubble in the flow of the card: accent border, rounde
     return found;
   };
   assert.deepEqual(problems(styleOf(html)), []);
-  // A later rule that lifts the bubble out of the flow and drops its shadow is caught.
-  assert.deepEqual(problems(styleOf(html) + '.card .mb-help{position:absolute;box-shadow:none}'), ['out of the flow: it would cover the text', 'no shadow']);
-  // Once open, the tip points at the «?» of the card.
+  // A later rule that puts the bubble back in the flow and drops its shadow is caught.
+  assert.deepEqual(problems(styleOf(html) + '.card .mb-help{position:static;box-shadow:none}'), ['in the flow: it would push the card content', 'no shadow']);
+  // Once open, the bubble sits under the title row and its tip points at the «?» of the card.
   const button = document.querySelector('[data-mb-help]'), panel = document.getElementById('mb-help-a');
   const props = {};
   panel.style = { setProperty: (name, value) => { props[name] = value; } };
+  document.querySelector('article.card').getBoundingClientRect = () => ({ top: 200, left: 80, right: 720, width: 640 });
+  document.querySelector('.mb-card-head').getBoundingClientRect = () => ({ top: 220, bottom: 252, left: 100, right: 700 });
   panel.getBoundingClientRect = () => ({ left: 100, right: 700, width: 600 });
   button.getBoundingClientRect = () => ({ left: 600, right: 626, width: 26 });
   button.click();
+  assert.equal(props['--mb-help-top'], '62px', 'title row bottom 252 - card top 200 + 10');
   assert.equal(props['--mb-help-tip'], '81px', 'tip centre under the centre of «?»: 700 - 613 - 6');
+});
+
+test('the help bubble closes with a click outside it or with Esc, and only one is open at a time', async () => {
+  const html = await render(doc([card({ help: 'Serve.' }), card({ id: 'b', help: 'Anche.' })]));
+  const { document } = boot(html);
+  const [first, second] = document.querySelectorAll('[data-mb-help]'), [panelA, panelB] = ['mb-help-a', 'mb-help-b'].map(id => document.getElementById(id));
+  first.click();
+  assert.equal(panelA.hidden, false);
+  document.dispatch(panelA.querySelector('p'), 'click');
+  assert.equal(panelA.hidden, false, 'a click inside the bubble keeps it open');
+  second.click();
+  assert.deepEqual([panelA.hidden, panelB.hidden], [true, false], 'opening one closes the other');
+  assert.equal(first.getAttribute('aria-expanded'), 'false');
+  document.dispatch(document.querySelector('h1'), 'click');
+  assert.equal(panelB.hidden, true, 'a click outside closes it');
+  assert.equal(second.getAttribute('aria-expanded'), 'false');
+  second.click();
+  document.dispatch(panelB.querySelector('p'), 'keydown', { key: 'Enter' });
+  assert.equal(panelB.hidden, false, 'another key keeps it open');
+  document.dispatch(panelB.querySelector('p'), 'keydown', { key: 'Escape' });
+  assert.equal(panelB.hidden, true, 'Esc closes it');
+  assert.equal(document.activeElement, second, 'Esc gives the focus back to «?»');
 });
