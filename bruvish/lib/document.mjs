@@ -123,7 +123,7 @@ function cardFields(card) {
 }
 // Colour categories of the building blocks: cards, badge, pills, labels, levels, events. blu informs, verde is a
 // good outcome, giallo asks for attention, rosso blocks, decidi asks the reader for a decision (the most intense), viola is
-// a neutral accent (for example a merged state).
+// a neutral accent.
 export const TONES = ['blu', 'verde', 'giallo', 'rosso', 'decidi', 'viola'];
 function toneOf(value, where) {
     if (!TONES.includes(value))

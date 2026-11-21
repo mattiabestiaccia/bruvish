@@ -96,7 +96,7 @@ tr:hover>td>.mb-comment-toggle,.mb-comment-toggle:focus-visible,.mb-comment-togg
 .mb-comment-status{font-size:16px;color:var(--muted)}
 .mb-announce{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 @media(max-width:600px){.mb-comment-box{margin-left:8px}}
-/* Section counter and tab bar (GitHub-like): the active tab is underlined in the accent; the bar does not stick. */
+/* Section counter and tab bar: the active tab is framed in the accent; the bar does not stick. */
 .mb-count{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--field);border:1px solid var(--line);font-size:14px;line-height:1.5;color:var(--muted)}
 nav.mb-tabs{gap:4px}
 nav.mb-tabs a{padding:6px 12px;border:1px solid transparent;border-radius:7px;color:var(--muted);text-decoration:none;font-size:17px}
