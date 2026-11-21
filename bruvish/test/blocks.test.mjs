@@ -187,3 +187,54 @@ test('a card diff is one collapsible block per file, with coloured lines, new-si
   await assert.rejects(render(doc([card({ diff: { text: 3 } })])), /Card a: diff must be/);
   await assert.rejects(render(doc([card({ diff: { text: 'niente' } })])), /Card a: diff has no file/);
 });
+
+test('each line of the new side has a discreet «commenta» that queues a line comment, with the queued and sent marks', async () => {
+  const html = await render(doc([card({ diff: { text: DIFF } })]));
+  const body = cardHtml(html);
+  assert.match(body, /<tr class="mb-add" data-mb-line="src\/a\.js:2">[\s\S]*?<td class="mb-cmt"><button class="mb-comment-toggle" type="button" data-mb-comment aria-expanded="false" aria-label="Commenta la riga 2 di src\/a\.js">commenta<\/button><\/td><\/tr>/);
+  assert.match(body, /<tr class="mb-del">(?:(?!<\/tr>)[\s\S])*<td class="mb-cmt"><\/td><\/tr>/, 'no comment on a removed line');
+  const { document, window } = boot(html);
+  const row = document.querySelector('tr[data-mb-line="src/a.js:2"]'), toggle = row.querySelector('[data-mb-comment]');
+  toggle.click();
+  const box = row.nextElementSibling;
+  assert.equal(box.className, 'mb-comment-row');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  const area = box.querySelector('textarea'), [add] = box.querySelectorAll('button'), status = box.querySelector('[role="status"]');
+  assert.equal(area.getAttribute('aria-label'), 'Commento sulla riga 2 di src/a.js');
+  assert.equal(document.activeElement, area);
+  add.click();
+  assert.equal(status.textContent, 'Scrivi il commento.');
+  assert.equal(window.queued.length, 0);
+  area.value = '  Meglio una costante.  ';
+  add.click();
+  assert.equal(window.queued.length, 1);
+  const [prompt] = window.queued;
+  assert.equal(prompt.tag, 'line-comment');
+  assert.equal(prompt.queueKey, 'line:src/a.js:2');
+  assert.equal(prompt.selector, 'tr[data-mb-line="src/a.js:2"]');
+  assert.equal(prompt.element, row);
+  assert.deepEqual({ ...prompt.data }, { file: 'src/a.js', line: 2, side: 'RIGHT', text: 'Meglio una costante.' });
+  assert.match(prompt.prompt, /Meglio una costante\./);
+  assert.equal(box.hidden, true);
+  // Queued, then sent, then queued again: the same marks as the answers.
+  window.post({ type: 'lavish:queuedAnchors', selectors: [prompt.selector] });
+  assert(row.classList.contains('mb-queued'));
+  assert.equal(row.querySelector('.mb-line-mark').textContent, '✓ in coda');
+  window.post({ type: 'lavish:deliveredAnchors', selectors: [prompt.selector] });
+  window.post({ type: 'lavish:queuedAnchors', selectors: [] });
+  assert(!row.classList.contains('mb-queued') && row.classList.contains('mb-sent'));
+  assert.equal(row.querySelector('.mb-line-mark').textContent, '✓ inviata');
+  window.post({ type: 'lavish:queuedAnchors', selectors: [prompt.selector] });
+  assert(row.classList.contains('mb-queued') && !row.classList.contains('mb-sent'));
+  toggle.click();
+  assert.equal(box.hidden, false, 'the toggle opens the same box again');
+  // Without Lavish the box says so and queues nothing.
+  const bare = boot(html, { lavish: false });
+  const bareRow = bare.document.querySelector('tr[data-mb-line="src/a.js:2"]');
+  bareRow.querySelector('[data-mb-comment]').click();
+  const bareBox = bareRow.nextElementSibling;
+  bareBox.querySelector('textarea').value = 'x';
+  bareBox.querySelector('button').click();
+  assert.equal(bareBox.querySelector('[role="status"]').textContent, 'Apri la pagina con Lavish per accodare il commento.');
+  assert.match(blocksCss, /\.mb-comment-toggle\{[^}]*opacity/);
+});

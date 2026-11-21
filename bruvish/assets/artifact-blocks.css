@@ -83,3 +83,16 @@
 .mb-note-row td{white-space:normal;padding:0}
 .mb-line-note{margin:6px 8px 10px 80px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--field);font:16px/1.45 'Atkinson Hyperlegible Next',system-ui,sans-serif;white-space:normal;box-shadow:0 0 0 1.5px #e8c35acc,0 0 14px #e8c35a55}
 @media(max-width:600px){.mb-line-note{margin-left:8px}}
+/* Line comments: a discreet «commenta» on each line of the new side, a text box under the line. */
+.mb-diff-lines td.mb-cmt{width:1%;padding:0 6px;text-align:right;white-space:nowrap}
+.mb-comment-toggle{font:14px/1.2 'Atkinson Hyperlegible Next',system-ui,sans-serif;padding:1px 8px;color:var(--muted);background:transparent;border-color:transparent;opacity:0}
+tr:hover>td>.mb-comment-toggle,.mb-comment-toggle:focus-visible,.mb-comment-toggle[aria-expanded=true]{opacity:1;border-color:var(--line)}
+@media(hover:none){.mb-comment-toggle{opacity:.6}}
+.mb-line-mark{margin-left:6px;font:14px 'Atkinson Hyperlegible Next',system-ui,sans-serif;color:var(--title)}
+.mb-comment-row td{white-space:normal;padding:0}
+.mb-comment-box{margin:6px 8px 10px 80px;padding:10px 12px;border:1px solid var(--title);border-radius:8px;background:var(--field);font:16px/1.45 'Atkinson Hyperlegible Next',system-ui,sans-serif}
+.mb-comment-box textarea,.mb-answer-text textarea{display:block;width:100%;min-height:4.5em;resize:vertical;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--field);color:var(--ink);font-size:17px}
+.mb-comment-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.mb-comment-status{font-size:16px;color:var(--muted)}
+.mb-announce{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:600px){.mb-comment-box{margin-left:8px}}

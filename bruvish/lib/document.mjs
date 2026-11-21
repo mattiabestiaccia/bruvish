@@ -305,7 +305,7 @@ function cardDiff(card) {
                 return '<tr class="mb-' + l.type + '"><td class="mb-num"></td><td class="mb-num"></td><td class="mb-code">' + escape(l.text) + '</td><td class="mb-cmt"></td></tr>';
             const key = l.new === null ? null : f.name + ':' + l.new;
             const sign = { add: '+', del: '−', context: ' ' }[l.type];
-            let row = '<tr class="mb-' + l.type + '"' + (key ? ' data-mb-line="' + escape(key) + '"' : '') + '><td class="mb-num">' + (l.old ?? '') + '</td><td class="mb-num">' + (l.new ?? '') + '</td><td class="mb-code"><span class="mb-sign">' + sign + '</span>' + escape(l.text) + '</td><td class="mb-cmt"></td></tr>';
+            let row = '<tr class="mb-' + l.type + '"' + (key ? ' data-mb-line="' + escape(key) + '"' : '') + '><td class="mb-num">' + (l.old ?? '') + '</td><td class="mb-num">' + (l.new ?? '') + '</td><td class="mb-code"><span class="mb-sign">' + sign + '</span>' + escape(l.text) + '</td><td class="mb-cmt">' + (key ? '<button class="mb-comment-toggle" type="button" data-mb-comment aria-expanded="false" aria-label="Commenta la riga ' + l.new + ' di ' + escape(f.name) + '">commenta</button>' : '') + '</td></tr>';
             if (key && Object.hasOwn(notes, key)) {
                 row += '<tr class="mb-note-row"><td colspan="4"><div class="mb-line-note">' + inline(notes[key]) + '</div></td></tr>';
                 delete notes[key];

@@ -120,9 +120,10 @@ function matchesList(el, list, scope) {
       if (!node.tagName || node.tagName === '#root') return false;
       const m = /^([a-z0-9*]*)((?:#[\w-]+|\.[\w-]+|\[[\w-]+(?:="[^"]*")?\])*)$/.exec(token);
       if (!m) throw new Error('selector not supported by the test DOM: ' + token);
+      const plain = m[2].replace(/\[[^\]]*\]/g, '');
       return (!m[1] || m[1] === '*' || node.tagName === m[1])
-        && [...m[2].matchAll(/#([\w-]+)/g)].every(c => node.id === c[1])
-        && [...m[2].matchAll(/\.([\w-]+)/g)].every(c => node.classList.contains(c[1]))
+        && [...plain.matchAll(/#([\w-]+)/g)].every(c => node.id === c[1])
+        && [...plain.matchAll(/\.([\w-]+)/g)].every(c => node.classList.contains(c[1]))
         && [...m[2].matchAll(/\[([\w-]+)(?:="((?:[^"\\]|\\.)*)")?\]/g)].every(a => a[1] in node.attributes && (a[2] === undefined || node.attributes[a[1]] === a[2].replace(/\\(.)/g, '$1')));
     };
     const from = (node, i) => {
