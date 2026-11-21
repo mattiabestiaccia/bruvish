@@ -123,3 +123,20 @@ test('a card table has headers and rows; « · » puts two items on two lines; a
   for (const bad of [[], { rows: 'x' }, { headers: ['a'], rows: [['x', 'y']] }, { rows: [[1]] }, { rows: [[{ text: 'x', tone: 'nero' }]] }])
     await assert.rejects(render(doc([card({ table: bad })])), /Card a: table/);
 });
+
+test('secondary notes close the card in grey italics, under a dashed line', async () => {
+  const q = { options: [{ value: 'a', label: 'A', recommended: true }] };
+  const body = cardHtml(await render(doc([card({ question: q, notes: ['Prima nota. Seconda frase.', '`x` <y>'] })])));
+  assert.match(body, /<\/form><div class="mb-notes"><p><span class="sentence">Prima nota\.<\/span><span class="sentence">Seconda frase\.<\/span><\/p><p><span class="sentence"><code>x<\/code> &lt;y&gt;<\/span><\/p><\/div><\/article>$/);
+  assert.match(blocksCss, /\.mb-notes\{[^}]*border-top:1px dashed var\(--line\)/);
+  assert.match(blocksCss, /\.mb-notes p\{[^}]*font-style:italic[^}]*color:var\(--muted\)/);
+  for (const notes of ['x', ['']]) await assert.rejects(render(doc([card({ notes })])), /Card a: notes/);
+  await assert.rejects(render(doc([card({ notes: [3] })])), /A sentence is a string/);
+});
+
+test('events are one line each with a dot in their tone', async () => {
+  const body = cardHtml(await render(doc([card({ table: { rows: [['x']] }, events: [{ text: 'Aperta da **Mattia**', tone: 'verde' }, { text: 'Unita <b>', tone: 'viola' }] })])));
+  assert.match(body, /<\/table><div class="mb-events"><div class="mb-event"><span class="mb-dot" data-tone="verde"><\/span><span>Aperta da <strong>Mattia<\/strong><\/span><\/div><div class="mb-event"><span class="mb-dot" data-tone="viola"><\/span><span>Unita &lt;b&gt;<\/span><\/div><\/div>/);
+  assert.match(blocksCss, /\.mb-dot\{[^}]*border-radius:50%[^}]*background:var\(--mb-tone/);
+  await assert.rejects(render(doc([card({ events: [{ text: 'x', tone: 'nero' }] })])), /Card a: events/);
+});

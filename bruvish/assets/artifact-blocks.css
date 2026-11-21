@@ -54,3 +54,11 @@
 .mb-level[data-tone=blu]{background:rgba(31,111,235,.55);color:#e7f1ff;box-shadow:0 0 0 1px #1f6feb,0 0 8px #1f6feb55}
 .mb-level[data-tone=viola]{background:rgba(137,87,229,.55);color:#f3ecff;box-shadow:0 0 0 1px #8957e5,0 0 8px #8957e555}
 @media(max-width:600px){.mb-table{display:block;overflow-x:auto}}
+/* Secondary notes: italic, greyer, set apart from the main content by a dashed line. */
+.mb-notes{margin:16px 0 0;padding-top:10px;border-top:1px dashed var(--line)}
+.mb-notes p{margin:0 0 .6em;font-style:italic;font-size:16px;color:var(--muted);opacity:.85}
+.mb-notes p:last-child{margin-bottom:0}
+/* Events: one line each, with a dot in the colour of its tone. */
+.mb-events{margin:0 0 1.8em}
+.mb-event{display:grid;grid-template-columns:22px 1fr;gap:8px;margin:0 0 10px;font-size:17px}
+.mb-dot{width:10px;height:10px;border-radius:50%;margin:8px 0 0 6px;background:var(--mb-tone,var(--line))}
