@@ -276,7 +276,7 @@ test('a page in tabs turns every section into a tab of the index bar, with a cou
   const html = await render(input);
   assert.match(html, /<nav class="mb-tabs" aria-label="Schede"><a href="#sintesi" data-mb-tab="sintesi">Sintesi<\/a><a href="#file" data-mb-tab="file">File modificati<span class="mb-count">3<\/span><\/a><\/nav><section id="sintesi">/);
   assert.doesNotMatch(html, /<section[^>]* hidden/, 'every section is visible without JS');
-  assert.equal(await render({ ...input, tabs: undefined, layout: 'schede' }), html, 'layout "schede" is the same as tabs: true');
+  assert.doesNotMatch(await render({ ...input, tabs: undefined, layout: 'schede' }), /<nav class="mb-tabs"/, 'only tabs: true makes tabs; layout is not a field');
   const { document, window } = boot(html);
   const [first, second] = ['sintesi', 'file'].map(id => document.getElementById(id));
   const [tabA, tabB] = document.querySelectorAll('nav.mb-tabs a');
@@ -300,7 +300,7 @@ test('a page in tabs turns every section into a tab of the index bar, with a cou
   assert.equal(deep.document.getElementById('file').hidden, false);
   // A counter also shows in a page without tabs.
   assert.match(await render({ ...doc([card()]), sections: [{ id: 's', title: 'Sezione', count: '2 nuove', cards: [card()] }] }), /<nav><a href="#s">Sezione<span class="mb-count">2 nuove<\/span><\/a><\/nav>/);
-  for (const bad of [{ tabs: 'si' }, { layout: 'colonne' }]) await assert.rejects(render({ ...input, tabs: undefined, ...bad }), /tabs/);
+  await assert.rejects(render({ ...input, tabs: 'si' }), /tabs must be true or false/);
   await assert.rejects(render({ ...input, sections: [{ ...input.sections[0], count: [1] }] }), /Section sintesi: count/);
 });
 

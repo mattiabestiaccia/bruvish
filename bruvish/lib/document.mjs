@@ -331,14 +331,12 @@ function questionText(card, q, answer) {
     const shown = t.for === undefined || t.for.includes(answer?.choice);
     return '<div class="mb-answer-text"' + (t.for === undefined ? '' : ' data-mb-for="' + escape(JSON.stringify(t.for.map(String))) + '"') + (shown ? '' : ' hidden') + '><label><span class="mb-answer-label">' + inline(t.label ?? 'Il tuo testo') + '</span><textarea data-mb-field="' + card.id + ':text" name="text" rows="3"' + (t.placeholder ? ' placeholder="' + escape(t.placeholder) + '"' : '') + '>' + escape(typeof answer?.text === 'string' ? answer.text : '') + '</textarea></label></div>';
 }
-// The index of the sections. With tabs: true (or layout: "schede") it is the tab bar: artifact-blocks.js shows one
+// The index of the sections. With tabs: true it is the tab bar: artifact-blocks.js shows one
 // section at a time; without JS every section stays visible, one under the other. A section count shows beside its title.
 function sectionIndex(input) {
     if (input.tabs !== undefined && typeof input.tabs !== 'boolean')
         throw new Error('tabs must be true or false');
-    if (input.layout !== undefined && input.layout !== 'schede')
-        throw new Error('layout must be "schede" (the same as tabs: true)');
-    const tabs = input.tabs === true || input.layout === 'schede';
+    const tabs = input.tabs === true;
     return '<nav' + (tabs ? ' class="mb-tabs" aria-label="Schede"' : '') + '>' + input.sections.map(s => {
         if (s.count !== undefined && !(Number.isInteger(s.count) && s.count >= 0) && !(typeof s.count === 'string' && s.count.trim()))
             throw new Error('Section ' + s.id + ': count must be a whole number or a short text, like 3 or "2 nuove"');
@@ -348,7 +346,7 @@ function sectionIndex(input) {
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events'];
-const PAGE_BLOCKS = ['tabs', 'layout', 'header', 'pills'];
+const PAGE_BLOCKS = ['tabs', 'header', 'pills'];
 const usesBlocks = input => PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
