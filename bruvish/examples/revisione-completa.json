@@ -10,7 +10,7 @@
     "badge": {
       "text": "Aperta",
       "tone": "verde",
-      "icon": "pr-open"
+      "icon": "open"
     },
     "subtitle": "Unisce `fase2-mattoni-revisione` in `carry`",
     "meta": ["mattiabestiaccia/bruvish", "21 novembre 2026", "2 file · **+5** · **−1**"]

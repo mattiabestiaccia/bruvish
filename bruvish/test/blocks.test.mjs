@@ -30,6 +30,50 @@ function boot(html, options) {
   return { document, window };
 }
 
+// The declarations that reach one element through the cascade of a style sheet: every rule whose selector matches the
+// element (with its ancestors and earlier siblings), by importance, then specificity, then source order. The rules of
+// @media and @supports count whatever their condition; other at-rules, pseudo-elements and other pseudo-classes
+// (user actions, structure) never match.
+function computed(css, el) {
+  const split = (text, sep) => { const out = []; let depth = 0, quote = '', cur = ''; for (const c of text) { if (quote) { if (c === quote) quote = ''; } else if (c === '"' || c === "'") quote = c; else if ('([{'.includes(c)) depth++; else if (')]}'.includes(c)) depth--; else if (c === sep && !depth) { out.push(cur); cur = ''; continue; } cur += c; } return [...out, cur].map(x => x.trim()).filter(Boolean); };
+  const rules = [];
+  const walk = text => { for (let at = 0, open; (open = text.indexOf('{', at)) >= 0;) {
+    let end = open + 1; for (let depth = 1; depth; end++) depth += text[end] === '{' ? 1 : text[end] === '}' ? -1 : 0;
+    const prelude = text.slice(at, open).trim(), body = text.slice(open + 1, end - 1);
+    if (/^@(media|supports)\b/.test(prelude)) walk(body); else if (!prelude.startsWith('@')) rules.push({ selectors: split(prelude, ','), body });
+    at = end;
+  } };
+  walk(css.replace(/\/\*[\s\S]*?\*\//g, ''));
+  const PART = /([a-z][\w-]*|\*)|#([\w-]+)|\.([\w-]+)|\[([\w-]+)(?:=("[^"]*"|'[^']*'|[^\]]*))?\]|:not\(([^()]*)\)|(::?[\w-]+(?:\([^()]*\))?)/gy;
+  const compound = (node, text) => { let ok = true, spec = [0, 0, 0], m; const part = new RegExp(PART);
+    while (part.lastIndex < text.length) {
+      const start = part.lastIndex; if (!(m = part.exec(text)) || m.index !== start) throw new Error('selector not supported by the test cascade: ' + text);
+      if (m[1]) { spec[2] += m[1] !== '*'; ok &&= m[1] === '*' || node.tagName === m[1]; }
+      else if (m[2]) { spec[0]++; ok &&= node.id === m[2]; }
+      else if (m[3]) { spec[1]++; ok &&= node.classList.contains(m[3]); }
+      else if (m[4]) { spec[1]++; ok &&= m[4] in node.attributes && (m[5] === undefined || node.attributes[m[4]] === m[5].replace(/^["']|["']$/g, '')); }
+      else if (m[6] !== undefined) { const inner = compound(node, m[6]); spec = spec.map((n, i) => n + inner.spec[i]); ok &&= !inner.ok; }
+      else { spec[m[7].startsWith('::') ? 2 : 1]++; ok &&= m[7] === ':root' && node.tagName === 'html'; }
+    }
+    return { ok: ok && !!node.tagName && node.tagName !== '#root', spec };
+  };
+  const before = node => { const list = node.parent?.elements || []; return list.slice(0, list.indexOf(node)).reverse(); };
+  const match = (node, parts, i) => { if (!node || !compound(node, parts[i]).ok) return false; if (i === 0) return true;
+    const step = parts[i - 1];
+    const tries = step === '>' ? [node.parent] : step === '+' ? before(node).slice(0, 1) : step === '~' ? before(node) : (() => { const up = []; for (let p = node.parent; p; p = p.parent) up.push(p); return up; })();
+    return tries.some(other => match(other, parts, i - 2)); };
+  const found = [];
+  rules.forEach((rule, order) => rule.selectors.forEach(selector => {
+    const parts = selector.replace(/\s*([>+~])\s*/g, ' $1 ').split(/\s+/).flatMap((p, i, all) => i && !'>+~'.includes(p) && !'>+~'.includes(all[i - 1]) ? [' ', p] : [p]);
+    if (!match(el, parts, parts.length - 1)) return;
+    const spec = parts.filter((p, i) => i % 2 === 0).reduce((sum, p) => compound({ tagName: '', id: '', classList: { contains: () => false }, attributes: {} }, p).spec.map((n, i) => n + sum[i]), [0, 0, 0]);
+    split(rule.body, ';').forEach(declaration => { const colon = declaration.indexOf(':'); const value = declaration.slice(colon + 1).trim();
+      found.push({ name: declaration.slice(0, colon).trim(), value: value.replace(/\s*!important$/, ''), rank: [/!important$/.test(value) ? 1 : 0, ...spec, order] }); });
+  }));
+  found.sort((a, b) => { for (let i = 0; i < a.rank.length; i++) if (a.rank[i] !== b.rank[i]) return a.rank[i] - b.rank[i]; return 0; });
+  return Object.fromEntries(found.map(d => [d.name, d.value]));
+}
+
 test('pages without the new fields render byte for byte as before, with the base assets only', async () => {
   // Hashes of the page skeleton computed on carry before the building blocks existed (5f9757a).
   const before = { dummy: '8c899f6300efd2e1b560bc1e4d5270fae7bb2d95cefb32caa353a58c06698f99', 'carte-complete': '14a5287082fb19399da30e8d483253b8b64ae47afb77eee5cdf649181ae6258e' };
@@ -81,16 +125,16 @@ test('help opens with a click on «?» in the flow of the card, closes with anot
 });
 
 test('the header carries a badge with a closed set of inline icons, a subtitle and meta items; pills follow under it', async () => {
-  const header = { badge: { text: 'Aperta', tone: 'verde', icon: 'pr-open' }, subtitle: 'Unisce `fase2` in `carry`', meta: ['repo **bruvish**', 'oggi <b>'] };
+  const header = { badge: { text: 'Aperta', tone: 'verde', icon: 'open' }, subtitle: 'Unisce `fase2` in `carry`', meta: ['repo **bruvish**', 'oggi <b>'] };
   const html = await render(doc([card()], { header, intro: 'Una frase.', pills: [{ text: 'rischio **basso**', tone: 'verde' }, { text: 'tocca la sandbox', tone: 'decidi' }] }));
   const head = /<header>[\s\S]*?<\/header>/.exec(html)[0];
   assert.match(head, /^<header><div class="mb-header-meta"><span class="mb-badge" data-tone="verde"><svg class="mb-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M1\.5 3\.25[^"]*"><\/path><\/svg>Aperta<\/span><span class="mb-meta-item">repo <strong>bruvish<\/strong><\/span><span class="mb-meta-item">oggi &lt;b&gt;<\/span><\/div><h1>Prova<\/h1><p class="mb-subtitle">Unisce <code>fase2<\/code> in <code>carry<\/code><\/p><p><span class="sentence">Una frase\.<\/span><\/p><div class="mb-pills"><span class="mb-pill" data-tone="verde">rischio <strong>basso<\/strong><\/span><span class="mb-pill" data-tone="decidi">tocca la sandbox<\/span><\/div><\/header>$/);
-  for (const icon of ['pr-open', 'pr-merged', 'pr-closed', 'pr-draft', 'check', 'x', 'dot']) {
+  for (const icon of ['open', 'merged', 'closed', 'draft', 'check', 'x', 'dot']) {
     const page = await render(doc([card()], { header: { badge: { text: 'Stato', tone: 'viola', icon } } }));
     assert.match(page, /<span class="mb-badge" data-tone="viola"><svg class="mb-icon" viewBox="0 0 16 16"[^>]*><path fill="currentColor" d="M[0-9][^"]+"><\/path><\/svg>Stato<\/span>/, icon);
   }
   assert.match(await render(doc([card()], { header: { badge: { text: 'Senza icona', tone: 'blu' } } })), /<span class="mb-badge" data-tone="blu">Senza icona<\/span>/);
-  await assert.rejects(render(doc([card()], { header: { badge: { text: 'x', tone: 'blu', icon: 'rocket' } } })), /header\.badge\.icon must be one of pr-open, pr-merged, pr-closed, pr-draft, check, x, dot/);
+  await assert.rejects(render(doc([card()], { header: { badge: { text: 'x', tone: 'blu', icon: 'rocket' } } })), /header\.badge\.icon must be one of open, merged, closed, draft, check, x, dot/);
   await assert.rejects(render(doc([card()], { header: { badge: { text: '', tone: 'blu' } } })), /header\.badge/);
   await assert.rejects(render(doc([card()], { header: { meta: 'x' } })), /header\.meta/);
   await assert.rejects(render(doc([card()], { pills: [{ text: 'x' }] })), /pills must be an array/);
@@ -191,7 +235,7 @@ test('each line of the new side has a discreet «commenta» that queues a line c
   assert.equal(prompt.queueKey, 'line:src/a.js:2');
   assert.equal(prompt.selector, 'tr[data-mb-line="src/a.js:2"]');
   assert.equal(prompt.element, row);
-  assert.deepEqual({ ...prompt.data }, { file: 'src/a.js', line: 2, side: 'RIGHT', text: 'Meglio una costante.' });
+  assert.deepEqual({ ...prompt.data }, { file: 'src/a.js', line: 2, text: 'Meglio una costante.' });
   assert.match(prompt.prompt, /Meglio una costante\./);
   assert.equal(box.hidden, true);
   // Queued, then sent, then queued again: the same marks as the answers.
@@ -331,13 +375,16 @@ test('the example revisione-completa uses every building block and renders throu
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('yellow is always intense: tone giallo has the glow, tint and colour of decidi', () => {
-  const rules = [...blocksCss.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selectors, body]) => ({ selectors: selectors.split(',').map(s => s.trim()), body }));
-  const declarations = tone => rules.filter(r => r.selectors.includes('.card[data-mb-tone=' + tone + ']:not([data-mb-state=answered])')).map(r => r.body).join(';');
-  for (const tone of ['giallo', 'decidi']) {
-    assert.match(declarations(tone), /--mb-state-color:#e8c35a/, tone);
-    assert.match(declarations(tone), /box-shadow:0 0 0 1\.5px #e8c35acc,0 0 22px #e8c35a88/, tone);
-    assert.match(declarations(tone), /background:linear-gradient\(rgba\(232,195,90,\.08\)/, tone);
+test('yellow is always intense: through the cascade of the page, a giallo card looks exactly like a decidi card', async () => {
+  const states = { waiting: { status: 'waiting' }, info: { status: 'info' }, blocked: { status: 'blocked' }, answered: { status: 'answered' } };
+  for (const [state, extra] of Object.entries(states)) {
+    const html = await render(doc([card({ id: 'g', tone: 'giallo', ...extra }), card({ id: 'd', tone: 'decidi', ...extra }), card({ id: 'p', ...extra })]));
+    const { document } = boot(html), css = styleOf(html), look = (id, sheet = css) => computed(sheet, document.getElementById(id));
+    assert.deepEqual(look('g'), look('d'), state);
+    if (state !== 'answered') assert.notDeepEqual(look('g'), look('p'), state + ': the tone changes the card');
+    // A later rule that wins for giallo alone would break the rule, and the comparison sees it.
+    const broken = css + '.card[data-mb-tone=giallo][data-mb-state]{box-shadow:none}';
+    assert.notDeepEqual(look('g', broken), look('d', broken), state);
   }
 });
 

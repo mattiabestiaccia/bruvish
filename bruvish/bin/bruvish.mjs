@@ -20,7 +20,7 @@ Building blocks (full example: bruvish/examples/revisione-completa.json), all op
   card: tone, labels: [{text, tone}], help, table: {headers, rows}, notes: [],
         events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}
   question.text: {label, placeholder, for: ["value"]}   a text with the answer: {choice, text}
-  tone: blu, verde, giallo, rosso, decidi, viola; icon: pr-open, pr-merged, pr-closed, pr-draft, check, x, dot
+  tone: blu, verde, giallo, rosso, decidi, viola; icon: open, merged, closed, draft, check, x, dot
   Text marks: \`code\`, **bold**, *italic*. Each sentence renders on its own line; a string with
   several sentences is split (non-breaking space after the point keeps it together).
 Present the page with: lavish-axi page.html (style guide: lavish-axi design).

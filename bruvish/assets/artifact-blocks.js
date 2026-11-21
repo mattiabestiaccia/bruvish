@@ -176,7 +176,7 @@
                     status.textContent = 'Apri la pagina con Lavish per accodare il commento.';
                     return;
                 }
-                window.lavish.queuePrompt('Commento sulla riga ' + line + ' di ' + file + ':\n' + text, { tag: 'line-comment', text: 'Commento su ' + file + ':' + line, element: row, selector: lineSelector(key), queueKey: 'line:' + key, data: { file, line, side: 'RIGHT', text } });
+                window.lavish.queuePrompt('Commento sulla riga ' + line + ' di ' + file + ':\n' + text, { tag: 'line-comment', text: 'Commento su ' + file + ':' + line, element: row, selector: lineSelector(key), queueKey: 'line:' + key, data: { file, line, text } });
                 status.textContent = '';
                 box.hidden = true;
                 button.setAttribute('aria-expanded', 'false');
