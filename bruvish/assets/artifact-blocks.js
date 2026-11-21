@@ -107,20 +107,22 @@
             const question = form.dataset.mbQuestion, answer = { choice: String(input.value) };
             if (!box.hidden && text)
                 answer.text = text;
-            window.lavish.queuePrompt('Risposta per ' + question, { tag: 'choice', text: 'Risposta: ' + question, element: input, selector: '[data-mb-question="' + question + '"] input[value="' + quoted(input.value) + '"]', queueKey: 'answer:' + question, data: { question, answer } });
+            const selector = '[data-mb-question="' + question + '"] input[value="' + quoted(input.value) + '"]';
+            window.lavish.queuePrompt('Risposta per ' + question, { tag: 'choice', text: 'Risposta: ' + question, element: input, selector, queueKey: 'answer:' + question, data: { question, answer } });
             sayIn(form, '');
             form.querySelector('.mb-armed')?.classList.remove('mb-armed');
-            lastQueued = input;
+            lastQueued = { input, selector, queued: !!input.closest('label')?.classList.contains('mb-queued') };
         }, true);
         // The submit above stops artifact.js, which therefore keeps that option armed: the next tap on it would queue it
         // again at once. So the next tap (or Space) on the option just queued only arms it again, as a first tap does;
-        // the tap after that reaches artifact.js, which queues it. A tap on another option drops this memory.
+        // the tap after that reaches artifact.js, which queues it. Whatever disarms the option in artifact.js drops this
+        // memory too: a tap on another option of any question, or the queued-anchor list that first shows the option queued.
         let lastQueued = null;
         const rearm = event => {
             const input = event.target;
             if (!lastQueued || !input || input.type !== 'radio' || (event.type === 'keyup' && event.key !== ' '))
                 return;
-            if (input !== lastQueued || !input.checked) {
+            if (input !== lastQueued.input || !input.checked) {
                 lastQueued = null;
                 return;
             }
@@ -132,7 +134,7 @@
             event.stopImmediatePropagation();
             lastQueued = null;
         };
-        textForms.forEach(form => { form.addEventListener('click', rearm, true); form.addEventListener('keyup', rearm, true); });
+        document.querySelectorAll('[data-mb-question]').forEach(form => { form.addEventListener('click', rearm, true); form.addEventListener('keyup', rearm, true); });
         // Line comments on a diff: «commenta» opens a text box under the line; «Aggiungi» queues the comment with the
         // line as anchor. The queued and sent marks follow the chrome's anchor lists, as for the answers.
         const lineSelector = key => 'tr[data-mb-line="' + quoted(key) + '"]';
@@ -194,8 +196,16 @@
             const selectors = Array.isArray(message.selectors) ? message.selectors.map(String) : [];
             if (message.type === 'lavish:deliveredAnchors')
                 selectors.forEach(selector => lineSent.add(selector));
-            else
+            else {
                 lineQueued = new Set(selectors);
+                if (lastQueued) {
+                    const isQueued = lineQueued.has(lastQueued.selector);
+                    if (isQueued && !lastQueued.queued)
+                        lastQueued = null;
+                    else
+                        lastQueued.queued = isQueued;
+                }
+            }
             let change = '';
             document.querySelectorAll('tr[data-mb-line]').forEach(row => {
                 const selector = lineSelector(row.dataset.mbLine), isQueued = lineQueued.has(selector), wasQueued = row.classList.contains('mb-queued');

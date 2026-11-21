@@ -343,26 +343,36 @@ test('yellow is always intense: tone giallo has the glow, tint and colour of dec
 
 test('after an answer with text is queued, the next tap on the same option arms it again and only the one after queues', async () => {
   const question = { options: [{ value: 'a', label: 'Unisci', recommended: true }, { value: 'b', label: 'Chiedi modifiche' }], text: { label: 'Quali?', for: ['b'] } };
-  const html = await render(doc([card({ status: 'waiting', question })]));
+  const plain = { options: [{ value: 'c', label: 'Sì', recommended: true }, { value: 'd', label: 'No' }] };
+  const html = await render(doc([card({ status: 'waiting', question }), card({ id: 'z', status: 'waiting', question: plain })]));
   for (const way of ['click', 'space']) {
     const { document, window } = boot(html);
-    const form = document.querySelector('[data-mb-question]'), [a, b] = form.querySelectorAll('input[name="choice"]');
+    const [form, other] = document.querySelectorAll('[data-mb-question]'), [a, b] = form.querySelectorAll('input[name="choice"]'), [c] = other.querySelectorAll('input[name="choice"]');
     form.querySelector('textarea').value = 'Togli la regola.';
     const tap = input => { input.checked = true; if (way === 'click') document.dispatch(input, 'click'); else document.dispatch(input, 'keyup', { key: ' ' }); };
-    tap(b);
-    assert.equal(window.queued.length, 0, way + ': the first tap arms');
-    tap(b);
-    assert.equal(window.queued.length, 1, way + ': the second tap queues');
-    tap(b);
-    assert.equal(window.queued.length, 1, way + ': the tap after queueing arms again');
-    assert(b.closest('label').classList.contains('mb-armed'), way);
-    tap(b);
-    assert.equal(window.queued.length, 2, way + ': the next tap queues again');
-    // Another option in between drops the memory: it is armed and queued as usual.
-    tap(a);
-    assert.equal(window.queued.length, 2, way);
-    tap(a);
+    const twice = (input, count, why) => {
+      tap(input);
+      assert.equal(window.queued.length, count - 1, way + ': ' + why + ': the first tap arms');
+      assert(input.closest('label').classList.contains('mb-armed'), way + ': ' + why);
+      tap(input);
+      assert.equal(window.queued.length, count, way + ': ' + why + ': the second tap queues');
+    };
+    twice(b, 1, 'first answer');
+    const selector = window.queued[0].selector;
+    // The chrome lists the option as newly queued, which disarms it: two taps queue it again, not three.
+    window.post({ type: 'lavish:queuedAnchors', selectors: [selector] });
+    twice(b, 2, 'after the option enters the queue');
+    // A list where the option was already queued disarms nothing: the tap after queueing arms it again.
+    window.post({ type: 'lavish:queuedAnchors', selectors: [selector] });
+    twice(b, 3, 'with the option already queued');
+    // A tap on an option of a question without text, in between, drops the memory.
+    tap(c);
     assert.equal(window.queued.length, 3, way);
+    twice(b, 4, 'after another question');
+    // Without any list from the chrome, the tap after queueing arms again.
+    twice(b, 5, 'without a list');
+    // Another option of the same question in between drops the memory: it is armed and queued as usual.
+    twice(a, 6, 'another option');
   }
 });
 
