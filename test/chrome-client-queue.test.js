@@ -1718,6 +1718,43 @@ test("an older late Send failure preserves newer terminal retry guidance", async
   assert.doesNotMatch(chrome.element("sendHint").textContent, /click Send to Agent to retry/i);
 });
 
+test("queued prompts stay persisted until a submit succeeds", async () => {
+  let promptPostAttempts = 0;
+  let resolveSecondPost = () => {};
+  const chrome = await createChromeHarness({
+    storedQueue: [{ uid: "", prompt: "Keep me", selector: "", tag: "message", text: "Freeform message" }],
+    fetchImpl: async (url) => {
+      if (String(url).endsWith("/prompts")) {
+        promptPostAttempts += 1;
+        if (promptPostAttempts === 1) throw new Error("network unavailable");
+        await new Promise((resolve) => {
+          resolveSecondPost = () => resolve(undefined);
+        });
+      }
+      return { ok: true, json: async () => ({}) };
+    },
+  });
+  const persisted = () => chrome.queued().map((prompt) => prompt.prompt);
+
+  chrome.element("send").click();
+  chrome.sendSnapshot("first snapshot");
+  await flushPromises();
+  await flushPromises();
+  assert.equal(promptPostAttempts, 1);
+  assert.deepEqual(persisted(), ["Keep me"], "a failed submit keeps the prompt in the stored queue");
+
+  chrome.element("send").click();
+  chrome.sendSnapshot("second snapshot");
+  await flushPromises();
+  assert.equal(promptPostAttempts, 2);
+  assert.deepEqual(persisted(), ["Keep me"], "the prompt stays stored while its submit is in flight");
+
+  resolveSecondPost();
+  await flushPromises();
+  await flushPromises();
+  assert.deepEqual(persisted(), [], "only a successful submit removes the prompt from the stored queue");
+});
+
 test("a failed timeout fallback keeps the queue and a timely retry sends it once", async () => {
   let promptPostAttempts = 0;
   const chrome = await createChromeHarness({
@@ -8805,6 +8842,200 @@ test("the artifact learns which elements carry a queued note, never the note its
   const anchors = chrome.postedToFrame.filter((message) => message.type === "lavish:queuedAnchors").at(-1);
   assert.deepEqual(JSON.parse(JSON.stringify(anchors)), { type: "lavish:queuedAnchors", selectors: ["main > h2"] });
 });
+
+test("the artifact learns which anchored notes were delivered, and a removed note is never reported as delivered", async () => {
+  const chrome = await createChromeHarness({ fetchImpl: async () => ({ ok: true }) });
+  const delivered = () =>
+    chrome.postedToFrame
+      .filter((message) => message.type === "lavish:deliveredAnchors")
+      .map((message) => JSON.parse(JSON.stringify(message)));
+  queueHeadingNote(chrome, "Drop this heading", "main > h3");
+  const [removeButton] = chrome.element("queuedLog").querySelectorAll(".queued-remove");
+  removeButton.click({ stopPropagation() {} });
+  assert.deepEqual(chrome.queued(), []);
+  assert.deepEqual(delivered(), [], "a removal is not a delivery");
+
+  queueHeadingNote(chrome);
+  chrome.sendFrameMessage({
+    type: "lavish:queuePrompt",
+    prompt: {
+      prompt: "Punchier",
+      selector: "main > p",
+      tag: "text",
+      text: "marketing site",
+      target: { type: "text-range", text: "marketing site", selector: "main > p" },
+    },
+  });
+  chrome.element("send").click();
+  const request = chrome.postedToFrame.filter((message) => message.type === "lavish:requestSnapshot").at(-1);
+  assert.deepEqual(delivered(), [], "nothing is reported before the server accepts the send");
+  chrome.sendFrameMessage({
+    type: "lavish:snapshot",
+    snapshot: "uid=1 body",
+    snapshot_request_id: request.snapshot_request_id,
+  });
+  await flushPromises();
+
+  assert.deepEqual(chrome.queued(), []);
+  assert.deepEqual(
+    delivered(),
+    [{ type: "lavish:deliveredAnchors", selectors: ["main > h2"] }],
+    "only element-anchored notes, only selectors",
+  );
+  const types = chrome.postedToFrame.map((message) => message.type);
+  assert.ok(
+    types.indexOf("lavish:deliveredAnchors") < types.lastIndexOf("lavish:queuedAnchors"),
+    "the delivery is reported before the queue list that drops the note",
+  );
+});
+
+for (const first of ["HTTP", "transcript", "ack_ids"]) {
+  for (const responseHasChat of [false, true]) {
+    test(`an anchored delivery is reported once with ${first} first and HTTP chat ${responseHasChat}`, async () => {
+      let acceptPost = () => {};
+      const chrome = await createChromeHarness({
+        fetchImpl: async (url) => {
+          if (url === "/api/abc/prompts") {
+            return new Promise((resolve) => {
+              acceptPost = () =>
+                resolve({ ok: true, json: async () => (responseHasChat ? { chat, chat_revision: 1 } : {}) });
+            });
+          }
+          return { ok: true, json: async () => ({}) };
+        },
+      });
+      const yes = '[data-mb-question="q0"] input[value="yes"]';
+      const no = '[data-mb-question="q0"] input[value="no"]';
+      queueHeadingNote(chrome, "Yes", yes);
+      const [prompt] = chrome.queued();
+      const chat = [chatEntryForPrompt(prompt, "2026-11-20T00:00:00.000Z")];
+      chrome.element("send").click();
+      chrome.sendSnapshot("uid=1 body");
+      await flushPromises();
+      const sync = () =>
+        chrome.eventSource().listeners.get("chat-sync")({
+          data: JSON.stringify({
+            chat: first === "ack_ids" ? [] : chat,
+            ack_ids: first === "ack_ids" ? [prompt.prompt_id] : [],
+            chat_revision: 1,
+          }),
+        });
+      if (first === "HTTP") {
+        acceptPost();
+        await flushPromises();
+      } else {
+        sync();
+      }
+      assert.deepEqual(chrome.queued(), [], "the first acknowledgement settles the answer");
+      queueHeadingNote(chrome, "No", no);
+      if (first === "HTTP") {
+        sync();
+      } else {
+        acceptPost();
+        await flushPromises();
+      }
+      assert.deepEqual(
+        chrome.postedToFrame
+          .filter((message) => message.type === "lavish:deliveredAnchors")
+          .map((message) => JSON.parse(JSON.stringify(message.selectors))),
+        [[yes]],
+        "a late acknowledgement cannot restore the old answer's sent mark",
+      );
+      assert.deepEqual(
+        chrome.queued().map((item) => item.selector),
+        [no],
+        "the new answer remains queued",
+      );
+    });
+  }
+}
+
+test("a partial transcript acknowledgement reports only the remaining anchored delivery on HTTP acceptance", async () => {
+  let acceptPost = () => {};
+  const chrome = await createChromeHarness({
+    fetchImpl: async (url) => {
+      if (url === "/api/abc/prompts") {
+        return new Promise((resolve) => {
+          acceptPost = () => resolve({ ok: true, json: async () => ({ chat, chat_revision: 2 }) });
+        });
+      }
+      return { ok: true, json: async () => ({}) };
+    },
+  });
+  queueHeadingNote(chrome, "First answer", "#first");
+  queueHeadingNote(chrome, "Second answer", "#second");
+  const chat = chrome.queued().map((prompt) => chatEntryForPrompt(prompt, "2026-11-20T00:00:00.000Z"));
+  chrome.element("send").click();
+  chrome.sendSnapshot("uid=1 body");
+  await flushPromises();
+  chrome.eventSource().listeners.get("chat-sync")({
+    data: JSON.stringify({ chat: chat.slice(0, 1), chat_revision: 1 }),
+  });
+  queueHeadingNote(chrome, "New first answer", "#replacement");
+  acceptPost();
+  await flushPromises();
+  assert.deepEqual(
+    chrome.postedToFrame
+      .filter((message) => message.type === "lavish:deliveredAnchors")
+      .map((message) => JSON.parse(JSON.stringify(message.selectors))),
+    [["#first"], ["#second"]],
+    "each accepted answer is reported once, including a batch settled in parts",
+  );
+  assert.deepEqual(
+    chrome.queued().map((prompt) => prompt.selector),
+    ["#replacement"],
+  );
+});
+
+for (const responseHasChat of [false, true]) {
+  test(`an answer replaced while its send is in flight is never reported as delivered (HTTP chat ${responseHasChat})`, async () => {
+    let acceptPost = () => {};
+    const chrome = await createChromeHarness({
+      fetchImpl: async (url) => {
+        if (url === "/api/abc/prompts") {
+          return new Promise((resolve) => {
+            acceptPost = () =>
+              resolve({ ok: true, json: async () => (responseHasChat ? { chat, chat_revision: 1 } : {}) });
+          });
+        }
+        return { ok: true, json: async () => ({}) };
+      },
+    });
+    const yes = '[data-mb-question="q0"] input[value="yes"]';
+    const no = '[data-mb-question="q0"] input[value="no"]';
+    const answer = (prompt, selector) =>
+      chrome.sendFrameMessage({
+        type: "lavish:queuePrompt",
+        prompt: { prompt, selector, tag: "choice", text: "Risposta: q0", _lavishQueueKey: "answer:q0" },
+      });
+    answer("Yes", yes);
+    const [sent] = chrome.queued();
+    const chat = [chatEntryForPrompt(sent, "2026-11-20T00:00:00.000Z")];
+    chrome.element("send").click();
+    chrome.sendSnapshot("uid=1 body");
+    await flushPromises();
+    answer("No", no);
+    assert.deepEqual(
+      chrome.queued().map((prompt) => prompt.selector),
+      [no],
+      "the newer answer replaces the one in flight",
+    );
+
+    acceptPost();
+    await flushPromises();
+
+    assert.deepEqual(
+      chrome.postedToFrame.filter((message) => message.type === "lavish:deliveredAnchors"),
+      [],
+      "the replaced answer is not marked sent next to the queued one",
+    );
+    assert.deepEqual(
+      chrome.queued().map((prompt) => prompt.selector),
+      [no],
+      "the newer answer stays queued",
+    );
+  });
+}
 
 // The artifact walks the list newest first, so a selector a newer note carries again must sit at
 // that newer note, after a selector queued in between; otherwise the in-between note would win.

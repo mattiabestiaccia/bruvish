@@ -127,7 +127,7 @@ function runArtifactJs({ userAgent, storage, preset, pointer = 'fine' }) {
   const root = { dataset: preset ? { mbMode: preset } : {} };
   const document = { documentElement: root, readyState: 'complete', querySelectorAll: selector => selector === '[data-mb-mode-switch]' ? buttons : [], addEventListener(type, fn) { (listeners[type] ||= []).push(fn); }, dispatchEvent: event => events.push(event) };
   const localStorage = storage === 'blocked' ? undefined : { data: { ...storage }, getItem(key) { return this.data[key] ?? null; }, setItem(key, value) { this.data[key] = value; } };
-  const context = { document, navigator: { userAgent }, matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')' }), CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } }, MutationObserver: class { constructor(fn) { observer = fn; } observe() { } } };
+  const context = { document, window: { addEventListener() { } }, navigator: { userAgent }, matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')' }), CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } }, MutationObserver: class { constructor(fn) { observer = fn; } observe() { } } };
   // A sandboxed iframe throws on localStorage access.
   Object.defineProperty(context, 'localStorage', { get() { if (!localStorage) throw new Error('SecurityError'); return localStorage; } });
   vm.runInNewContext(artifactJs, context);
@@ -154,12 +154,18 @@ test('rendered pages carry no transparency switch', async () => {
   assert.doesNotMatch(html, /mb-theme-standalone|data-mb-theme-button/);
 });
 
-test('interview questions explain the two-tap answer and carry no free text field', async () => {
-  const html = await renderDocument(doc([card('q', { status: 'waiting', question: { options: [{ value: 'si', label: 'Sì' }, { value: 'no', label: 'No' }] } })]));
+test('the two-tap answer is explained once, in the usage guide; the cards carry no help line and no free text field', async () => {
+  const question = { options: [{ value: 'si', label: 'Sì' }, { value: 'no', label: 'No' }] };
+  const html = await renderDocument(doc([card('q', { status: 'waiting', question }), card('r', { status: 'waiting', question })]));
   const form = html.match(/<form data-mb-question="q">[\s\S]*?<\/form>/)[0];
   assert.doesNotMatch(form, /<button|type="submit"|Aggiungi risposte/, 'the two-tap form has no redundant submit control');
-  assert.match(form, /class="mb-hint"[^>]*>[^<]*Spazio/);
-  assert.match(form, /<span class="queue-status" role="status"><\/span>/);
+  assert.doesNotMatch(html, /mb-hint/, 'no help line in the cards');
+  const guide = html.match(/<details class="guide" id="usage-guide">[\s\S]*?<\/details>/)[0];
+  assert.match(guide, /<p class="mb-answer-help"><span class="sentence">Tocca una risposta per sceglierla, toccala di nuovo per accodarla\.<\/span><span class="sentence">Con la tastiera, premi Spazio sull’opzione scelta per accodarla\.<\/span><\/p><\/details>$/, 'after the page\'s own guide');
+  assert.equal(html.split('Tocca una risposta').length, 2, 'said once for the whole page');
+  assert.doesNotMatch(await renderDocument(doc([card('a')])), /mb-answer-help|Tocca una risposta/, 'a page without questions does not explain how to answer');
+  assert.match(form, /<span class="queue-status" role="status"><\/span><\/fieldset>/, 'a status region for screen readers and problems, empty and out of sight');
+  assert.equal([...form.matchAll(/<\/span><span class="mb-queued-mark"><span aria-hidden="true">✓ <\/span>in coda<\/span><span class="mb-sent-mark"><span aria-hidden="true">✓ <\/span>inviata<\/span><\/label>/g)].length, 2, 'every option carries its queued and sent marks');
   assert.doesNotMatch(html, /<textarea|<input(?![^>]*type="radio")/, 'notes go through the annotation tool');
 });
 
