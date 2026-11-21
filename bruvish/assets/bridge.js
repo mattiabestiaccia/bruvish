@@ -52,6 +52,8 @@
         else if (!conflicts[id])
             delete dirty[id];
     } retained = dirty; send('draft', { fields: dirty, conflicts: Object.keys(conflicts) }); }
+    // Restored values come without change or input events; pages that derive a view from a field listen to mb:restored.
+    const restored = () => document.dispatchEvent(new Event('mb:restored'));
     function restore(saved) { const live = fields(); retained = {}; conflicts = {}; for (const [id, record] of Object.entries(saved || {})) {
         const field = live.get(id);
         if (!field || field.kind !== record.kind) {
@@ -74,7 +76,7 @@
             retained[id] = record;
             conflicts[id] = true;
         }
-    } initialized = true; draft(); outline(); }
+    } initialized = true; draft(); outline(); restored(); }
     // Closed cards (answered and not new) are hidden from the start, as the host page's default, and until the host
     // page asks to show them; never every card. Applied before the load, so the scroll restored on load lands on this layout.
     // Generated metadata wins; handwritten reviews can retain their established status classes.
@@ -210,6 +212,7 @@
             delete retained[m.id];
         delete conflicts[m.id];
         draft();
+        restored();
     } });
     document.addEventListener('input', () => { for (const [id] of fields())
         if (conflicts[id]) {

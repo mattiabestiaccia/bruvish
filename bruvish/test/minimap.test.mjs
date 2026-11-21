@@ -9,7 +9,7 @@ const [bridge, addon, css, artifactJs] = await Promise.all(['bridge.js', 'chrome
 const tick = () => new Promise(r => setImmediate(r));
 
 function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd ' }, active = null, handshake = true, userAgent = 'Chrome', legacyControls = [] } = {}) {
-  const posted = [], listeners = {}, documentListeners = {}, styles = [], scrolls = [], frames = [];
+  const posted = [], listeners = {}, documentListeners = {}, styles = [], scrolls = [], frames = [], events = [];
   const parent = { postMessage: message => posted.push(message) };
   const root = { dataset: {}, style: {}, scrollHeight: 4000 };
   // A card has no boxes while a selector of the injected rule matches it, evaluated from the rule itself:
@@ -39,14 +39,15 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     querySelectorAll: selector => selector === '[data-mb-state],.card' ? nodes : selector === '.mb-mode,[data-mb-mode-switch]' ? legacyControls : [],
     querySelector: selector => { if (!/^#[\w-]+$/.test(selector)) throw new SyntaxError('bad selector'); return nodes.find(node => '#' + node.id === selector) ?? null; },
     getElementById: id => nodes.find(node => node.id === id) ?? null,
-    addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
+    addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); },
+    dispatchEvent: event => { events.push(event.type); return true; }
   };
   const getComputedStyle = el => ({
     getPropertyValue: name => el === root ? (palette[name] ?? '') : name === '--mb-state-color' ? el.color : '',
     borderLeftColor: 'rgb(1, 2, 3)', color: 'rgb(4, 5, 6)'
   });
   const context = {
-    parent, document, navigator: {userAgent}, getComputedStyle, scrollY: 0, innerHeight: 1000,
+    parent, document, navigator: {userAgent}, getComputedStyle, scrollY: 0, innerHeight: 1000, Event: class { constructor(type) { this.type = type; } },
     matchMedia: query => ({ matches: query === '(pointer: ' + pointer + ')', addEventListener() { } }),
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
     requestAnimationFrame: fn => frames.push(fn),
@@ -59,7 +60,7 @@ function runBridge(cards, { pointer = 'fine', palette = { '--title': ' #49cbbd '
     deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
   }
   const dispatch = (type, event) => (documentListeners[type] || []).forEach(fn => fn(event));
-  return { posted, observed: context.observed, mutated: records => context.mutated(records), frames, root, dispatch, deliver, styles, scrolls, nodes, view: Object.assign(context, { listeners }) };
+  return { posted, events, observed: context.observed, mutated: records => context.mutated(records), frames, root, dispatch, deliver, styles, scrolls, nodes, view: Object.assign(context, { listeners }) };
 }
 
 test('handwritten card classes supply status colours and answered-card counts without generated metadata',()=>{
@@ -173,7 +174,8 @@ async function runAddon(storage = new Map(), { pointer = 'fine', chrome = null, 
     querySelector: selector => bySelector[selector] ?? null,
     createTreeWalker: scope => { const nodes = descendants(scope); let i = 0; return { nextNode: () => nodes[i++] ?? null }; },
     get activeElement() { return active?.() ?? body; },
-    addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); }
+    addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); },
+    dispatchEvent: event => { events.push(event.type); return true; }
   };
   const context = {
     document, posted,
@@ -306,6 +308,18 @@ test('minimap shape and colours follow the approved mock-up; the new lines pulse
   assert.match(css, /\.mb-rail \.mb-new i\{animation:mb-rail-novelty 2s ease-in-out infinite\}/);
   assert.match(css, /@keyframes mb-rail-novelty\{0%,100%\{opacity:\.45\}50%\{opacity:1\}\}/);
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.mb-rail \.mb-new i\{animation:none\}\}/);
+});
+
+test('bridge: a restore and a resolved draft announce mb:restored, since restored values come without change or input events', () => {
+  const run = runBridge([{ id: 'a', state: 'waiting', color: '' }], { handshake: false });
+  run.deliver({ type: 'lavish-mb:hello', token: 't' });
+  assert.deepEqual(run.events, [], 'nothing restored yet');
+  run.deliver({ type: 'lavish-mb:restore', token: 't', fields: {} });
+  assert.deepEqual(run.events, ['mb:restored']);
+  run.deliver({ type: 'lavish-mb:resolve-draft', token: 't', id: 'a:choice', restore: true });
+  assert.deepEqual(run.events, ['mb:restored', 'mb:restored']);
+  run.deliver({ type: 'lavish-mb:restore', token: 'other', fields: {} });
+  assert.equal(run.events.length, 2, 'a message with another token restores nothing');
 });
 
 test('bridge: closed cards are hidden from the start until the host page asks to show them, never all of them; the outline reports counts, dots and the theme family', () => {

@@ -58,10 +58,11 @@
             panel.hidden = !open;
             button.setAttribute('aria-expanded', String(open));
         }));
-        // Text in an answer: shown for the options listed in data-mb-for (always without it). When the form has a text,
+        // Text in an answer: shown for the options listed in data-mb-for (always without it), also after the bridge restores
+        // a draft without change events (mb:restored). When the form has a text,
         // the submit is handled here, before artifact.js: an option that asks for the text refuses an empty one, and the
         // queued answer is { choice, text }, with the same selector, key and marks as a plain answer.
-        const quotedOption = value => String(value).replace(/["\\]/g, '\\$&').replace(/\n/g, '\\a ');
+        const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/\n/g, '\\a ');
         const forOf = box => { try {
             return box.dataset.mbFor ? JSON.parse(box.dataset.mbFor) : null;
         }
@@ -72,8 +73,9 @@
         const showText = form => { const box = form.querySelector('.mb-answer-text'), list = forOf(box), input = chosen(form); box.hidden = !!list && !(input && list.includes(String(input.value))); };
         const sayIn = (form, text, problem = false) => { const status = form.querySelector('.queue-status'); if (!status)
             return; status.classList.toggle('mb-alert', problem); status.textContent = text; };
-        document.querySelectorAll('form[data-mb-question]').forEach(form => { if (form.querySelector('.mb-answer-text'))
-            form.addEventListener('change', () => showText(form)); });
+        const textForms = [...document.querySelectorAll('form[data-mb-question]')].filter(form => form.querySelector('.mb-answer-text'));
+        textForms.forEach(form => form.addEventListener('change', () => showText(form)));
+        document.addEventListener('mb:restored', () => textForms.forEach(showText));
         document.addEventListener('submit', event => {
             const form = event.target;
             if (!form?.matches?.('form[data-mb-question]') || !form.querySelector('.mb-answer-text'))
@@ -98,13 +100,12 @@
             const question = form.dataset.mbQuestion, answer = { choice: String(input.value) };
             if (!box.hidden && text)
                 answer.text = text;
-            window.lavish.queuePrompt('Risposta per ' + question, { tag: 'choice', text: 'Risposta: ' + question, element: input, selector: '[data-mb-question="' + question + '"] input[value="' + quotedOption(input.value) + '"]', queueKey: 'answer:' + question, data: { question, answer } });
+            window.lavish.queuePrompt('Risposta per ' + question, { tag: 'choice', text: 'Risposta: ' + question, element: input, selector: '[data-mb-question="' + question + '"] input[value="' + quoted(input.value) + '"]', queueKey: 'answer:' + question, data: { question, answer } });
             sayIn(form, '');
             form.querySelector('.mb-armed')?.classList.remove('mb-armed');
         }, true);
         // Line comments on a diff: «commenta» opens a text box under the line; «Aggiungi» queues the comment with the
         // line as anchor. The queued and sent marks follow the chrome's anchor lists, as for the answers.
-        const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/\n/g, '\\a ');
         const lineSelector = key => 'tr[data-mb-line="' + quoted(key) + '"]';
         const make = (tag, attributes = {}, text = '') => { const el = document.createElement(tag); Object.entries(attributes).forEach(([k, v]) => el.setAttribute(k, v)); if (text)
             el.textContent = text; return el; };

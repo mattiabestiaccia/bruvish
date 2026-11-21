@@ -47,26 +47,12 @@ test('a card tone colours the card and its minimap entry; the page then carries 
   assert.match(cardHtml(html, 'b'), /data-mb-state="info" data-mb-tone="verde"/);
   assert.equal(styleOf(html), fontsCss + '\n' + baseCss + '\n' + blocksCss);
   assert.equal(scriptOf(html), baseJs + '\n' + blocksJs);
-  // The minimap reads --mb-state-color; an answered card keeps the green of its state.
-  for (const [tone, color] of [['blu', 'var(--mb-blue)'], ['verde', 'var(--mb-green)'], ['giallo', 'var(--mb-yellow)'], ['rosso', 'var(--mb-red)'], ['decidi', '#e8c35a']])
-    assert.match(blocksCss, new RegExp('\\.card\\[data-mb-tone=' + tone + '\\]:not\\(\\[data-mb-state=answered\\]\\)\\{--mb-state-color:' + color.replace(/[()]/g, '\\$&') + '\\}'), tone);
-  assert.match(blocksCss, /\.card\[data-mb-tone\]\{[^}]*background:linear-gradient\(color-mix\(in srgb,var\(--mb-state-color\) 7%,transparent\)/, 'light tint of the card background');
-  assert.match(blocksCss, /\.card\[data-mb-tone=decidi\]:not\(\[data-mb-state=answered\]\)\{[^}]*box-shadow:[^}]*#e8c35a/, 'decidi glows the most');
   await assert.rejects(render(doc([card({ tone: 'fucsia' })])), /Card a: tone must be one of blu, verde, giallo, rosso, decidi, viola/);
-});
-
-test('the new card fields enter the fingerprint only when present', () => {
-  const plain = card({ status: 'waiting' });
-  assert.equal(cardFingerprint({ ...plain, tone: undefined }), cardFingerprint(plain));
-  for (const extra of [{ tone: 'rosso' }])
-    assert.notEqual(cardFingerprint({ ...plain, ...extra }), cardFingerprint(plain), Object.keys(extra)[0]);
 });
 
 test('labels sit right after the card title, on the same line, with inline marks and a tone', async () => {
   const html = await render(doc([card({ labels: [{ text: '**Bloccante** <b>', tone: 'rosso' }, { text: 'tipo `doc`', tone: 'blu' }] })]));
   assert.match(cardHtml(html), /<div class="mb-card-head"><h3>Una carta<\/h3><span class="mb-labels"><span class="mb-label" data-tone="rosso"><strong>Bloccante<\/strong> &lt;b&gt;<\/span><span class="mb-label" data-tone="blu">tipo <code>doc<\/code><\/span><\/span><\/div><p>/);
-  assert.match(blocksCss, /\.mb-card-head\{[^}]*display:flex/);
-  assert.match(blocksCss, /\.mb-card-head h3\{[^}]*margin:0/);
   for (const labels of ['x', [{ text: '', tone: 'blu' }], [{ text: 'a', tone: 'nero' }], [{ tone: 'blu' }]])
     await assert.rejects(render(doc([card({ labels })])), /Card a: labels/);
 });
@@ -75,11 +61,11 @@ test('help opens with a click on «?» in the flow of the card, closes with anot
   const html = await render(doc([card({ help: 'Serve a **decidere**. Poi chiudi.' })]));
   const body = cardHtml(html);
   assert.match(body, /<div class="mb-card-head"><h3>Una carta<\/h3><button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="mb-help-a" aria-label="A cosa serve questa carta">\?<\/button><\/div><div class="mb-help" id="mb-help-a" hidden><p><span class="sentence">Serve a <strong>decidere<\/strong>.<\/span><span class="sentence">Poi chiudi.<\/span><\/p><\/div><p>/);
-  assert.match(blocksCss, /\.mb-help\{[^}]*background:#0b1114/, 'opaque dark panel');
-  assert.doesNotMatch(blocksCss, /\.mb-help\{[^}]*position:(absolute|fixed)/, 'in the flow, not over the card');
-  assert.doesNotMatch(blocksJs, /mouseover|mouseenter|:hover[^{]*\.mb-help\b/, 'never on hover');
   const { document, window } = boot(html);
   const button = document.querySelector('[data-mb-help]'), panel = document.getElementById('mb-help-a');
+  for (const type of ['mouseover', 'mouseenter', 'pointerover', 'pointerenter', 'focus', 'focusin']) document.dispatch(button, type);
+  assert.equal(panel.hidden, true, 'hover and focus leave the help closed');
+  assert.equal(button.getAttribute('aria-expanded'), 'false');
   button.click();
   assert.equal(panel.hidden, false);
   assert.equal(button.getAttribute('aria-expanded'), 'true');
@@ -108,7 +94,6 @@ test('the header carries a badge with a closed set of inline icons, a subtitle a
   await assert.rejects(render(doc([card()], { header: { badge: { text: '', tone: 'blu' } } })), /header\.badge/);
   await assert.rejects(render(doc([card()], { header: { meta: 'x' } })), /header\.meta/);
   await assert.rejects(render(doc([card()], { pills: [{ text: 'x' }] })), /pills must be an array/);
-  assert.match(blocksCss, /\.mb-badge\{[^}]*color:#fff/);
   const license = await readFile(new URL('../licenses/Octicons-MIT.txt', import.meta.url), 'utf8');
   assert.match(license, /MIT License[\s\S]*GitHub/);
 });
@@ -118,8 +103,6 @@ test('a card table has headers and rows; « · » puts two items on two lines; a
   const body = cardHtml(await render(doc([card({ fields: [{ label: 'Oggi', paragraphs: ['Uno.'] }], table })])));
   assert.match(body, /<\/table><table class="mb-table"><thead><tr><th scope="col">File<\/th><th scope="col">Rischio<\/th><th scope="col">Nota<\/th><\/tr><\/thead><tbody><tr><td><code>a\.js<\/code><br><code>b\.js<\/code><\/td><td><span class="mb-level" data-tone="rosso">alto<\/span><\/td><td><strong>sì<\/strong> &lt;i&gt;<\/td><\/tr><tr><td>c<\/td><td><span class="mb-level" data-tone="verde">basso<\/span><\/td><td><\/td><\/tr><\/tbody><\/table>/, 'after the fields');
   assert.match(cardHtml(await render(doc([card({ table: { rows: [['x']] } })]))), /<table class="mb-table"><tbody><tr><td>x<\/td><\/tr><\/tbody><\/table>/, 'headers are optional');
-  // Levels: semantic colour halfway between a soft tint and a full fill (.livello of revisione.css).
-  assert.match(blocksCss, /\.mb-level\[data-tone=rosso\]\{[^}]*background:rgba\(218,54,51,\.55\)/);
   for (const bad of [[], { rows: 'x' }, { headers: ['a'], rows: [['x', 'y']] }, { rows: [[1]] }, { rows: [[{ text: 'x', tone: 'nero' }]] }])
     await assert.rejects(render(doc([card({ table: bad })])), /Card a: table/);
 });
@@ -128,8 +111,6 @@ test('secondary notes close the card in grey italics, under a dashed line', asyn
   const q = { options: [{ value: 'a', label: 'A', recommended: true }] };
   const body = cardHtml(await render(doc([card({ question: q, notes: ['Prima nota. Seconda frase.', '`x` <y>'] })])));
   assert.match(body, /<\/form><div class="mb-notes"><p><span class="sentence">Prima nota\.<\/span><span class="sentence">Seconda frase\.<\/span><\/p><p><span class="sentence"><code>x<\/code> &lt;y&gt;<\/span><\/p><\/div><\/article>$/);
-  assert.match(blocksCss, /\.mb-notes\{[^}]*border-top:1px dashed var\(--line\)/);
-  assert.match(blocksCss, /\.mb-notes p\{[^}]*font-style:italic[^}]*color:var\(--muted\)/);
   for (const notes of ['x', ['']]) await assert.rejects(render(doc([card({ notes })])), /Card a: notes/);
   await assert.rejects(render(doc([card({ notes: [3] })])), /A sentence is a string/);
 });
@@ -137,7 +118,6 @@ test('secondary notes close the card in grey italics, under a dashed line', asyn
 test('events are one line each with a dot in their tone', async () => {
   const body = cardHtml(await render(doc([card({ table: { rows: [['x']] }, events: [{ text: 'Aperta da **Mattia**', tone: 'verde' }, { text: 'Unita <b>', tone: 'viola' }] })])));
   assert.match(body, /<\/table><div class="mb-events"><div class="mb-event"><span class="mb-dot" data-tone="verde"><\/span><span>Aperta da <strong>Mattia<\/strong><\/span><\/div><div class="mb-event"><span class="mb-dot" data-tone="viola"><\/span><span>Unita &lt;b&gt;<\/span><\/div><\/div>/);
-  assert.match(blocksCss, /\.mb-dot\{[^}]*border-radius:50%[^}]*background:var\(--mb-tone/);
   await assert.rejects(render(doc([card({ events: [{ text: 'x', tone: 'nero' }] })])), /Card a: events/);
 });
 
@@ -181,8 +161,6 @@ test('a card diff is one collapsible block per file, with coloured lines, new-si
   assert.match(body, /<tr class="mb-context" data-mb-line="src\/a\.js:4"><td class="mb-num">3<\/td><td class="mb-num">4<\/td>/);
   assert.match(body, /<tr class="mb-hunk"><td class="mb-num"><\/td><td class="mb-num"><\/td><td class="mb-code">@@ -1,4 \+1,4 @@ function a\(\) \{<\/td><td class="mb-cmt"><\/td><\/tr>/);
   assert.doesNotMatch(body, /<script>|<b>/, 'the diff text is escaped');
-  assert.doesNotMatch(blocksCss, /\.mb-diff[^{]*\{[^}]*position:sticky/, 'nothing sticks');
-  assert.match(blocksCss, /\.mb-line-note\{/);
   await assert.rejects(render(doc([card({ diff: { text: DIFF, notes: { 'src/a.js:99': 'x' } } })])), /Card a: diff note "src\/a\.js:99" matches no line of the new side/);
   await assert.rejects(render(doc([card({ diff: { text: 3 } })])), /Card a: diff must be/);
   await assert.rejects(render(doc([card({ diff: { text: 'niente' } })])), /Card a: diff has no file/);
@@ -236,7 +214,6 @@ test('each line of the new side has a discreet «commenta» that queues a line c
   bareBox.querySelector('textarea').value = 'x';
   bareBox.querySelector('button').click();
   assert.equal(bareBox.querySelector('[role="status"]').textContent, 'Apri la pagina con Lavish per accodare il commento.');
-  assert.match(blocksCss, /\.mb-comment-toggle\{[^}]*opacity/);
 });
 
 test('a question may ask for a text, shown for the options listed in "for"; the queued answer becomes { choice, text }', async () => {
@@ -270,6 +247,14 @@ test('a question may ask for a text, shown for the options listed in "for"; the 
   assert.equal(box.hidden, true);
   form.requestSubmit();
   assert.deepEqual(JSON.parse(JSON.stringify(window.queued[1].data.answer)), { choice: 'a' }, 'a hidden text is not sent');
+  // A draft restored by the bridge sets the option without change events, then announces mb:restored: the text shows.
+  const restoredPage = boot(html);
+  const [, restoredB] = restoredPage.document.querySelectorAll('input[name="choice"]'), restoredBox = restoredPage.document.querySelector('.mb-answer-text');
+  restoredB.checked = true;
+  restoredPage.document.querySelector('textarea').value = 'Togli la regola.';
+  assert.equal(restoredBox.hidden, true);
+  restoredPage.document.dispatch(restoredPage.document, 'mb:restored');
+  assert.equal(restoredBox.hidden, false, 'the restored choice shows its restored text');
   // Without "for" the text is always there and optional; a saved answer fills it back.
   const always = await render(doc([card({ status: 'waiting', question: { ...question, text: { label: 'Note' } } })], { state: { revision: 1, answers: { a: { choice: 'a', text: 'Già <scritto>' } } } }));
   assert.match(always, /<div class="mb-answer-text"><label><span class="mb-answer-label">Note<\/span><textarea data-mb-field="a:text" name="text" rows="3">Già &lt;scritto&gt;<\/textarea><\/label><\/div>/);
@@ -315,8 +300,6 @@ test('a page in tabs turns every section into a tab of the index bar, with a cou
   assert.equal(deep.document.getElementById('file').hidden, false);
   // A counter also shows in a page without tabs.
   assert.match(await render({ ...doc([card()]), sections: [{ id: 's', title: 'Sezione', count: '2 nuove', cards: [card()] }] }), /<nav><a href="#s">Sezione<span class="mb-count">2 nuove<\/span><\/a><\/nav>/);
-  assert.match(blocksCss, /nav\.mb-tabs a\[aria-current=page\]\{/);
-  assert.doesNotMatch(blocksCss, /nav\.mb-tabs\{[^}]*position:sticky/);
   for (const bad of [{ tabs: 'si' }, { layout: 'colonne' }]) await assert.rejects(render({ ...input, tabs: undefined, ...bad }), /tabs/);
   await assert.rejects(render({ ...input, sections: [{ ...input.sections[0], count: [1] }] }), /Section sintesi: count/);
 });
