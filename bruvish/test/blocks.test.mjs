@@ -330,3 +330,13 @@ test('the example revisione-completa uses every building block and renders throu
     for (const needle of ['nav class="mb-tabs"', 'mb-badge', 'mb-pill', 'data-mb-tone="decidi"', 'mb-label', 'mb-help', 'mb-table', 'mb-level', 'mb-notes', 'mb-diff-file', 'mb-line-note', 'data-mb-comment', 'mb-answer-text', 'mb-event']) assert(html.includes(needle), needle);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('yellow is always intense: tone giallo has the glow, tint and colour of decidi', () => {
+  const rules = [...blocksCss.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selectors, body]) => ({ selectors: selectors.split(',').map(s => s.trim()), body }));
+  const declarations = tone => rules.filter(r => r.selectors.includes('.card[data-mb-tone=' + tone + ']:not([data-mb-state=answered])')).map(r => r.body).join(';');
+  for (const tone of ['giallo', 'decidi']) {
+    assert.match(declarations(tone), /--mb-state-color:#e8c35a/, tone);
+    assert.match(declarations(tone), /box-shadow:0 0 0 1\.5px #e8c35acc,0 0 22px #e8c35a88/, tone);
+    assert.match(declarations(tone), /background:linear-gradient\(rgba\(232,195,90,\.08\)/, tone);
+  }
+});

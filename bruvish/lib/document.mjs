@@ -122,7 +122,7 @@ function cardFields(card) {
     return card.fields.length ? fieldsTable(card.fields.map(f => [inline(f.label), filledParagraphs(f.paragraphs, shape)])) : '';
 }
 // Colour categories of the building blocks: cards, badge, pills, labels, levels, events. blu informs, verde is a
-// good outcome, giallo asks for attention, rosso blocks, decidi asks the reader for a decision (the most intense), viola is
+// good outcome, giallo asks for attention, rosso blocks, decidi asks the reader for a decision (yellow is always intense), viola is
 // a neutral accent.
 export const TONES = ['blu', 'verde', 'giallo', 'rosso', 'decidi', 'viola'];
 function toneOf(value, where) {
