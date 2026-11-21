@@ -112,3 +112,14 @@ test('the header carries a badge with a closed set of inline icons, a subtitle a
   const license = await readFile(new URL('../licenses/Octicons-MIT.txt', import.meta.url), 'utf8');
   assert.match(license, /MIT License[\s\S]*GitHub/);
 });
+
+test('a card table has headers and rows; « · » puts two items on two lines; a { text, tone } cell is a level', async () => {
+  const table = { headers: ['File', 'Rischio', 'Nota'], rows: [['`a.js` · `b.js`', { text: 'alto', tone: 'rosso' }, '**sì** <i>'], ['c', { text: 'basso', tone: 'verde' }, '']] };
+  const body = cardHtml(await render(doc([card({ fields: [{ label: 'Oggi', paragraphs: ['Uno.'] }], table })])));
+  assert.match(body, /<\/table><table class="mb-table"><thead><tr><th scope="col">File<\/th><th scope="col">Rischio<\/th><th scope="col">Nota<\/th><\/tr><\/thead><tbody><tr><td><code>a\.js<\/code><br><code>b\.js<\/code><\/td><td><span class="mb-level" data-tone="rosso">alto<\/span><\/td><td><strong>sì<\/strong> &lt;i&gt;<\/td><\/tr><tr><td>c<\/td><td><span class="mb-level" data-tone="verde">basso<\/span><\/td><td><\/td><\/tr><\/tbody><\/table>/, 'after the fields');
+  assert.match(cardHtml(await render(doc([card({ table: { rows: [['x']] } })]))), /<table class="mb-table"><tbody><tr><td>x<\/td><\/tr><\/tbody><\/table>/, 'headers are optional');
+  // Levels: semantic colour halfway between a soft tint and a full fill (.livello of revisione.css).
+  assert.match(blocksCss, /\.mb-level\[data-tone=rosso\]\{[^}]*background:rgba\(218,54,51,\.55\)/);
+  for (const bad of [[], { rows: 'x' }, { headers: ['a'], rows: [['x', 'y']] }, { rows: [[1]] }, { rows: [[{ text: 'x', tone: 'nero' }]] }])
+    await assert.rejects(render(doc([card({ table: bad })])), /Card a: table/);
+});

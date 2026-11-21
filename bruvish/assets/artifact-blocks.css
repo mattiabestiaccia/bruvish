@@ -42,3 +42,15 @@
 .mb-icon{flex:none}
 .mb-subtitle{margin:-6px 0 14px;font-size:17px;color:var(--muted)}
 .mb-pills{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:12px}
+/* Tables of several columns; a level or outcome is a semantic colour halfway between a soft tint and a full fill. */
+.mb-table{margin:0 0 1.8em;font-size:17px;border-top:1px solid var(--line)}
+.mb-table th{color:var(--muted);font-weight:400;font-size:15px;vertical-align:bottom}
+.mb-table td{vertical-align:top}
+.mb-level{display:inline-block;font-size:16px;font-weight:700;border-radius:999px;padding:2px 14px;white-space:nowrap;letter-spacing:.02em;color:#fff}
+.mb-level[data-tone=verde]{background:rgba(46,160,67,.55);color:#e6ffec;box-shadow:0 0 0 1px #2ea043,0 0 8px #2ea04355}
+.mb-level[data-tone=giallo]{background:rgba(210,153,34,.55);color:#fff6dc;box-shadow:0 0 0 1px #d29922,0 0 8px #d2992255}
+.mb-level[data-tone=decidi]{background:rgba(210,153,34,.55);color:#fff6dc;box-shadow:0 0 0 1.5px #e8c35acc,0 0 12px #e8c35a88}
+.mb-level[data-tone=rosso]{background:rgba(218,54,51,.55);color:#ffe9e8;box-shadow:0 0 0 1px #da3633,0 0 8px #da363355}
+.mb-level[data-tone=blu]{background:rgba(31,111,235,.55);color:#e7f1ff;box-shadow:0 0 0 1px #1f6feb,0 0 8px #1f6feb55}
+.mb-level[data-tone=viola]{background:rgba(137,87,229,.55);color:#f3ecff;box-shadow:0 0 0 1px #8957e5,0 0 8px #8957e555}
+@media(max-width:600px){.mb-table{display:block;overflow-x:auto}}
