@@ -319,6 +319,18 @@ function cardDiff(card) {
         throw new Error(where + ' note ' + JSON.stringify(unmatched) + ' matches no line of the new side; keys are "<file>:<line of the new side>"');
     return '<div class="mb-diff">' + html + '</div>';
 }
+// A text field in an answer, under the options: always there, or only for the options listed in "for". A saved
+// answer fills it back. artifact-blocks.js shows it, checks it and queues { choice, text }.
+function questionText(card, q, answer) {
+    if (q.text === undefined)
+        return '';
+    const t = q.text, values = q.options.map(o => o.value);
+    if (!t || typeof t !== 'object' || Array.isArray(t) || (t.label !== undefined && typeof t.label !== 'string') || (t.placeholder !== undefined && typeof t.placeholder !== 'string')
+        || (t.for !== undefined && (!Array.isArray(t.for) || !t.for.length || t.for.some(v => !values.includes(v)))))
+        throw new Error('Card ' + card.id + ': question.text must be { "label": "Quali modifiche?", "placeholder": "...", "for": ["<value of an option>"] }; "for" lists values of the options and may be left out to show the text always');
+    const shown = t.for === undefined || t.for.includes(answer?.choice);
+    return '<div class="mb-answer-text"' + (t.for === undefined ? '' : ' data-mb-for="' + escape(JSON.stringify(t.for.map(String))) + '"') + (shown ? '' : ' hidden') + '><label><span class="mb-answer-label">' + inline(t.label ?? 'Il tuo testo') + '</span><textarea data-mb-field="' + card.id + ':text" name="text" rows="3"' + (t.placeholder ? ' placeholder="' + escape(t.placeholder) + '"' : '') + '>' + escape(typeof answer?.text === 'string' ? answer.text : '') + '</textarea></label></div>';
+}
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events'];
@@ -394,7 +406,7 @@ export async function renderDocument(input, options = {}) {
                         throw new Error('Card ' + card.id + ': question.reason explains the recommended option; mark that option with "recommended": true or drop the reason');
                     reason = fieldsTable([['Motivazione', filledParagraphs(q.reason, 'Card ' + card.id + ': question.reason is empty; write the reason in one or two sentences')]], 'mb-fields mb-reason');
                 }
-                question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + inline(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + inline(o.label) + '</span>' + QUEUED_MARK + '</label>').join('') + reason + '<span class="queue-status" role="status"></span></fieldset></form>';
+                question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + inline(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + inline(o.label) + '</span>' + QUEUED_MARK + '</label>').join('') + questionText(card, q, answer) + reason + '<span class="queue-status" role="status"></span></fieldset></form>';
             }
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';

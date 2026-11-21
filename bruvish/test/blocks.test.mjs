@@ -238,3 +238,50 @@ test('each line of the new side has a discreet «commenta» that queues a line c
   assert.equal(bareBox.querySelector('[role="status"]').textContent, 'Apri la pagina con Lavish per accodare il commento.');
   assert.match(blocksCss, /\.mb-comment-toggle\{[^}]*opacity/);
 });
+
+test('a question may ask for a text, shown for the options listed in "for"; the queued answer becomes { choice, text }', async () => {
+  const question = { label: 'Cosa faccio?', options: [{ value: 'a', label: 'Unisci', recommended: true }, { value: 'b', label: 'Chiedi modifiche' }], reason: 'Va bene.', text: { label: 'Quali **modifiche**?', placeholder: 'Scrivi <qui>', for: ['b'] } };
+  const html = await render(doc([card({ status: 'waiting', question })]));
+  const body = cardHtml(html);
+  assert.match(body, /<\/label><div class="mb-answer-text" data-mb-for="\[&quot;b&quot;\]" hidden><label><span class="mb-answer-label">Quali <strong>modifiche<\/strong>\?<\/span><textarea data-mb-field="a:text" name="text" rows="3" placeholder="Scrivi &lt;qui&gt;"><\/textarea><\/label><\/div><table class="mb-fields mb-reason">/);
+  const { document, window } = boot(html);
+  const form = document.querySelector('[data-mb-question]'), box = form.querySelector('.mb-answer-text'), area = form.querySelector('textarea');
+  const [a, b] = form.querySelectorAll('input[name="choice"]'), status = form.querySelector('.queue-status');
+  const choose = input => { input.checked = true; document.dispatch(input, 'change'); };
+  choose(a);
+  assert.equal(box.hidden, true);
+  choose(b);
+  assert.equal(box.hidden, false);
+  form.requestSubmit();
+  assert.equal(window.queued.length, 0);
+  assert.equal(status.textContent, 'Scrivi il testo per questa risposta.');
+  assert(status.classList.contains('mb-alert'));
+  area.value = ' Togli la regola. ';
+  form.requestSubmit();
+  assert.equal(window.queued.length, 1, 'queued once, by the building blocks only');
+  const [queued] = window.queued;
+  assert.deepEqual(JSON.parse(JSON.stringify(queued.data)), { question: 'a', answer: { choice: 'b', text: 'Togli la regola.' } });
+  assert.equal(queued.queueKey, 'answer:a');
+  assert.equal(queued.tag, 'choice');
+  assert.equal(queued.selector, '[data-mb-question="a"] input[value="b"]');
+  assert.equal(queued.element, b);
+  assert.equal(status.textContent, '');
+  choose(a);
+  assert.equal(box.hidden, true);
+  form.requestSubmit();
+  assert.deepEqual(JSON.parse(JSON.stringify(window.queued[1].data.answer)), { choice: 'a' }, 'a hidden text is not sent');
+  // Without "for" the text is always there and optional; a saved answer fills it back.
+  const always = await render(doc([card({ status: 'waiting', question: { ...question, text: { label: 'Note' } } })], { state: { revision: 1, answers: { a: { choice: 'a', text: 'Già <scritto>' } } } }));
+  assert.match(always, /<div class="mb-answer-text"><label><span class="mb-answer-label">Note<\/span><textarea data-mb-field="a:text" name="text" rows="3">Già &lt;scritto&gt;<\/textarea><\/label><\/div>/);
+  const second = boot(always);
+  const secondForm = second.document.querySelector('[data-mb-question]');
+  secondForm.querySelector('textarea').value = '';
+  secondForm.requestSubmit();
+  assert.deepEqual(JSON.parse(JSON.stringify(second.window.queued[0].data.answer)), { choice: 'a' });
+  // Without Lavish, the same message as the answers.
+  const bare = boot(always, { lavish: false });
+  bare.document.querySelector('[data-mb-question]').requestSubmit();
+  assert.equal(bare.document.querySelector('.queue-status').textContent, 'Apri la pagina con Lavish per accodare la risposta.');
+  for (const text of ['x', { for: ['z'] }, { for: 'b' }, { label: 3 }])
+    await assert.rejects(render(doc([card({ question: { ...question, text } })])), /Card a: question\.text/);
+});
