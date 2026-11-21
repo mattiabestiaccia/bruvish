@@ -130,6 +130,26 @@ function toneOf(value, where) {
         throw new Error(where + ': tone must be one of ' + TONES.join(', ') + ' (got ' + JSON.stringify(value) + ')');
     return value;
 }
+// A list of { text, tone } items (labels, pills, events): the text carries inline marks, the tone is a category.
+function taggedList(list, where) {
+    if (!Array.isArray(list) || list.some(item => !item || typeof item !== 'object' || typeof item.text !== 'string' || !item.text.trim() || !TONES.includes(item.tone)))
+        throw new Error(where + ' must be an array of { "text": "Bloccante", "tone": "rosso" }, each with a non-empty text and a tone among ' + TONES.join(', '));
+    return list;
+}
+// Title row of a card: the title, then its labels on the same line, then the «?» that opens the help panel in the flow.
+function cardHead(card) {
+    const title = '<h3>' + inline(card.title) + '</h3>';
+    const labels = card.labels === undefined ? [] : taggedList(card.labels, 'Card ' + card.id + ': labels');
+    if (!labels.length && card.help === undefined)
+        return title;
+    let toggle = '', help = '';
+    if (card.help !== undefined) {
+        const body = filledParagraphs(card.help, 'Card ' + card.id + ': help is a text of one or more sentences, like "Serve a decidere se unire il ramo."');
+        toggle = '<button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="mb-help-' + card.id + '" aria-label="A cosa serve questa carta">?</button>';
+        help = '<div class="mb-help" id="mb-help-' + card.id + '" hidden>' + body + '</div>';
+    }
+    return '<div class="mb-card-head">' + title + (labels.length ? '<span class="mb-labels">' + labels.map(l => '<span class="mb-label" data-tone="' + l.tone + '">' + inline(l.text) + '</span>').join('') + '</span>' : '') + toggle + '</div>' + help;
+}
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events'];
@@ -210,7 +230,7 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id);
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button><h3>' + inline(card.title) + '</h3>' + paragraphs(card.paragraphs) + cardFields(card) + context + question + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button>' + cardHead(card) + paragraphs(card.paragraphs) + cardFields(card) + context + question + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));

@@ -12,3 +12,22 @@
 .card[data-mb-tone]{background:linear-gradient(color-mix(in srgb,var(--mb-state-color) 7%,transparent),color-mix(in srgb,var(--mb-state-color) 7%,transparent)),var(--card)}
 /* decidi: a decision of the reader, the brightest still glow (.decidi of revisione.css). */
 .card[data-mb-tone=decidi]:not([data-mb-state=answered]){border-color:#d6ab32cc;box-shadow:0 0 0 1.5px #e8c35acc,0 0 22px #e8c35a88,0 0 46px #d6ab3240,inset 0 0 24px #e8c35a22;background:linear-gradient(rgba(232,195,90,.08),rgba(232,195,90,.08)),var(--card)}
+/* Title row: labels right after the title on the same line, then the «?» of the help. */
+.mb-card-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;margin:0 0 12px}
+.mb-card-head h3{margin:0}
+.mb-labels{display:inline-flex;flex-wrap:wrap;gap:8px}
+.mb-label,.mb-pill{font-size:16px;line-height:1.3;border:1px solid var(--line);border-radius:999px;padding:1px 10px;color:var(--ink);white-space:nowrap}
+[data-tone=blu]{--mb-tone:var(--mb-blue)}
+[data-tone=verde]{--mb-tone:var(--mb-green)}
+[data-tone=giallo]{--mb-tone:var(--mb-yellow)}
+[data-tone=rosso]{--mb-tone:var(--mb-red)}
+[data-tone=viola]{--mb-tone:var(--mb-violet)}
+[data-tone=decidi]{--mb-tone:#e8c35a}
+.mb-label[data-tone],.mb-pill[data-tone]{box-shadow:0 0 0 1px color-mix(in srgb,var(--mb-tone) 40%,transparent)}
+.mb-label[data-tone=decidi],.mb-pill[data-tone=decidi]{box-shadow:0 0 0 1.5px #e8c35acc,0 0 10px #e8c35a66}
+/* Help: opens and closes with a click on «?», never on hover; a panel in the flow with an opaque dark background. */
+.mb-help-toggle{margin-left:auto;width:26px;height:26px;padding:0;border-radius:50%;font:600 15px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);opacity:.7}
+.mb-help-toggle:hover,.mb-help-toggle:focus-visible,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
+.mb-help{margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:17px}
+.mb-help p{margin:0 0 .8em}
+.mb-help p:last-child{margin-bottom:0}

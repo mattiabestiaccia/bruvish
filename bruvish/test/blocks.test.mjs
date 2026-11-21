@@ -61,3 +61,35 @@ test('the new card fields enter the fingerprint only when present', () => {
   for (const extra of [{ tone: 'rosso' }])
     assert.notEqual(cardFingerprint({ ...plain, ...extra }), cardFingerprint(plain), Object.keys(extra)[0]);
 });
+
+test('labels sit right after the card title, on the same line, with inline marks and a tone', async () => {
+  const html = await render(doc([card({ labels: [{ text: '**Bloccante** <b>', tone: 'rosso' }, { text: 'tipo `doc`', tone: 'blu' }] })]));
+  assert.match(cardHtml(html), /<div class="mb-card-head"><h3>Una carta<\/h3><span class="mb-labels"><span class="mb-label" data-tone="rosso"><strong>Bloccante<\/strong> &lt;b&gt;<\/span><span class="mb-label" data-tone="blu">tipo <code>doc<\/code><\/span><\/span><\/div><p>/);
+  assert.match(blocksCss, /\.mb-card-head\{[^}]*display:flex/);
+  assert.match(blocksCss, /\.mb-card-head h3\{[^}]*margin:0/);
+  for (const labels of ['x', [{ text: '', tone: 'blu' }], [{ text: 'a', tone: 'nero' }], [{ tone: 'blu' }]])
+    await assert.rejects(render(doc([card({ labels })])), /Card a: labels/);
+});
+
+test('help opens with a click on «?» in the flow of the card, closes with another click, never on hover, and is not read aloud', async () => {
+  const html = await render(doc([card({ help: 'Serve a **decidere**. Poi chiudi.' })]));
+  const body = cardHtml(html);
+  assert.match(body, /<div class="mb-card-head"><h3>Una carta<\/h3><button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="mb-help-a" aria-label="A cosa serve questa carta">\?<\/button><\/div><div class="mb-help" id="mb-help-a" hidden><p><span class="sentence">Serve a <strong>decidere<\/strong>.<\/span><span class="sentence">Poi chiudi.<\/span><\/p><\/div><p>/);
+  assert.match(blocksCss, /\.mb-help\{[^}]*background:#0b1114/, 'opaque dark panel');
+  assert.doesNotMatch(blocksCss, /\.mb-help\{[^}]*position:(absolute|fixed)/, 'in the flow, not over the card');
+  assert.doesNotMatch(blocksJs, /mouseover|mouseenter|:hover[^{]*\.mb-help\b/, 'never on hover');
+  const { document, window } = boot(html);
+  const button = document.querySelector('[data-mb-help]'), panel = document.getElementById('mb-help-a');
+  button.click();
+  assert.equal(panel.hidden, false);
+  assert.equal(button.getAttribute('aria-expanded'), 'true');
+  button.click();
+  assert.equal(panel.hidden, true);
+  assert.equal(button.getAttribute('aria-expanded'), 'false');
+  // The voice reads title and body, not the help.
+  const spoken = [];
+  Object.assign(window, { SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } }, speechSynthesis: { speaking: false, speak: u => spoken.push(u.text), cancel() {} } });
+  document.querySelector('[data-mb-voice]').click();
+  assert.deepEqual(spoken, ['Una carta Testo.']);
+  await assert.rejects(render(doc([card({ help: '' })])), /Card a: help/);
+});
