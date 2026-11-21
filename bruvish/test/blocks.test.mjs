@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import { renderDocument, cardFingerprint } from '../lib/document.mjs';
+import { renderDocument, cardFingerprint, parseDiff } from '../lib/document.mjs';
 import { createDocument, createWindow } from '../test-helpers/mini-dom.mjs';
 
 const asset = name => readFile(new URL('../assets/' + name, import.meta.url), 'utf8');
@@ -139,4 +139,51 @@ test('events are one line each with a dot in their tone', async () => {
   assert.match(body, /<\/table><div class="mb-events"><div class="mb-event"><span class="mb-dot" data-tone="verde"><\/span><span>Aperta da <strong>Mattia<\/strong><\/span><\/div><div class="mb-event"><span class="mb-dot" data-tone="viola"><\/span><span>Unita &lt;b&gt;<\/span><\/div><\/div>/);
   assert.match(blocksCss, /\.mb-dot\{[^}]*border-radius:50%[^}]*background:var\(--mb-tone/);
   await assert.rejects(render(doc([card({ events: [{ text: 'x', tone: 'nero' }] })])), /Card a: events/);
+});
+
+const DIFF = `diff --git a/src/a.js b/src/a.js
+index 1111111..2222222 100644
+--- a/src/a.js
++++ b/src/a.js
+@@ -1,4 +1,4 @@ function a() {
+ const uno = 1;
+-const due = "<b>2</b>";
++const due = '<script>alert(2)</script>';
++--- non una testata
+ const tre = 3;
+diff --git a/docs/nuovo.md b/docs/nuovo.md
+new file mode 100644
+--- /dev/null
++++ b/docs/nuovo.md
+@@ -0,0 +1,2 @@
++# Titolo
++Riga & due
+\\ No newline at end of file
+`;
+
+test('a unified diff is read file by file with line numbers, also when a removed or added line looks like a header', () => {
+  const files = parseDiff(DIFF);
+  assert.deepEqual(files.map(f => [f.name, f.status, f.added, f.removed]), [['src/a.js', 'modified', 2, 1], ['docs/nuovo.md', 'added', 2, 0]]);
+  assert.deepEqual(files[0].lines.map(l => [l.type, l.old, l.new]), [['hunk', null, null], ['context', 1, 1], ['del', 2, null], ['add', null, 2], ['add', null, 3], ['context', 3, 4]]);
+  assert.equal(files[0].lines[4].text, '--- non una testata');
+  assert.deepEqual(files[1].lines.map(l => l.type), ['hunk', 'add', 'add', 'meta']);
+  // diff -u without git headers: the +++ line opens each file.
+  const plain = parseDiff('--- a/x.txt\t2026\n+++ b/x.txt\t2026\n@@ -1 +1 @@\n-a\n+b\n--- vecchio.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-via\n');
+  assert.deepEqual(plain.map(f => [f.name, f.status, f.added, f.removed]), [['x.txt', 'modified', 1, 1], ['vecchio.txt', 'deleted', 0, 1]]);
+});
+
+test('a card diff is one collapsible block per file, with coloured lines, new-side numbers and notes under their line', async () => {
+  const body = cardHtml(await render(doc([card({ diff: { text: DIFF, notes: { 'src/a.js:2': 'Qui **attenzione** <b>.', 'docs/nuovo.md:1': 'Titolo nuovo.' } } })])));
+  assert.match(body, /<div class="mb-diff"><details class="mb-diff-file" open><summary><span class="mb-diff-name">src\/a\.js<\/span><span class="mb-diff-stat"><span class="mb-plus">\+2<\/span> <span class="mb-minus">−1<\/span><\/span><\/summary>/);
+  assert.match(body, /<summary><span class="mb-diff-name">docs\/nuovo\.md<\/span><span class="mb-diff-stat">nuovo · <span class="mb-plus">\+2<\/span><\/span><\/summary>/);
+  assert.match(body, /<tr class="mb-del"><td class="mb-num">2<\/td><td class="mb-num"><\/td><td class="mb-code"><span class="mb-sign">−<\/span>const due = &quot;&lt;b&gt;2&lt;\/b&gt;&quot;;<\/td><td class="mb-cmt"><\/td><\/tr>/);
+  assert.match(body, /<tr class="mb-add" data-mb-line="src\/a\.js:2"><td class="mb-num"><\/td><td class="mb-num">2<\/td><td class="mb-code"><span class="mb-sign">\+<\/span>const due = &#39;&lt;script&gt;alert\(2\)&lt;\/script&gt;&#39;;<\/td><td class="mb-cmt">[\s\S]*?<\/td><\/tr><tr class="mb-note-row"><td colspan="4"><div class="mb-line-note">Qui <strong>attenzione<\/strong> &lt;b&gt;\.<\/div><\/td><\/tr>/);
+  assert.match(body, /<tr class="mb-context" data-mb-line="src\/a\.js:4"><td class="mb-num">3<\/td><td class="mb-num">4<\/td>/);
+  assert.match(body, /<tr class="mb-hunk"><td class="mb-num"><\/td><td class="mb-num"><\/td><td class="mb-code">@@ -1,4 \+1,4 @@ function a\(\) \{<\/td><td class="mb-cmt"><\/td><\/tr>/);
+  assert.doesNotMatch(body, /<script>|<b>/, 'the diff text is escaped');
+  assert.doesNotMatch(blocksCss, /\.mb-diff[^{]*\{[^}]*position:sticky/, 'nothing sticks');
+  assert.match(blocksCss, /\.mb-line-note\{/);
+  await assert.rejects(render(doc([card({ diff: { text: DIFF, notes: { 'src/a.js:99': 'x' } } })])), /Card a: diff note "src\/a\.js:99" matches no line of the new side/);
+  await assert.rejects(render(doc([card({ diff: { text: 3 } })])), /Card a: diff must be/);
+  await assert.rejects(render(doc([card({ diff: { text: 'niente' } })])), /Card a: diff has no file/);
 });

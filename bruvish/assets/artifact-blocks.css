@@ -62,3 +62,24 @@
 .mb-events{margin:0 0 1.8em}
 .mb-event{display:grid;grid-template-columns:22px 1fr;gap:8px;margin:0 0 10px;font-size:17px}
 .mb-dot{width:10px;height:10px;border-radius:50%;margin:8px 0 0 6px;background:var(--mb-tone,var(--line))}
+/* Diffs: one collapsible block per file, coloured lines, numbers of both sides; nothing sticks while scrolling. */
+.mb-diff{margin:0 0 1.8em}
+.mb-diff-file{border:1px solid var(--line);border-radius:8px;margin:0 0 12px;background:var(--field)}
+.mb-diff-file>summary{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:10px 14px;font-weight:400}
+.mb-diff-name{font-family:ui-monospace,Menlo,monospace;font-size:16px;color:#ffb38a;overflow-wrap:anywhere}
+.mb-diff-stat{font-size:15px;color:var(--muted)}
+.mb-plus{color:var(--mb-green)}
+.mb-minus{color:var(--mb-red)}
+.mb-diff-body{overflow-x:auto;border-top:1px solid var(--line)}
+.mb-diff-lines{font-family:ui-monospace,Menlo,monospace;font-size:13.5px;line-height:1.5}
+.mb-diff-lines td{border:0;padding:1px 8px;white-space:pre;vertical-align:top}
+.mb-diff-lines td.mb-num{width:1%;text-align:right;color:var(--muted);opacity:.75;user-select:none}
+.mb-sign{display:inline-block;width:1.2em;color:var(--muted);user-select:none}
+.mb-add td.mb-code{background:rgba(99,202,132,.14)}
+.mb-del td.mb-code{background:rgba(254,139,131,.14)}
+.mb-add .mb-sign{color:var(--mb-green)}
+.mb-del .mb-sign{color:var(--mb-red)}
+.mb-hunk td,.mb-meta td{color:var(--mb-blue);background:var(--field)}
+.mb-note-row td{white-space:normal;padding:0}
+.mb-line-note{margin:6px 8px 10px 80px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--field);font:16px/1.45 'Atkinson Hyperlegible Next',system-ui,sans-serif;white-space:normal;box-shadow:0 0 0 1.5px #e8c35acc,0 0 14px #e8c35a55}
+@media(max-width:600px){.mb-line-note{margin-left:8px}}

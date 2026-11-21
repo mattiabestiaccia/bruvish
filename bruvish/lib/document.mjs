@@ -210,6 +210,115 @@ function cardNotes(card) {
 }
 // Events: one line each, with a dot in the colour of its tone.
 const cardEvents = card => card.events === undefined ? '' : '<div class="mb-events">' + taggedList(card.events, 'Card ' + card.id + ': events').map(e => '<div class="mb-event"><span class="mb-dot" data-tone="' + e.tone + '"></span><span>' + inline(e.text) + '</span></div>').join('') + '</div>';
+// A unified diff (git diff or diff -u), file by file: name, status, added and removed counts, and its lines with the
+// numbers of the old and the new side. Hunk lines are counted from the @@ header, so a removed or added line that
+// looks like a file header (--- or +++) stays a line of the hunk.
+export function parseDiff(text) {
+    const files = [];
+    let file = null, previous = null, oldLine = 0, newLine = 0, oldLeft = 0, newLeft = 0, gitHeader = false;
+    const start = name => { file = { name, status: 'modified', added: 0, removed: 0, lines: [] }; files.push(file); };
+    const unquote = name => name.replace(/^"(.*)"$/, '$1');
+    for (const line of String(text).split('\n')) {
+        if (file && (oldLeft > 0 || newLeft > 0)) {
+            const sign = line[0], body = line.slice(1);
+            if (sign === '+') {
+                file.lines.push({ type: 'add', old: null, new: newLine++, text: body });
+                file.added++;
+                newLeft--;
+                continue;
+            }
+            if (sign === '-') {
+                file.lines.push({ type: 'del', old: oldLine++, new: null, text: body });
+                file.removed++;
+                oldLeft--;
+                continue;
+            }
+            if (sign === ' ' || line === '') {
+                file.lines.push({ type: 'context', old: oldLine++, new: newLine++, text: body });
+                oldLeft--;
+                newLeft--;
+                continue;
+            }
+            if (sign !== '\\')
+                oldLeft = newLeft = 0;
+        }
+        if (line.startsWith('\\')) {
+            file?.lines.push({ type: 'meta', old: null, new: null, text: line });
+            continue;
+        }
+        const git = /^diff --git (?:"?a\/)?(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
+        if (git) {
+            start(unquote(git[2]));
+            gitHeader = true;
+            continue;
+        }
+        if (line.startsWith('--- ') || line.startsWith('+++ ')) {
+            const name = unquote(line.slice(4).replace(/\t.*$/, '')), none = name === '/dev/null';
+            if (line[0] === '-') {
+                previous = none ? null : name.replace(/^a\//, '');
+                continue;
+            }
+            // Without a git header, the +++ line opens the next file.
+            if (!gitHeader || !file || file.lines.length) {
+                start(none ? previous : name.replace(/^b\//, ''));
+                if (previous === null)
+                    file.status = 'added';
+                else if (none)
+                    file.status = 'deleted';
+            }
+            gitHeader = false;
+            continue;
+        }
+        const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
+        if (hunk && file) {
+            [oldLine, oldLeft, newLine, newLeft] = [Number(hunk[1]), hunk[2] === undefined ? 1 : Number(hunk[2]), Number(hunk[3]), hunk[4] === undefined ? 1 : Number(hunk[4])];
+            file.lines.push({ type: 'hunk', old: null, new: null, text: line });
+            gitHeader = false;
+            continue;
+        }
+        if (file && /^new file mode/.test(line))
+            file.status = 'added';
+        else if (file && /^deleted file mode/.test(line))
+            file.status = 'deleted';
+        else if (file && /^rename from /.test(line))
+            file.status = 'renamed';
+    }
+    return files;
+}
+const DIFF_STATUS = { added: 'nuovo', deleted: 'cancellato', renamed: 'rinominato' };
+// A diff in a card: one collapsible block per file (open), coloured lines, numbers of both sides, the reviewer's notes
+// under the line they name ("<file>:<line of the new side>"). Every character of the diff is escaped.
+function cardDiff(card) {
+    if (card.diff === undefined)
+        return '';
+    const d = card.diff, where = 'Card ' + card.id + ': diff';
+    if (!d || typeof d !== 'object' || typeof d.text !== 'string' || (d.notes !== undefined && (!d.notes || typeof d.notes !== 'object' || Array.isArray(d.notes) || Object.values(d.notes).some(n => typeof n !== 'string'))))
+        throw new Error(where + ' must be { "text": "<unified diff>", "notes": { "src/a.js:12": "A note under line 12 of the new side." } }');
+    const files = parseDiff(d.text);
+    if (!files.length)
+        throw new Error(where + ' has no file: text must be a unified diff (diff --git or ---/+++ headers, then @@ hunks)');
+    const notes = { ...(d.notes || {}) };
+    const html = files.map(f => {
+        const stat = (DIFF_STATUS[f.status] ? DIFF_STATUS[f.status] + ' · ' : '') + [f.added ? '<span class="mb-plus">+' + f.added + '</span>' : '', f.removed ? '<span class="mb-minus">−' + f.removed + '</span>' : ''].filter(Boolean).join(' ');
+        const rows = f.lines.map(l => {
+            if (l.type === 'hunk' || l.type === 'meta')
+                return '<tr class="mb-' + l.type + '"><td class="mb-num"></td><td class="mb-num"></td><td class="mb-code">' + escape(l.text) + '</td><td class="mb-cmt"></td></tr>';
+            const key = l.new === null ? null : f.name + ':' + l.new;
+            const sign = { add: '+', del: '−', context: ' ' }[l.type];
+            let row = '<tr class="mb-' + l.type + '"' + (key ? ' data-mb-line="' + escape(key) + '"' : '') + '><td class="mb-num">' + (l.old ?? '') + '</td><td class="mb-num">' + (l.new ?? '') + '</td><td class="mb-code"><span class="mb-sign">' + sign + '</span>' + escape(l.text) + '</td><td class="mb-cmt"></td></tr>';
+            if (key && Object.hasOwn(notes, key)) {
+                row += '<tr class="mb-note-row"><td colspan="4"><div class="mb-line-note">' + inline(notes[key]) + '</div></td></tr>';
+                delete notes[key];
+            }
+            return row;
+        }).join('');
+        return '<details class="mb-diff-file" open><summary><span class="mb-diff-name">' + escape(f.name) + '</span><span class="mb-diff-stat">' + stat + '</span></summary><div class="mb-diff-body"><table class="mb-diff-lines"><tbody>' + rows + '</tbody></table></div></details>';
+    }).join('');
+    const unmatched = Object.keys(notes)[0];
+    if (unmatched !== undefined)
+        throw new Error(where + ' note ' + JSON.stringify(unmatched) + ' matches no line of the new side; keys are "<file>:<line of the new side>"');
+    return '<div class="mb-diff">' + html + '</div>';
+}
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events'];
@@ -290,7 +399,7 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id);
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button>' + cardHead(card) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + context + question + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button>' + cardHead(card) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardDiff(card) + context + question + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
