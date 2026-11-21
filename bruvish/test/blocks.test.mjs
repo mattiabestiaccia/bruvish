@@ -424,20 +424,24 @@ test('after an answer with text is queued, the next tap on the same option arms 
 });
 
 test('the help is a speech bubble in the flow of the card: accent border, rounded corners, shadow, opaque background and a tip toward «?»', async () => {
-  const rules = [...blocksCss.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selectors, body]) => ({ selectors: selectors.split(',').map(x => x.trim()), body }));
-  const css = selector => rules.filter(r => r.selectors.includes(selector)).map(r => r.body).join(';');
-  const bubble = css('.mb-help');
-  for (const rule of [/border:1px solid var\(--title\)/, /border-radius:8px/, /box-shadow:0 6px 24px rgba\(0,0,0,\.35\)/, /background:#0b1114/, /padding:12px 14px/, /font-size:16px/, /position:relative/])
-    assert.match(bubble, rule);
-  assert.doesNotMatch(bubble, /position:(absolute|fixed)/, 'in the flow: it never covers the text');
-  const tip = css('.mb-help::before');
-  assert.match(tip, /content:""/);
-  assert.match(tip, /right:var\(--mb-help-tip,8px\)/);
-  assert.match(tip, /background:#0b1114/);
-  assert.match(css('.mb-help-title'), /display:block/);
-  // Once open, the tip points at the «?» of the card.
   const html = await render(doc([card({ help: 'Serve.' })]));
   const { document } = boot(html);
+  const opaque = colour => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(colour) || /^#[0-9a-f]{3}f$|^#[0-9a-f]{6}ff$/i.test(colour) || /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*(1|1\.0+)\s*)?\)$/.test(colour);
+  const none = value => value === undefined || /^(none|0(px)?|transparent)$/.test(value.trim());
+  const problems = css => {
+    const look = computed(css, document.querySelector('.mb-help')), found = [];
+    if (/^(absolute|fixed)$/.test(look.position || '')) found.push('out of the flow: it would cover the text');
+    if (none(look.border) && none(look['border-width'])) found.push('no border');
+    if (none(look['border-radius'])) found.push('square corners');
+    if (none(look['box-shadow'])) found.push('no shadow');
+    if (!opaque((look['background-color'] || look.background || '').trim())) found.push('background not opaque');
+    if (computed(css, document.querySelector('.mb-help-title')).display !== 'block') found.push('title not on its own line');
+    return found;
+  };
+  assert.deepEqual(problems(styleOf(html)), []);
+  // A later rule that lifts the bubble out of the flow and drops its shadow is caught.
+  assert.deepEqual(problems(styleOf(html) + '.card .mb-help{position:absolute;box-shadow:none}'), ['out of the flow: it would cover the text', 'no shadow']);
+  // Once open, the tip points at the «?» of the card.
   const button = document.querySelector('[data-mb-help]'), panel = document.getElementById('mb-help-a');
   const props = {};
   panel.style = { setProperty: (name, value) => { props[name] = value; } };
