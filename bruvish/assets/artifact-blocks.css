@@ -1,0 +1,14 @@
+/* Building blocks of Bruvish pages (tabs, header, pills, tones, labels, help, tables, notes, diffs, events).
+   Embedded only in pages that use them. Values from the approved review page (agenti-comune/tools/pr-revisione/revisione.css). */
+:root{--mb-violet:#a371f7}
+/* Card tone: refines the colour of the state; the minimap reads --mb-state-color. An answered card keeps its green. */
+.card[data-mb-tone=blu]:not([data-mb-state=answered]){--mb-state-color:var(--mb-blue)}
+.card[data-mb-tone=verde]:not([data-mb-state=answered]){--mb-state-color:var(--mb-green)}
+.card[data-mb-tone=giallo]:not([data-mb-state=answered]){--mb-state-color:var(--mb-yellow)}
+.card[data-mb-tone=rosso]:not([data-mb-state=answered]){--mb-state-color:var(--mb-red)}
+.card[data-mb-tone=viola]:not([data-mb-state=answered]){--mb-state-color:var(--mb-violet)}
+.card[data-mb-tone=decidi]:not([data-mb-state=answered]){--mb-state-color:#e8c35a}
+/* Background tinted very lightly in the colour of the category; still glow, no pulse. */
+.card[data-mb-tone]{background:linear-gradient(color-mix(in srgb,var(--mb-state-color) 7%,transparent),color-mix(in srgb,var(--mb-state-color) 7%,transparent)),var(--card)}
+/* decidi: a decision of the reader, the brightest still glow (.decidi of revisione.css). */
+.card[data-mb-tone=decidi]:not([data-mb-state=answered]){border-color:#d6ab32cc;box-shadow:0 0 0 1.5px #e8c35acc,0 0 22px #e8c35a88,0 0 46px #d6ab3240,inset 0 0 24px #e8c35a22;background:linear-gradient(rgba(232,195,90,.08),rgba(232,195,90,.08)),var(--card)}

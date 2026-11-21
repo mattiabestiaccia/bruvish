@@ -40,3 +40,24 @@ test('pages without the new fields render byte for byte as before, with the base
     assert.equal(scriptOf(html), baseJs, name + ': script');
   }
 });
+
+test('a card tone colours the card and its minimap entry; the page then carries the building-block assets', async () => {
+  const html = await render(doc([card({ tone: 'decidi', status: 'waiting' }), card({ id: 'b', tone: 'verde' })]));
+  assert.match(cardHtml(html), /^<article class="card" id="a" data-mb-state="waiting" data-mb-tone="decidi">/);
+  assert.match(cardHtml(html, 'b'), /data-mb-state="info" data-mb-tone="verde"/);
+  assert.equal(styleOf(html), fontsCss + '\n' + baseCss + '\n' + blocksCss);
+  assert.equal(scriptOf(html), baseJs + '\n' + blocksJs);
+  // The minimap reads --mb-state-color; an answered card keeps the green of its state.
+  for (const [tone, color] of [['blu', 'var(--mb-blue)'], ['verde', 'var(--mb-green)'], ['giallo', 'var(--mb-yellow)'], ['rosso', 'var(--mb-red)'], ['decidi', '#e8c35a']])
+    assert.match(blocksCss, new RegExp('\\.card\\[data-mb-tone=' + tone + '\\]:not\\(\\[data-mb-state=answered\\]\\)\\{--mb-state-color:' + color.replace(/[()]/g, '\\$&') + '\\}'), tone);
+  assert.match(blocksCss, /\.card\[data-mb-tone\]\{[^}]*background:linear-gradient\(color-mix\(in srgb,var\(--mb-state-color\) 7%,transparent\)/, 'light tint of the card background');
+  assert.match(blocksCss, /\.card\[data-mb-tone=decidi\]:not\(\[data-mb-state=answered\]\)\{[^}]*box-shadow:[^}]*#e8c35a/, 'decidi glows the most');
+  await assert.rejects(render(doc([card({ tone: 'fucsia' })])), /Card a: tone must be one of blu, verde, giallo, rosso, decidi, viola/);
+});
+
+test('the new card fields enter the fingerprint only when present', () => {
+  const plain = card({ status: 'waiting' });
+  assert.equal(cardFingerprint({ ...plain, tone: undefined }), cardFingerprint(plain));
+  for (const extra of [{ tone: 'rosso' }])
+    assert.notEqual(cardFingerprint({ ...plain, ...extra }), cardFingerprint(plain), Object.keys(extra)[0]);
+});

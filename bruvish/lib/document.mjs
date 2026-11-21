@@ -121,6 +121,20 @@ function cardFields(card) {
         throw new Error(shape);
     return card.fields.length ? fieldsTable(card.fields.map(f => [inline(f.label), filledParagraphs(f.paragraphs, shape)])) : '';
 }
+// Colour categories of the building blocks: cards, badge, pills, labels, levels, events. blu informs, verde is a
+// good outcome, giallo asks for attention, rosso blocks, decidi asks the reader for a decision (the most intense), viola is
+// a neutral accent (for example a merged state).
+export const TONES = ['blu', 'verde', 'giallo', 'rosso', 'decidi', 'viola'];
+function toneOf(value, where) {
+    if (!TONES.includes(value))
+        throw new Error(where + ': tone must be one of ' + TONES.join(', ') + ' (got ' + JSON.stringify(value) + ')');
+    return value;
+}
+// Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
+// base assets only, so its bytes do not change.
+const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events'];
+const PAGE_BLOCKS = ['tabs', 'layout', 'header', 'pills'];
+const usesBlocks = input => PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
 export function familyFor(seed) { return FAMILIES[createHash('sha256').update(String(seed)).digest().readUInt32BE(0) % FAMILIES.length]; }
@@ -128,7 +142,7 @@ export function familyFor(seed) { return FAMILIES[createHash('sha256').update(St
 const canonical = value => Array.isArray(value) ? '[' + value.map(canonical).join(',') + ']' : value && typeof value === 'object' ? '{' + Object.keys(value).sort().filter(k => value[k] !== undefined).map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}' : JSON.stringify(value ?? null);
 // What the reader sees as written by the agent. The reader's own answers and unanswered comments are excluded.
 export function cardFingerprint(card, comments = []) {
-    const content = { title: card.title, status: card.status || 'info', paragraphs: card.paragraphs || [], fields: card.fields, metadata: card.metadata, clarification: card.clarification, question: card.question, comments: comments.filter(c => c.response).map(c => ({ id: c.id, text: c.text, response: c.response })) };
+    const content = { title: card.title, status: card.status || 'info', paragraphs: card.paragraphs || [], fields: card.fields, metadata: card.metadata, clarification: card.clarification, question: card.question, ...Object.fromEntries(CARD_BLOCKS.map(k => [k, card[k]])), comments: comments.filter(c => c.response).map(c => ({ id: c.id, text: c.text, response: c.response })) };
     return createHash('sha256').update(canonical(content)).digest('hex').slice(0, 16);
 }
 // Reads the render record embedded by a previous render of the same artifact; null when absent or unreadable.
@@ -196,12 +210,13 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id);
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button><h3>' + inline(card.title) + '</h3>' + paragraphs(card.paragraphs) + cardFields(card) + context + question + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button><h3>' + inline(card.title) + '</h3>' + paragraphs(card.paragraphs) + cardFields(card) + context + question + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
-    const css = (await Promise.all(['fonts.css', 'artifact.css'].map(n => readFile(asset(n), 'utf8')))).join('\n');
-    const js = await readFile(asset('artifact.js'), 'utf8');
+    const blocks = usesBlocks(input);
+    const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
+    const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
     return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header><h1>' + escape(input.title) + '</h1>' + paragraphs(input.intro ? [input.intro] : []) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details><nav>' + input.sections.map(s => '<a href="#' + s.id + '">' + escape(s.title) + '</a>').join('') + '</nav>' + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }
