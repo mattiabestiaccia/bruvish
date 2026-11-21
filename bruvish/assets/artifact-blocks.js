@@ -57,6 +57,13 @@
             const open = panel.hidden;
             panel.hidden = !open;
             button.setAttribute('aria-expanded', String(open));
+            // The tip of the bubble points at the «?», wherever the title row puts it.
+            if (open && panel.style && panel.getBoundingClientRect && button.getBoundingClientRect) {
+                const box = panel.getBoundingClientRect(), mark = button.getBoundingClientRect();
+                const right = box.right - (mark.left + mark.width / 2) - 6;
+                if (Number.isFinite(right) && right >= 0)
+                    panel.style.setProperty('--mb-help-tip', Math.round(right) + 'px');
+            }
         }));
         // Text in an answer: shown for the options listed in data-mb-for (always without it), also after the bridge restores
         // a draft without change events (mb:restored). When the form has a text,

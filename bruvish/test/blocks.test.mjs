@@ -60,7 +60,7 @@ test('labels sit right after the card title, on the same line, with inline marks
 test('help opens with a click on «?» in the flow of the card, closes with another click, never on hover, and is not read aloud', async () => {
   const html = await render(doc([card({ help: 'Serve a **decidere**. Poi chiudi.' })]));
   const body = cardHtml(html);
-  assert.match(body, /<div class="mb-card-head"><h3>Una carta<\/h3><button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="mb-help-a" aria-label="A cosa serve questa carta">\?<\/button><\/div><div class="mb-help" id="mb-help-a" hidden><p><span class="sentence">Serve a <strong>decidere<\/strong>.<\/span><span class="sentence">Poi chiudi.<\/span><\/p><\/div><p>/);
+  assert.match(body, /<div class="mb-card-head"><h3>Una carta<\/h3><button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="mb-help-a" aria-label="A cosa serve questa carta">\?<\/button><\/div><div class="mb-help" id="mb-help-a" hidden><b class="mb-help-title">A cosa ti serve<\/b><p><span class="sentence">Serve a <strong>decidere<\/strong>.<\/span><span class="sentence">Poi chiudi.<\/span><\/p><\/div><p>/);
   const { document, window } = boot(html);
   const button = document.querySelector('[data-mb-help]'), panel = document.getElementById('mb-help-a');
   for (const type of ['mouseover', 'mouseenter', 'pointerover', 'pointerenter', 'focus', 'focusin']) document.dispatch(button, type);
@@ -364,4 +364,28 @@ test('after an answer with text is queued, the next tap on the same option arms 
     tap(a);
     assert.equal(window.queued.length, 3, way);
   }
+});
+
+test('the help is a speech bubble in the flow of the card: accent border, rounded corners, shadow, opaque background and a tip toward «?»', async () => {
+  const rules = [...blocksCss.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selectors, body]) => ({ selectors: selectors.split(',').map(x => x.trim()), body }));
+  const css = selector => rules.filter(r => r.selectors.includes(selector)).map(r => r.body).join(';');
+  const bubble = css('.mb-help');
+  for (const rule of [/border:1px solid var\(--title\)/, /border-radius:8px/, /box-shadow:0 6px 24px rgba\(0,0,0,\.35\)/, /background:#0b1114/, /padding:12px 14px/, /font-size:16px/, /position:relative/])
+    assert.match(bubble, rule);
+  assert.doesNotMatch(bubble, /position:(absolute|fixed)/, 'in the flow: it never covers the text');
+  const tip = css('.mb-help::before');
+  assert.match(tip, /content:""/);
+  assert.match(tip, /right:var\(--mb-help-tip,8px\)/);
+  assert.match(tip, /background:#0b1114/);
+  assert.match(css('.mb-help-title'), /display:block/);
+  // Once open, the tip points at the «?» of the card.
+  const html = await render(doc([card({ help: 'Serve.' })]));
+  const { document } = boot(html);
+  const button = document.querySelector('[data-mb-help]'), panel = document.getElementById('mb-help-a');
+  const props = {};
+  panel.style = { setProperty: (name, value) => { props[name] = value; } };
+  panel.getBoundingClientRect = () => ({ left: 100, right: 700, width: 600 });
+  button.getBoundingClientRect = () => ({ left: 600, right: 626, width: 26 });
+  button.click();
+  assert.equal(props['--mb-help-tip'], '81px', 'tip centre under the centre of «?»: 700 - 613 - 6');
 });

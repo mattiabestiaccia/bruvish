@@ -28,7 +28,11 @@
 /* Help: opens and closes with a click on «?», never on hover; a panel in the flow with an opaque dark background. */
 .mb-help-toggle{margin-left:auto;width:26px;height:26px;padding:0;border-radius:50%;font:600 15px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);opacity:.7}
 .mb-help-toggle:hover,.mb-help-toggle:focus-visible,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
-.mb-help{margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:17px}
+/* A speech bubble (.carta > .fumetto of revisione.css) kept in the flow, so it never covers the text: Lavish reports an
+   absolute bubble as a layout problem. The tip points up at «?»; artifact-blocks.js sets --mb-help-tip when it opens. */
+.mb-help{position:relative;margin:10px 0 16px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.mb-help::before{content:"";position:absolute;top:-7px;right:var(--mb-help-tip,8px);width:12px;height:12px;background:#0b1114;border-left:1px solid var(--title);border-top:1px solid var(--title);transform:rotate(45deg)}
+.mb-help-title{display:block;margin-bottom:4px;color:var(--title);font-family:STIXLocal,serif;font-variant-caps:small-caps;font-feature-settings:'smcp' 1;font-weight:650}
 .mb-help p{margin:0 0 .8em}
 .mb-help p:last-child{margin-bottom:0}
 /* Page header: badge and meta items above the title, subtitle under it, pills at the bottom. */

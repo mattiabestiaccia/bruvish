@@ -146,7 +146,7 @@ function cardHead(card) {
     if (card.help !== undefined) {
         const body = filledParagraphs(card.help, 'Card ' + card.id + ': help is a text of one or more sentences, like "Serve a decidere se unire il ramo."');
         toggle = '<button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="mb-help-' + card.id + '" aria-label="A cosa serve questa carta">?</button>';
-        help = '<div class="mb-help" id="mb-help-' + card.id + '" hidden>' + body + '</div>';
+        help = '<div class="mb-help" id="mb-help-' + card.id + '" hidden><b class="mb-help-title">A cosa ti serve</b>' + body + '</div>';
     }
     return '<div class="mb-card-head">' + title + (labels.length ? '<span class="mb-labels">' + labels.map(l => '<span class="mb-label" data-tone="' + l.tone + '">' + inline(l.text) + '</span>').join('') + '</span>' : '') + toggle + '</div>' + help;
 }
