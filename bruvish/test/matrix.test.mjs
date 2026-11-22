@@ -50,6 +50,17 @@ test('a tapped cell shows its reason under the table; a tapped option highlights
     assert.equal(disco.getAttribute('aria-pressed'), 'false');
 });
 
+test('a verdict that already ends its sentence inside a mark or a quote gets no second period', async () => {
+    const document = boot(await renderDocument(documentWith({ variant: 'matrix', headers: ['Criterio', 'A'], rows: [
+        ['Costo', { text: '+ **Sì.**', tone: 'verde', detail: 'Costa poco.' }],
+        ['Rete', { text: '~ «Dipende.»', tone: 'giallo', detail: 'Serve la rete.' }]] })));
+    const cells = document.querySelectorAll('.mb-matrix-cell'), box = document.querySelector('.mb-matrix-detail');
+    cells[0].click();
+    assert.match(box.innerHTML, /<\/b> \+ <strong>Sì\.<\/strong> Costa poco\.$/);
+    cells[1].click();
+    assert.match(box.innerHTML, /<\/b> ~ «Dipende\.» Serve la rete\.$/);
+});
+
 test('a reason with markup is escaped in the title and rendered once in the box', async () => {
     const html = await renderDocument(documentWith(matrix));
     assert.match(html, /title="&quot;&lt;b&gt; &amp; detail"/);
