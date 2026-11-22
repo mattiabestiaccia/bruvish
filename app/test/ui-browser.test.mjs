@@ -128,6 +128,15 @@ test('catalog suggests titles, filters, assigns folders, and routes file actions
     await evaluate('document.getElementById("annotate").click()');
     await until(()=>evaluate('document.getElementById("annotate").getAttribute("aria-checked")==="false"'));
     assert.deepEqual(await evaluate('calls.at(-1)'),['review-action','annotate']);
+    await evaluate('lavishApp.catalog=async()=>[{key:"a",name:"pagina",file:"/r/uno/pagina.html",status:"active",available:true},{key:"b",name:"pagina",file:"/r/due/pagina.html",status:"active",available:true},{key:"c",name:"Altro",file:"/r/uno/altro.html",status:"active",available:true}];document.getElementById("clear-catalog").click();document.getElementById("refresh").click()');
+    await until(() => evaluate('document.querySelectorAll(".catalog-row").length===3&&document.querySelector(".catalog-name").firstChild.textContent==="pagina"'));
+    const titles = selector => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].map(n=>[n.firstChild.textContent,n.querySelector(".catalog-identifier")?.textContent??null])`);
+    assert.deepEqual(await titles('.catalog-name'),[['pagina','uno'],['pagina','due'],['Altro',null]]);
+    await evaluate('document.getElementById("search").value="pagina";document.getElementById("search").dispatchEvent(new Event("input"))');
+    assert.deepEqual(await titles('#suggestions [role=option]'),[['pagina','uno'],['pagina','due']]);
+    await evaluate('document.querySelectorAll("#suggestions [role=option]")[1].click()');
+    assert.equal(await evaluate('document.getElementById("search").value'),'pagina');
+    assert.deepEqual(await titles('.catalog-name'),[['pagina','due']]);
     await call('Page.navigate',{url:new URL('../ui/backdrop.html',import.meta.url).href});
     await until(() => evaluate('document.readyState==="complete"&&getComputedStyle(document.body).backgroundColor!=="rgba(0, 0, 0, 0)"'));
     assert.equal(await evaluate('getComputedStyle(document.body).backgroundColor'),'rgba(16, 19, 24, 0.4)','the backdrop paints the single 40% tint');

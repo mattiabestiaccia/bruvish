@@ -10,6 +10,7 @@ import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
 import {runtimeEnvironment} from '../lib/env.mjs';
 import {isolatedEnvironment, sourceServer} from '../test-helpers/runtime.mjs';
+import {renderCatalog} from '../lib/catalog-page.mjs';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn, message) {
@@ -43,6 +44,19 @@ async function fixture() {
     await rm(directory, {recursive: true, force: true});
   }};
 }
+
+test('artifacts that share a title get the short review key, and only then', () => {
+  const row = (key, name, file) => ({key, name, file, available: true, status: 'active', updatedAt: ''});
+  const html = renderCatalog([
+    row('aaaa1111bbbb2222', 'pagina', '/Users/esempio/revisioni/uno/pagina.html'),
+    row('cccc3333dddd4444', 'pagina', '/Users/esempio/revisioni/due/pagina.html'),
+    row('eeee5555ffff6666', 'Altro', '/Users/esempio/revisioni/uno/altro.html'),
+  ]);
+  const entries = [...html.matchAll(/<article\b[\s\S]*?<\/article>/g)].map(([article]) => [
+    article.match(/<h2>([^<]*)<\/h2>/)[1], article.match(/<span class="identifier">([^<]*)<\/span>/)?.[1] ?? null]);
+  assert.deepEqual(entries, [['pagina', 'aaaa1111'], ['pagina', 'cccc3333'], ['Altro', null]]);
+  assert(!html.includes('/Users/esempio') && !html.includes('>uno<') && !html.includes('>due<'), 'the web distinguishes titles without folder names or paths');
+});
 
 test('the root lists registered artifacts without reopening reviews or exposing local paths', {timeout: 30000}, async () => {
   const f = await fixture();

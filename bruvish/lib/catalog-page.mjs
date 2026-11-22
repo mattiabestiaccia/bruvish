@@ -10,6 +10,8 @@ export function renderCatalog(reviews, {folders = [], folderAssignments = {}, ar
   const filters = [['all', 'Tutti gli artefatti'], ['favorite','Solo preferiti'], ['pinned','Solo fissati'], ['active','Review non concluse'], ['ended','Review concluse'], ['missing','File mancanti'], ...profileOptions.map(profile => [`profile:${profile}`, `Ultimo profilo: ${profile}`])];
   const names = new Map(folders.map(folder => [folder.id, folder.name]));
   const marks = row => artifacts[row.file] || {};
+  const counts = new Map();
+  for (const row of reviews) counts.set(row.name, (counts.get(row.name) || 0) + 1);
   const cards = pinned => reviews.filter(row => Boolean(marks(row).pinned) === pinned).map(row => {
     const status = !row.available ? 'missing' : row.status;
     const stateLabel = status === 'missing' ? 'File non disponibile' : status === 'ended' ? 'Conclusa' : 'Non conclusa';
@@ -20,8 +22,9 @@ export function renderCatalog(reviews, {folders = [], folderAssignments = {}, ar
       ? `<a class="icon" href="/session/${escape(row.key)}" aria-label="${status === 'ended' ? 'Consulta' : 'Apri'} ${escape(row.name)}">${openIcon}</a>`
       : '<span class="icon disabled" title="File non disponibile">' + openIcon + '</span>';
     const favorite = Boolean(marks(row).favorite);
+    const identifier = counts.get(row.name) > 1 ? `<span class="identifier">${escape(row.key.slice(0, 8))}</span>` : '';
     const indicators = `<span class="marks">${pinned ? '<span role="img" aria-label="Fissato">' + icon('M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5ZM12 14v6') + '</span>' : ''}${favorite ? '<span role="img" aria-label="Preferito">' + icon('m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z') + '</span>' : ''}</span>`;
-    return `<article class="review ${status}" data-status="${status}" data-folder="${escape(id)}" data-pinned="${pinned}" data-favorite="${favorite}" data-profile="${escape(row.metadata?.profile || '')}">${indicators}<h2>${escape(row.name)}</h2><span class="folder">${escape(name)}</span><div class="actions"><button type="button" class="icon" popovertarget="info-${escape(row.key)}" aria-label="Informazioni su ${escape(row.name)}">?</button>${action}</div><aside popover id="info-${escape(row.key)}" aria-label="Informazioni su ${escape(row.name)}"><h3>${escape(row.name)}</h3><dl><dt>Ultimo lavoro</dt><dd>${escape(worked)}</dd><dt>Agente</dt><dd>${escape(row.metadata?.agent || 'Non disponibile')}</dd><dt>Profilo</dt><dd>${escape(row.metadata?.profile || 'Non disponibile')}</dd><dt>Review Lavish</dt><dd>${stateLabel}</dd></dl></aside></article>`;
+    return `<article class="review ${status}" data-status="${status}" data-folder="${escape(id)}" data-pinned="${pinned}" data-favorite="${favorite}" data-profile="${escape(row.metadata?.profile || '')}">${indicators}<div class="title"><h2>${escape(row.name)}</h2>${identifier}</div><span class="folder">${escape(name)}</span><div class="actions"><button type="button" class="icon" popovertarget="info-${escape(row.key)}" aria-label="Informazioni su ${escape(row.name)}">?</button>${action}</div><aside popover id="info-${escape(row.key)}" aria-label="Informazioni su ${escape(row.name)}"><h3>${escape(row.name)}</h3><dl><dt>Ultimo lavoro</dt><dd>${escape(worked)}</dd><dt>Agente</dt><dd>${escape(row.metadata?.agent || 'Non disponibile')}</dd><dt>Profilo</dt><dd>${escape(row.metadata?.profile || 'Non disponibile')}</dd><dt>Review Lavish</dt><dd>${stateLabel}</dd></dl></aside></article>`;
   }).join('\n');
   const groups = [[true, 'Fissati in alto'], [false, 'Altri artefatti']].map(([pin,title]) => {
     const rows = cards(pin);

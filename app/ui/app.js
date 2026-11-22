@@ -51,6 +51,11 @@ const normal = text => text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowe
 const marks = row => preferences.artifacts[row.file] || {};
 const folderOf = row => preferences.folderAssignments?.[row.file] ?? null;
 const folders = () => preferences.folders ?? [];
+function titleNode(node, row) {
+ node.textContent = row.name;
+ if (reviews.filter(other => other.name === row.name).length > 1) {const tag = document.createElement('span');tag.className = 'catalog-identifier';tag.textContent = row.file.split('/').at(-2) || '';node.append(tag);}
+ return node;
+}
 function iconButton(text, listener, label, icon, className = '') {
  const node = button(text, listener, `catalog-icon ${className}`);node.type = 'button';node.title = label;node.setAttribute('aria-label', label);
  if (icon) {
@@ -89,7 +94,7 @@ function showSuggestions() {
  const rows = filteredRows().slice(0, 12), list = $('suggestions');
  list.replaceChildren();suggestionKeys = rows;selectedSuggestion = -1;$('search').removeAttribute('aria-activedescendant');
  for (const row of rows) {
-  const item = document.createElement('li');item.id = `suggestion-${row.key}`;item.textContent = row.name;item.setAttribute('role','option');item.setAttribute('aria-selected','false');
+  const item = titleNode(document.createElement('li'), row);item.id = `suggestion-${row.key}`;item.setAttribute('role','option');item.setAttribute('aria-selected','false');
   item.addEventListener('click', () => chooseSuggestion(row));list.append(item);
  }
  if (!rows.length) {hideSuggestions();return;}
@@ -156,7 +161,7 @@ function renderCatalog() {
   for (const row of group) {
    const item = document.createElement('li'), name = document.createElement('span'), folder = document.createElement('span'), leading = document.createElement('div'), trailing = document.createElement('div');
    item.className = 'catalog-row';name.className = 'catalog-name';folder.className = 'catalog-folder';leading.className = trailing.className = 'catalog-actions';
-   name.textContent = row.name;folder.textContent = folders().find(item => item.id === folderOf(row))?.name || 'Senza cartella';
+   titleNode(name,row);folder.textContent = folders().find(item => item.id === folderOf(row))?.name || 'Senza cartella';
    leading.append(markButton(row,'pinned','Fissa in alto'),markButton(row,'favorite','Preferito'));
    const info = iconButton('?', () => showInfo(row,info), `Informazioni su ${row.name}`);info.id = `info-${row.key}`;info.setAttribute('aria-expanded','false');info.setAttribute('aria-controls','catalog-info');
    const open = iconButton('', () => action(async () => {open.disabled = true;try {await api.openReview(row.key);} finally {open.disabled = !row.available;}}), `${row.available ? 'Apri' : 'File mancante'}: ${row.name}`, 'open', 'open-review');

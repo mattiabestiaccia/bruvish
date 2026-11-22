@@ -23,7 +23,7 @@ function suggest() {
   candidates = refresh().slice(0,12);hide();suggestions.replaceChildren();
   if (!search.value.trim() || exact || !candidates.length) return;
   candidates.forEach((row,index) => {
-    const option = document.createElement('li');option.textContent = title(row);option.id = `result-${index}`;
+    const option = document.createElement('li'), identifier = row.querySelector('.identifier');option.textContent = title(row);if (identifier) option.append(identifier.cloneNode(true));option.id = `result-${index}`;
     option.setAttribute('role','option');option.setAttribute('aria-selected','false');option.addEventListener('click',() => choose(row));suggestions.append(option);
   });
   suggestions.hidden = false;search.setAttribute('aria-expanded','true');
