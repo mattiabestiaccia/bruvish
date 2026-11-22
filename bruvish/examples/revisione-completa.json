@@ -13,10 +13,7 @@
       "icon": "open"
     },
     "subtitle": "Unisce `fase2-mattoni-revisione` in `carry` · 2 file",
-    "meta": [
-      "mattiabestiaccia/bruvish",
-      "21 novembre 2026"
-    ],
+    "meta": ["mattiabestiaccia/bruvish", "21 novembre 2026"],
     "notice": "Esempio: dati inventati, per mostrare ogni mattone.",
     "stat": {
       "added": 5,
@@ -63,11 +60,7 @@
             "La regola che lasciava passare il push su `main` senza conferma va via. Il push resta possibile, ma lo valuta il classificatore."
           ],
           "table": {
-            "headers": [
-              "Tema",
-              "Rischio",
-              "File"
-            ],
+            "headers": ["Tema", "Rischio", "File"],
             "rows": [
               [
                 "Permessi",
@@ -87,9 +80,7 @@
               ]
             ]
           },
-          "notes": [
-            "Il rischio lo stima il gate; la tabella lo riporta senza cambiarlo."
-          ]
+          "notes": ["Il rischio lo stima il gate; la tabella lo riporta senza cambiarlo."]
         },
         {
           "id": "controlli",
@@ -101,9 +92,7 @@
               "tone": "verde"
             }
           ],
-          "paragraphs": [
-            "Tutti i controlli sono passati."
-          ],
+          "paragraphs": ["Tutti i controlli sono passati."],
           "events": [
             {
               "text": "Aperta da **Mattia**",
@@ -144,9 +133,7 @@
             }
           ],
           "help": "Ogni file si chiude toccando il nome. Le note del revisore stanno sotto la riga. «commenta» su una riga accoda un commento per l’agente.",
-          "paragraphs": [
-            "Il diff è per esteso, un blocco per file."
-          ],
+          "paragraphs": ["Il diff è per esteso, un blocco per file."],
           "diff": {
             "text": "diff --git a/bruvish/lib/regole.mjs b/bruvish/lib/regole.mjs\nindex 3f2a1c0..8b7d9e4 100644\n--- a/bruvish/lib/regole.mjs\n+++ b/bruvish/lib/regole.mjs\n@@ -1,6 +1,7 @@\n // Regole di permesso del profilo.\n export const regole = [\n-  \"Bash(git push origin main)\",\n+  // Il push su main passa dal classificatore.\n+  \"Bash(git status)\",\n   \"Bash(git diff)\",\n ];\n export const versione = 2;\ndiff --git a/docs/regole.md b/docs/regole.md\nnew file mode 100644\n--- /dev/null\n+++ b/docs/regole.md\n@@ -0,0 +1,3 @@\n+# Regole\n+\n+Il push su `main` non parte più da solo.\n",
             "notes": {
@@ -177,9 +164,7 @@
             }
           ],
           "help": "Qui scegli cosa fare della PR. Con «Chiedi modifiche» scrivi quali, nel campo che compare.",
-          "paragraphs": [
-            "La PR tocca un permesso. Serve la tua decisione."
-          ],
+          "paragraphs": ["La PR tocca un permesso. Serve la tua decisione."],
           "question": {
             "label": "Cosa faccio?",
             "options": [
@@ -201,14 +186,10 @@
             "text": {
               "label": "Quali modifiche?",
               "placeholder": "Scrivi cosa cambiare…",
-              "for": [
-                "modifiche"
-              ]
+              "for": ["modifiche"]
             }
           },
-          "notes": [
-            "L’unione la fai tu: questa pagina accoda solo la scelta."
-          ]
+          "notes": ["L’unione la fai tu: questa pagina accoda solo la scelta."]
         },
         {
           "id": "blocco",
@@ -221,9 +202,7 @@
               "tone": "rosso"
             }
           ],
-          "paragraphs": [
-            "Una carta rossa segnala un problema che ferma il lavoro."
-          ]
+          "paragraphs": ["Una carta rossa segnala un problema che ferma il lavoro."]
         }
       ]
     }
