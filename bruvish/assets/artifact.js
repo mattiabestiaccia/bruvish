@@ -15,7 +15,7 @@
         // the mark moves when the answer changes and goes away when the answer is removed from the queue. An answer
         // the chrome reports as delivered (lavish:deliveredAnchors) shows "inviata" instead, until the page reloads
         // or another answer to the same question enters the queue.
-        const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/\n/g, '\\a ');
+        const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/[\n\r\f]/g, c => '\\' + c.charCodeAt(0).toString(16) + ' ');
         const optionSelector = (form, input) => '[data-mb-question="' + form.dataset.mbQuestion + '"] input[value="' + quoted(input.value) + '"]';
         // The status region stays out of sight; it only speaks to screen readers, unless it has a problem to show.
         const say = (form, text, problem = false) => { const status = form.querySelector('.queue-status'); if (!status)

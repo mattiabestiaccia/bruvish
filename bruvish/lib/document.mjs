@@ -2,7 +2,7 @@ import { readFile, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 const asset = name => new URL('../assets/' + name, import.meta.url);
-export const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+export const escape = value => String(value ?? '').replace(/[&<>"'\r]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '\r': '&#13;' }[c]));
 export async function atomicJson(file, value) { const temporary = file + '.' + randomUUID() + '.tmp'; await writeFile(temporary, JSON.stringify(value, null, 2) + '\n'); await rename(temporary, file); }
 export function applyDelta(current, delta) {
     const next = structuredClone(current);
@@ -256,9 +256,10 @@ export function parseDiff(text) {
             file?.lines.push({ type: 'meta', old: null, new: null, text: line });
             continue;
         }
-        const git = /^diff --git ("(?:\\.|[^"\\])*"|a\/.*?) ("(?:\\.|[^"\\])*"|b\/.*)$/.exec(line);
-        if (git) {
-            start(unquote(git[2]).replace(/^b\//, ''));
+        if (line.startsWith('diff --git ')) {
+            const git = /^diff --git ("(?:\\.|[^"\\])*"|a\/.*?) ("(?:\\.|[^"\\])*")$/.exec(line) || /^diff --git a\/(.+) (b\/\1)$/.exec(line);
+            start(git ? unquote(git[2]).replace(/^b\//, '') : '');
+            previous = null;
             gitHeader = true;
             continue;
         }
@@ -271,11 +272,13 @@ export function parseDiff(text) {
             // Without a git header, the +++ line opens the next file.
             if (!gitHeader || !file || file.lines.length) {
                 start(none ? previous : name.replace(/^b\//, ''));
-                if (previous === null)
-                    file.status = 'added';
-                else if (none)
-                    file.status = 'deleted';
             }
+            else
+                file.name = none ? previous : name.replace(/^b\//, '');
+            if (previous === null)
+                file.status = 'added';
+            else if (none)
+                file.status = 'deleted';
             gitHeader = false;
             continue;
         }
@@ -292,6 +295,8 @@ export function parseDiff(text) {
             file.status = 'deleted';
         else if (file && /^rename from /.test(line))
             file.status = 'renamed';
+        else if (file && /^(?:rename|copy) to /.test(line))
+            file.name = unquote(line.replace(/^(?:rename|copy) to /, ''));
     }
     return files;
 }
@@ -350,7 +355,7 @@ function sectionIndex(input) {
     return '<nav' + (tabs ? ' class="mb-tabs" aria-label="Schede"' : '') + '>' + input.sections.map(s => {
         if (s.count !== undefined && !(Number.isInteger(s.count) && s.count >= 0) && !(typeof s.count === 'string' && s.count.trim()))
             throw new Error('Section ' + s.id + ': count must be a whole number or a short text, like 3 or "2 nuove"');
-        return '<a href="#' + s.id + '"' + (tabs ? ' data-mb-tab="' + s.id + '"' : '') + '>' + escape(s.title) + (s.count === undefined ? '' : '<span class="mb-count">' + escape(s.count) + '</span>') + '</a>';
+        return '<a href="#' + s.id + '"' + (tabs ? ' data-mb-tab="' + s.id + '" data-lavish-action' : '') + '>' + escape(s.title) + (s.count === undefined ? '' : '<span class="mb-count">' + escape(s.count) + '</span>') + '</a>';
     }).join('') + '</nav>';
 }
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the

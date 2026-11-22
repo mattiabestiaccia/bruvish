@@ -283,7 +283,9 @@ test('real Git quoted paths bind displayed file names, notes, line anchors and q
   try {
     await mkdir(path.join(dir, 'before'));
     await mkdir(path.join(dir, 'after'));
-    for (const name of ['café.txt', 'café "quoted" \\name.txt', 'café\tline\nname.txt']) {
+    for (const name of ['café.txt', 'café "quoted" \\name.txt', 'café\tline\nname.txt', 'dir b/f.txt', 'dir b/café.txt', 'a\rb.txt', 'a\fb.txt', 'a\r\nb.txt']) {
+      await mkdir(path.dirname(path.join(dir, 'before', name)), { recursive: true });
+      await mkdir(path.dirname(path.join(dir, 'after', name)), { recursive: true });
       await writeFile(path.join(dir, 'before', name), 'old\n');
       await writeFile(path.join(dir, 'after', name), 'new\n');
       const output = spawnSync('git', ['-c', 'core.quotePath=true', 'diff', '--no-index', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '--', 'before/' + name, 'after/' + name], { cwd: dir, encoding: 'utf8' });
@@ -302,8 +304,49 @@ test('real Git quoted paths bind displayed file names, notes, line anchors and q
       box.querySelector('.mb-comment-add').click();
       assert.deepEqual({ ...window.queued[0].data }, { file: expected, line: 1, text: 'Un commento.' });
       assert.equal(window.queued[0].element, row);
+      assert.equal(document.querySelector(window.queued[0].selector), row, 'the CSS selector resolves to the exact file and line');
+      assert.equal(window.queued[0].queueKey, 'line:' + expected + ':1');
+      window.post({ type: 'lavish:queuedAnchors', selectors: [window.queued[0].selector] });
+      assert(row.classList.contains('mb-queued'));
+      window.post({ type: 'lavish:deliveredAnchors', selectors: [window.queued[0].selector] });
+      window.post({ type: 'lavish:queuedAnchors', selectors: [] });
+      assert(row.classList.contains('mb-sent'));
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('authoritative Git headers preserve ambiguous unquoted paths in modifications, deletions, additions, moves and copies', () => {
+  for (const name of ['dir b/f.txt', 'dir b/café.txt', 'b/dir b/f.txt']) {
+    const git = 'diff --git a/' + name + ' b/' + name + '\n';
+    const modified = git + '--- a/' + name + '\t\n+++ b/' + name + '\t\n@@ -1 +1 @@\n-old\n+new\n';
+    const added = git + 'new file mode 100644\n--- /dev/null\n+++ b/' + name + '\t\n@@ -0,0 +1 @@\n+new\n';
+    const deleted = git + 'deleted file mode 100644\n--- a/' + name + '\t\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n';
+    const renamed = 'diff --git a/old b/' + name + '\nsimilarity index 100%\nrename from old\nrename to ' + name + '\n';
+    const copied = 'diff --git a/old b/' + name + '\nsimilarity index 100%\ncopy from old\ncopy to ' + name + '\n';
+    for (const [text, status] of [[modified, 'modified'], [added, 'added'], [deleted, 'deleted'], [renamed, 'renamed'], [copied, 'modified'], [git + 'old mode 100644\nnew mode 100755\n', 'modified'], [git + 'Binary files a/' + name + ' and b/' + name + ' differ\n', 'modified']])
+      assert.deepEqual(parseDiff(text).map(file => [file.name, file.status]), [[name, status]]);
+  }
+});
+
+test('answer selectors preserve CR, LF and FF in values with and without an answer text field', async () => {
+  for (const value of ['a\rb', 'a\nb', 'a\fb', 'a\r\nb', 'a"\\\r\fb']) {
+    for (const text of [undefined, { label: 'Note' }]) {
+      const html = await render(doc([card({ status: 'waiting', question: { options: [{ value, label: 'Una scelta', recommended: true }], text } })]));
+      const { document, window } = boot(html);
+      const form = document.querySelector('[data-mb-question]'), input = form.querySelector('input');
+      assert.equal(input.value, value, 'HTML parsing preserves the value');
+      input.checked = true;
+      form.requestSubmit();
+      const prompt = window.queued[0];
+      assert.equal(prompt.data.answer.choice, value);
+      assert.equal(document.querySelector(prompt.selector), input, 'CSS string decoding preserves the same value');
+      window.post({ type: 'lavish:queuedAnchors', selectors: [prompt.selector] });
+      assert(input.closest('label').classList.contains('mb-queued'));
+      window.post({ type: 'lavish:deliveredAnchors', selectors: [prompt.selector] });
+      window.post({ type: 'lavish:queuedAnchors', selectors: [] });
+      assert(input.closest('label').classList.contains('mb-sent'));
+    }
+  }
 });
 
 test('a card diff is one collapsible block per file, with coloured lines, new-side numbers and notes under their line', async () => {
@@ -428,7 +471,7 @@ test('a question may ask for a text, shown for the options listed in "for"; the 
 test('a page in tabs turns every section into a tab of the index bar, with a counter; without JS the sections stay one under the other', async () => {
   const input = { title: 'Prova', guide: 'Leggi.', tabs: true, sections: [{ id: 'sintesi', title: 'Sintesi', cards: [card()] }, { id: 'file', title: 'File modificati', count: 3, cards: [card({ id: 'b' }), card({ id: 'c' })] }] };
   const html = await render(input);
-  assert.match(html, /<nav class="mb-tabs" aria-label="Schede"><a href="#sintesi" data-mb-tab="sintesi">Sintesi<\/a><a href="#file" data-mb-tab="file">File modificati<span class="mb-count">3<\/span><\/a><\/nav><section id="sintesi">/);
+  assert.match(html, /<nav class="mb-tabs" aria-label="Schede"><a href="#sintesi" data-mb-tab="sintesi" data-lavish-action>Sintesi<\/a><a href="#file" data-mb-tab="file" data-lavish-action>File modificati<span class="mb-count">3<\/span><\/a><\/nav><section id="sintesi">/);
   assert.doesNotMatch(html, /<section[^>]* hidden/, 'every section is visible without JS');
   assert.doesNotMatch(await render({ ...input, tabs: undefined, layout: 'schede' }), /<nav class="mb-tabs"/, 'only tabs: true makes tabs; layout is not a field');
   const { document, window } = boot(html);
@@ -456,6 +499,28 @@ test('a page in tabs turns every section into a tab of the index bar, with a cou
   assert.match(await render({ ...doc([card()]), sections: [{ id: 's', title: 'Sezione', count: '2 nuove', cards: [card()] }] }), /<nav><a href="#s">Sezione<span class="mb-count">2 nuove<\/span><\/a><\/nav>/);
   await assert.rejects(render({ ...input, tabs: 'si' }), /tabs must be true or false/);
   await assert.rejects(render({ ...input, sections: [{ ...input.sections[0], count: [1] }] }), /Section sintesi: count/);
+});
+
+test('tabs remain interactive with the real annotation SDK enabled, including clicks on their counters', async () => {
+  const modules = await Promise.all(['../../src/artifact-sdk.js', '../../src/mermaid-node.js', '../../src/table-cell.js', '../../src/artifact-revisions.js'].map(name => import(name)));
+  const source = modules.flatMap(module => Object.entries(module).map(([name, value]) => 'const ' + name + '=' + (typeof value === 'function' ? value.toString() : JSON.stringify(value)) + ';')).join('\n');
+  const html = await render({ title: 'Schede', guide: 'Leggi.', tabs: true, sections: [{ id: 'one', title: 'Uno', count: 1, cards: [card()] }, { id: 'two', title: 'Due', count: 1, cards: [card({ id: 'b' })] }] });
+  const { document, window } = boot(html), messages = [];
+  Object.assign(document, { head: document.querySelector('head'), body: document.querySelector('body') });
+  window.parent.postMessage = message => messages.push(message);
+  Object.assign(window, { navigator: { platform: 'Linux' }, MutationObserver: class { observe() {} }, setTimeout: () => 0, clearTimeout() {}, requestAnimationFrame: () => 0, getComputedStyle: () => ({}), Element: class {} });
+  vm.runInNewContext(source + '\nconst mermaidHelpers={' + Object.keys(modules[1]).join(',') + '};createArtifactSdk(deriveLavishQueueKey, isNativeInteractiveControl, mermaidHelpers);', window);
+  assert(messages.some(message => message.type === 'lavish:annotationMode' && message.enabled === true));
+  assert(document.getElementById('lavish-cursor-style'), 'annotation mode installed its controls');
+  const [one, two] = ['one', 'two'].map(id => document.getElementById(id));
+  const [tabA, tabB] = document.querySelectorAll('nav.mb-tabs a');
+  for (const [tab, target] of [[tabB, tabB], [tabA, tabA], [tabB, tabB.querySelector('.mb-count')], [tabA, tabA.querySelector('.mb-count')]]) {
+    document.dispatch(target, 'click');
+    assert.equal(two.hidden, tab === tabA);
+    assert.equal(one.hidden, tab === tabB);
+    assert.equal(tab.getAttribute('aria-current'), 'page');
+    assert.equal(window.location.hash, '#' + tab.dataset.mbTab);
+  }
 });
 
 test('every new card field enters the fingerprint only when present', () => {

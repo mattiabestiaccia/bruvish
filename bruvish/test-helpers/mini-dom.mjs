@@ -2,11 +2,12 @@
 // classList, hidden, value/checked, text, createElement, insertion, events with capture and bubble phases, and
 // selectors made of tags, #id, .class, [attr] and [attr="value"] joined by descendant or child combinators.
 const VOID = new Set(['input', 'meta', 'br', 'img', 'hr', 'link']);
-const decode = text => text.replace(/&(lt|gt|quot|#39|amp);/g, (_, e) => ({ lt: '<', gt: '>', quot: '"', '#39': "'", amp: '&' })[e]);
+const decode = text => text.replace(/&(#x[0-9a-f]+|#\d+|lt|gt|quot|amp);/gi, (_, e) => e[0] === '#' ? String.fromCodePoint(parseInt(e.slice(e[1].toLowerCase() === 'x' ? 2 : 1), e[1].toLowerCase() === 'x' ? 16 : 10)) : ({ lt: '<', gt: '>', quot: '"', amp: '&' })[e]);
 const camel = name => name.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 const kebab = key => 'data-' + key.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
 
 export function createDocument(html) {
+  html = html.replace(/\r\n?/g, '\n');
   const document = { listeners: {} };
   const make = (tagName, attributes = {}) => {
     const el = {
@@ -43,6 +44,7 @@ export function createDocument(html) {
       get form() { return this.closest('form'); },
       get ownerDocument() { return document; },
       append(...nodes) { for (const n of nodes) { if (typeof n !== 'string') { n.remove(); n.parent = this; } this.children.push(n); } },
+      appendChild(node) { this.append(node); return node; },
       after(node) { node.remove(); const i = this.parent.children.indexOf(this); node.parent = this.parent; this.parent.children.splice(i + 1, 0, node); },
       remove() { if (this.parent) { this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; } },
       contains(other) { for (let n = other; n; n = n.parent) if (n === this) return true; return false; },
@@ -125,13 +127,22 @@ function matchesList(el, list, scope) {
     const compound = (node, token) => {
       if (token === ':scope') return node === scope;
       if (!node.tagName || node.tagName === '#root') return false;
-      const m = /^([a-z0-9*]*)((?:#[\w-]+|\.[\w-]+|\[[\w-]+(?:="[^"]*")?\])*)$/.exec(token);
+      if (token.endsWith(':checked')) { if (!node.checked) return false; token = token.slice(0, -8); }
+      const excluded = [];
+      token = token.replace(/:not\(([^()]*)\)/g, (_, inner) => { excluded.push(inner); return ''; });
+      if (excluded.some(inner => compound(node, inner))) return false;
+      const m = /^([a-z0-9*]*)((?:#[\w-]+|\.[\w-]+|\[[\w-]+(?:=(?:"(?:[^"\\]|\\.)*"|'[^']*'))?\])*)$/.exec(token);
       if (!m) throw new Error('selector not supported by the test DOM: ' + token);
       const plain = m[2].replace(/\[[^\]]*\]/g, '');
       return (!m[1] || m[1] === '*' || node.tagName === m[1])
         && [...plain.matchAll(/#([\w-]+)/g)].every(c => node.id === c[1])
         && [...plain.matchAll(/\.([\w-]+)/g)].every(c => node.classList.contains(c[1]))
-        && [...m[2].matchAll(/\[([\w-]+)(?:="((?:[^"\\]|\\.)*)")?\]/g)].every(a => a[1] in node.attributes && (a[2] === undefined || node.attributes[a[1]] === a[2].replace(/\\(.)/g, '$1')));
+        && [...m[2].matchAll(/\[([\w-]+)(?:=(?:"((?:[^"\\]|\\.)*)"|'([^']*)'))?\]/g)].every(a => {
+          const value = a[2] ?? a[3];
+          if (value !== undefined && /[\n\r\f]/.test(value)) throw new Error('unescaped newline in a CSS string');
+          const decoded = value?.replace(/\\(?:([0-9a-f]{1,6})[ \t\r\n\f]?|([^\r\n\f]))/gi, (_, hex, char) => hex ? String.fromCodePoint(parseInt(hex, 16)) : char);
+          return a[1] in node.attributes && (value === undefined || node.attributes[a[1]] === decoded);
+        });
     };
     const from = (node, i) => {
       if (!node || !compound(node, tokens[i])) return false;

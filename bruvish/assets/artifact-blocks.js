@@ -80,7 +80,7 @@
         // a draft without change events (mb:restored). When the form has a text,
         // the submit is handled here, before artifact.js: an option that asks for the text refuses an empty one, and the
         // queued answer is { choice, text }, with the same selector, key and marks as a plain answer.
-        const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/\n/g, '\\a ');
+        const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/[\n\r\f]/g, c => '\\' + c.charCodeAt(0).toString(16) + ' ');
         const forOf = box => { try {
             return box.dataset.mbFor ? JSON.parse(box.dataset.mbFor) : null;
         }
