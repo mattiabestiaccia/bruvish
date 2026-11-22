@@ -104,17 +104,17 @@ La radice degli strumenti, `~/tools`, è definita una volta sola in `app/protoco
 
 Ogni punto toccato del codice ufficiale porta `BRUVISH:hook <id>`. L'elenco sta in `bruvish/lib/hooks.mjs`: `bruvish/test/hooks.test.mjs` controlla che ognuno ci sia una volta sola e che non ce ne siano altri, e `update-upstream` lo ricontrolla dopo ogni merge. Durante un merge, un conflitto in uno di questi punti si risolve rimettendo l'aggancio, non riscrivendo l'innesto.
 
-| id                 | File                                   | Cosa fa                                                                                                        |
-| ------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `server-import`    | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                                               |
-| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js`, addon, `/mb/open` e `/mb/remote` prima delle route ufficiali |
-| `artifact-script`  | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                                             |
-| `open-import`      | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                                                 |
-| `open-present`     | `src/cli.js`                           | chiede al server link remoto e apertura; prefisso del `next_step`                                              |
-| `build`            | `scripts/build.js`                     | lancia `scripts/bruvish-build.js`                                                                              |
-| `prettier`         | `.prettierignore`                      | esclude i file portati byte per byte dallo strato precedente                                                   |
-| `workflow-ci`      | `.github/workflows/ci.yml`             | la CI ufficiale gira solo nel repository ufficiale                                                             |
-| `workflow-release` | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                                                        |
+| id                 | File                                   | Cosa fa                                                                                                                        |
+| ------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `server-import`    | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                                                               |
+| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js`, addon, `/mb/open`, `/mb/remote` e `/mb/metadata` prima delle route ufficiali |
+| `artifact-script`  | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                                                             |
+| `open-import`      | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                                                                 |
+| `open-present`     | `src/cli.js`                           | chiede al server link remoto e apertura; prefisso del `next_step`                                                              |
+| `build`            | `scripts/build.js`                     | lancia `scripts/bruvish-build.js`                                                                                              |
+| `prettier`         | `.prettierignore`                      | esclude i file portati byte per byte dallo strato precedente                                                                   |
+| `workflow-ci`      | `.github/workflows/ci.yml`             | la CI ufficiale gira solo nel repository ufficiale                                                                             |
+| `workflow-release` | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                                                                        |
 
 I workflow girano dal ramo dell'evento: `main` del fork è lo specchio ufficiale senza questi agganci, quindi il vero interruttore su GitHub resta Actions disattivato nelle impostazioni del fork.
 
