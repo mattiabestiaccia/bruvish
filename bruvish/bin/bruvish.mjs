@@ -18,7 +18,8 @@ Building blocks (full example: bruvish/examples/revisione-completa.json), all op
   page: tabs: true, header: {badge: {text, tone, icon}, subtitle, meta: []}, pills: [{text, tone}]
   page: theme: "revisione"                             look of the approved review page; asked by name only.
         With tabs the tab names the section (no heading); a title ending in " #6" shows the number
-        muted; a card with a diff is the files page: no card frame, one Chiudi/Apri tutti button
+        muted; a card with a diff is the files page: no card frame, one Chiudi/Apri tutti button;
+        no "Come usare questa pagina" guide (guide is optional and ignored; other themes require it)
   section: count                                       counter beside the title in the index or tab bar
   card: tone, labels: [{text, tone}], help, table: {headers, rows}, notes: [],
         events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}

@@ -681,7 +681,7 @@ test('the theme «revisione» is asked by name, never drawn, and brings the look
     for (const selector of ['.mb-note-row td', '.mb-comment-row td']) assert.equal(styles(selector).padding, '0', selector);
     assert.equal(styles('.mb-fields td').padding, width === 390 ? '0 0 10px' : '10px 0');
     assert.equal(styles('.mb-fields td p').margin, '0 0 1.2em');
-    for (const selector of ['.guide p', '.context p']) assert.equal(styles(selector).margin, '12px 0', selector);
+    assert.equal(styles('.context p').margin, '12px 0');
     const text = document.createElement('p');
     document.querySelector('.followup').append(text);
     assert.equal(computed(styleOf(html), text, width).margin, '8px 0');
@@ -786,14 +786,20 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
   assert.equal(nav['justify-content'], 'space-between');
   assert.equal(look(document.querySelector('nav.mb-tabs'), 600)['justify-content'], undefined);
   assert.equal(look(document.getElementById('sintesi'))['max-width'], REFERENCE.pageWidth);
-  // Bruvish keeps its usage guide and the voice with the help on every card.
-  assert(document.getElementById('usage-guide'));
+  // No usage guide, as on the approved page (S3); the voice stays with the help on every card.
+  assert(!document.getElementById('usage-guide'), 'no usage guide in the theme «revisione»');
+  assert.doesNotMatch(skeleton(html), /class="guide"|Come usare questa pagina/);
+  const { guide, ...withoutGuide } = input;
+  assert(guide, 'the fixture carries a guide: the field stays accepted and produces no markup');
+  assert.doesNotMatch(skeleton(await render(withoutGuide)), /usage-guide/, 'the theme «revisione» does not require a guide');
+  await assert.rejects(render({ ...withoutGuide, theme: 'B' }), /usage guide are required/, 'the other themes still require it');
   const cards = input.sections.flatMap(s => s.cards);
   assert.equal(document.querySelectorAll('article.card .voice').length, cards.length);
   assert.equal(document.querySelectorAll('article.card [data-mb-help]').length, cards.filter(c => c.help).length);
   // Only the theme «revisione» changes: the same data in a drawn family keeps headings, the framed diff card and the title.
   const other = await render({ ...input, theme: 'B' });
   assert.equal((other.match(/<h2>/g) || []).length, input.sections.length);
+  assert.match(skeleton(other), /<details class="guide" id="usage-guide"><summary>Come usare questa pagina<\/summary>/, 'the other themes keep the guide');
   assert.doesNotMatch(skeleton(other), /data-mb-files|data-mb-diff-all|mb-number/);
   // Without tabs the theme keeps the section headings.
   assert.equal(((await render({ ...input, tabs: false })).match(/<h2>/g) || []).length, input.sections.length);

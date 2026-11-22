@@ -399,13 +399,17 @@ const ANSWER_HELP = ['Tocca una risposta per sceglierla, toccala di nuovo per ac
 const QUEUED_MARK = '<span class="mb-queued-mark"><span aria-hidden="true">✓ </span>in coda</span><span class="mb-sent-mark"><span aria-hidden="true">✓ </span>inviata</span>';
 const sameCards = (a, b) => { const ka = Object.keys(a || {}), kb = Object.keys(b || {}); return ka.length === kb.length && ka.every(k => a[k] === b[k]); };
 export async function renderDocument(input, options = {}) {
-    if (!input.title || !input.guide)
+    if (!input.title)
         throw new Error('title and a collapsible usage guide are required');
     const state = input.state || { revision: 0, answers: {}, comments: [] };
     const previous = typeof options.previous === 'string' ? renderRecord(options.previous) : (options.previous || null);
     if (input.theme !== undefined && !FAMILIES.includes(input.theme) && !NAMED_THEMES.includes(input.theme))
         throw new Error('Unknown theme family: ' + input.theme + ' (expected ' + FAMILIES.concat(NAMED_THEMES).join(', ') + ')');
     const family = input.theme || (FAMILIES.includes(previous?.theme) || NAMED_THEMES.includes(previous?.theme) ? previous.theme : familyFor(input.id ?? options.id ?? input.title));
+    // The theme «revisione» has no usage guide, as on the approved review page (S3); every other theme requires it.
+    const guided = family !== 'revisione';
+    if (guided && !input.guide)
+        throw new Error('title and a collapsible usage guide are required');
     const fingerprints = {};
     for (const section of input.sections || [])
         for (const card of section.cards || [])
@@ -467,5 +471,5 @@ export async function renderDocument(input, options = {}) {
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header>' + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header>' + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + '</header>' + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }
