@@ -59,10 +59,11 @@
 .mb-level[data-tone=blu]{background:rgba(31,111,235,.55);color:#e7f1ff;box-shadow:0 0 0 1px #1f6feb,0 0 8px #1f6feb55}
 .mb-level[data-tone=viola]{background:rgba(137,87,229,.55);color:#f3ecff;box-shadow:0 0 0 1px #8957e5,0 0 8px #8957e555}
 @media(max-width:600px){.mb-table{display:block;overflow-x:auto}}
-/* Secondary notes: italic, greyer, set apart from the main content by a dashed line. */
 .mb-transcript{margin-top:10px}
 .mb-transcript summary{cursor:pointer;font-size:16px;color:var(--muted)}
 .mb-transcript pre{font-size:13px;overflow-x:auto;background:var(--field);padding:10px;border-radius:6px;margin:8px 0 0}
+.mb-transcript:not([open])>:not(summary),.mb-diff-file:not([open])>:not(summary){display:none}
+/* Secondary notes: italic, greyer, set apart from the main content by a dashed line. */
 .mb-notes{margin:16px 0 0;padding-top:10px;border-top:1px dashed var(--line)}
 .mb-notes p{margin:0 0 .6em;font-style:italic;font-size:16px;color:var(--muted);opacity:.85}
 .mb-notes p:last-child{margin-bottom:0}

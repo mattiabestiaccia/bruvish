@@ -211,7 +211,6 @@ function cardNotes(card) {
         throw new Error(shape);
     return card.notes.length ? '<div class="mb-notes">' + card.notes.map(n => filledParagraphs([n], shape)).join('') + '</div>' : '';
 }
-// Events: one line each, with a dot in the colour of its tone.
 // A preformatted text a reader opens on demand (a command transcript, a log): closed by default, after the table and
 // the events, before the secondary notes. The text keeps its spacing and is never read for marks.
 function cardTranscript(card) {
@@ -222,6 +221,7 @@ function cardTranscript(card) {
         throw new Error('Card ' + card.id + ': transcript must be { "summary": "Trascrizione: prima e dopo", "text": "$ comando\\nuscita" }');
     return '<details class="mb-transcript"><summary>' + inline(t.summary) + '</summary><pre>' + escape(t.text) + '</pre></details>';
 }
+// Events: one line each, with a dot in the colour of its tone.
 const cardEvents = card => card.events === undefined ? '' : '<div class="mb-events">' + taggedList(card.events, 'Card ' + card.id + ': events').map(e => '<div class="mb-event"><span class="mb-dot" data-tone="' + e.tone + '"></span><span>' + inline(e.text) + '</span></div>').join('') + '</div>';
 // A unified diff (git diff or diff -u), file by file: name, status, added and removed counts, and its lines with the
 // numbers of the old and the new side. Hunk lines are counted from the @@ header, so a removed or added line that

@@ -104,7 +104,11 @@
               "text": "Unione in attesa della decisione",
               "tone": "viola"
             }
-          ]
+          ],
+          "transcript": {
+            "summary": "Trascrizione: `node --test`",
+            "text": "$ node --test test/*.test.mjs\n# pass 42\n# fail 0"
+          }
         }
       ]
     },

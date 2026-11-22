@@ -525,7 +525,7 @@ test('tabs remain interactive with the real annotation SDK enabled, including cl
 
 test('every new card field enters the fingerprint only when present', () => {
   const plain = card({ status: 'waiting', question: { options: [{ value: 'a', label: 'A', recommended: true }] } });
-  const extras = { tone: 'rosso', labels: [{ text: 'x', tone: 'blu' }], help: 'Aiuto.', table: { rows: [['x']] }, notes: ['Nota.'], diff: { text: DIFF }, events: [{ text: 'x', tone: 'verde' }], question: { ...plain.question, text: { label: 'Note' } } };
+  const extras = { tone: 'rosso', labels: [{ text: 'x', tone: 'blu' }], help: 'Aiuto.', table: { rows: [['x']] }, notes: ['Nota.'], diff: { text: DIFF }, events: [{ text: 'x', tone: 'verde' }], transcript: { summary: 'S', text: 't' }, question: { ...plain.question, text: { label: 'Note' } } };
   for (const [key, value] of Object.entries(extras))
     assert.notEqual(cardFingerprint({ ...plain, [key]: value }), cardFingerprint(plain), key);
 });
@@ -534,7 +534,7 @@ test('the example revisione-completa uses every building block and renders throu
   const input = await example('revisione-completa');
   const cards = input.sections.flatMap(s => s.cards);
   assert(input.tabs && input.header.badge.icon && input.header.subtitle && input.header.meta.length && input.pills.length && input.sections.some(s => s.count !== undefined));
-  for (const key of ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events']) assert(cards.some(c => c[key] !== undefined), key);
+  for (const key of ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events', 'transcript']) assert(cards.some(c => c[key] !== undefined), key);
   assert(cards.some(c => c.diff?.notes && Object.keys(c.diff.notes).length) && cards.some(c => c.question?.text?.for) && cards.some(c => c.tone === 'decidi'));
   const { spawnSync } = await import('node:child_process');
   const { mkdtemp, rm } = await import('node:fs/promises');
@@ -546,7 +546,7 @@ test('the example revisione-completa uses every building block and renders throu
     const r = spawnSync(process.execPath, [cli, 'render', file, '--output', output], { encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
     const html = await readFile(output, 'utf8');
-    for (const needle of ['nav class="mb-tabs"', 'mb-badge', 'mb-pill', 'data-mb-tone="decidi"', 'mb-label', 'mb-help', 'mb-table', 'mb-level', 'mb-notes', 'mb-diff-file', 'mb-line-note', 'data-mb-comment', 'mb-answer-text', 'mb-event']) assert(html.includes(needle), needle);
+    for (const needle of ['nav class="mb-tabs"', 'mb-badge', 'mb-pill', 'data-mb-tone="decidi"', 'mb-label', 'mb-help', 'mb-table', 'mb-level', 'mb-notes', 'mb-diff-file', 'mb-line-note', 'data-mb-comment', 'mb-answer-text', 'mb-event', 'mb-transcript']) assert(html.includes(needle), needle);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
