@@ -137,7 +137,7 @@ function taggedList(list, where) {
     return list;
 }
 // Title row of a card: the title, then its labels on the same line, then the «?» that opens the help panel in the flow.
-function cardHead(card) {
+function cardHead(card, helpId) {
     const title = '<h3>' + inline(card.title) + '</h3>';
     const labels = card.labels === undefined ? [] : taggedList(card.labels, 'Card ' + card.id + ': labels');
     if (!labels.length && card.help === undefined)
@@ -145,8 +145,8 @@ function cardHead(card) {
     let toggle = '', help = '';
     if (card.help !== undefined) {
         const body = filledParagraphs(card.help, 'Card ' + card.id + ': help is a text of one or more sentences, like "Serve a decidere se unire il ramo."');
-        toggle = '<button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="mb-help-' + card.id + '" aria-label="A cosa serve questa carta">?</button>';
-        help = '<div class="mb-help" id="mb-help-' + card.id + '" hidden><b class="mb-help-title">A cosa ti serve</b>' + body + '</div>';
+        toggle = '<button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="' + helpId + '" aria-label="A cosa serve questa carta">?</button>';
+        help = '<div class="mb-help" id="' + helpId + '" hidden><b class="mb-help-title">A cosa ti serve</b>' + body + '</div>';
     }
     return '<div class="mb-card-head">' + title + (labels.length ? '<span class="mb-labels">' + labels.map(l => '<span class="mb-label" data-tone="' + l.tone + '">' + inline(l.text) + '</span>').join('') + '</span>' : '') + toggle + '</div>' + help;
 }
@@ -217,7 +217,17 @@ export function parseDiff(text) {
     const files = [];
     let file = null, previous = null, oldLine = 0, newLine = 0, oldLeft = 0, newLeft = 0, gitHeader = false;
     const start = name => { file = { name, status: 'modified', added: 0, removed: 0, lines: [] }; files.push(file); };
-    const unquote = name => name.replace(/^"(.*)"$/, '$1');
+    const unquote = name => {
+        if (!name.startsWith('"') || !name.endsWith('"'))
+            return name;
+        const text = name.slice(1, -1), chunks = [], escapes = { a: '\x07', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', '"': '"', '\\': '\\' };
+        let last = 0;
+        for (const match of text.matchAll(/\\([0-7]{1,3}|[abfnrtv"\\])/g)) {
+            chunks.push(Buffer.from(text.slice(last, match.index)), /^[0-7]/.test(match[1]) ? Buffer.from([parseInt(match[1], 8)]) : Buffer.from(escapes[match[1]]));
+            last = match.index + match[0].length;
+        }
+        return Buffer.concat([...chunks, Buffer.from(text.slice(last))]).toString('utf8');
+    };
     for (const line of String(text).split('\n')) {
         if (file && (oldLeft > 0 || newLeft > 0)) {
             const sign = line[0], body = line.slice(1);
@@ -246,9 +256,9 @@ export function parseDiff(text) {
             file?.lines.push({ type: 'meta', old: null, new: null, text: line });
             continue;
         }
-        const git = /^diff --git (?:"?a\/)?(.+?)"? (?:"?b\/)(.+?)"?$/.exec(line);
+        const git = /^diff --git ("(?:\\.|[^"\\])*"|a\/.*?) ("(?:\\.|[^"\\])*"|b\/.*)$/.exec(line);
         if (git) {
-            start(unquote(git[2]));
+            start(unquote(git[2]).replace(/^b\//, ''));
             gitHeader = true;
             continue;
         }
@@ -398,13 +408,23 @@ export async function renderDocument(input, options = {}) {
     const repeated = previous && sameCards(previous.cards, fingerprints) && previous.revision === revision;
     const base = previous ? (repeated ? (previous.base ?? null) : previous.cards) : null;
     const novelty = id => !base ? '' : !(id in base) ? 'new' : base[id] !== fingerprints[id] ? 'changed' : '';
-    const ids = new Set(['usage-guide', 'mb-state']);
+    const ids = new Set(['usage-guide', 'mb-state', 'mb-render']);
     const unique = id => { if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(id || '') || ids.has(id))
         throw new Error('Every section/card needs a unique stable id: ' + id); ids.add(id); return id; };
-    const sections = (input.sections || []).map(section => {
+    for (const section of input.sections || []) {
         unique(section.id);
-        return '<section id="' + section.id + '"><h2>' + escape(section.title) + '</h2>' + section.cards.map(card => {
+        for (const card of section.cards)
             unique(card.id);
+    }
+    const sections = (input.sections || []).map(section => {
+        return '<section id="' + section.id + '"><h2>' + escape(section.title) + '</h2>' + section.cards.map(card => {
+            let helpId;
+            if (card.help !== undefined) {
+                helpId = 'mb-help-' + card.id;
+                while (ids.has(helpId))
+                    helpId += '-';
+                unique(helpId);
+            }
             const answer = state.answers?.[card.id];
             const status = answer ? 'answered' : (card.status || 'info');
             if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
@@ -425,7 +445,7 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id);
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button>' + cardHead(card) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardDiff(card) + context + question + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardDiff(card) + context + question + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));

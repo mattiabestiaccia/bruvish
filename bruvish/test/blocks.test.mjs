@@ -55,6 +55,7 @@ function computed(css, el, width = 1024) {
       else if (m[4]) { spec[1]++; ok &&= m[4] in node.attributes && (m[5] === undefined || node.attributes[m[4]] === m[5].replace(/^["']|["']$/g, '')); }
       else if (m[6] !== undefined) { const inner = compound(node, m[6]); spec = spec.map((n, i) => n + inner.spec[i]); ok &&= !inner.ok; }
       else if (m[7] !== undefined) ok &&= compound(node, m[7]).ok;
+      else if (m[8].startsWith(':has(')) { const inner = m[8].slice(5, -1), result = compound(node, inner); spec = spec.map((n, i) => n + result.spec[i]); ok &&= !!node.querySelector?.(inner); }
       else { spec[m[8].startsWith('::') ? 2 : 1]++; ok &&= m[8] === ':root' && node.tagName === 'html'; }
     }
     return { ok: ok && !!node.tagName && node.tagName !== '#root', spec };
@@ -124,6 +125,55 @@ test('help opens with a click on «?» in the flow of the card, closes with anot
   document.querySelector('[data-mb-voice]').click();
   assert.deepEqual(spoken, ['Una carta Testo.']);
   await assert.rejects(render(doc([card({ help: '' })])), /Card a: help/);
+});
+
+test('voice sits left of the corner help with a gap at every card breakpoint, and the bubble stays below both', async () => {
+  for (const theme of ['B', 'F', 'E2', 'G2', 'D3', 'revisione']) {
+    const html = await render(doc([card({ help: 'Serve.' }), card({ id: 'plain' })], { theme }));
+    const { document } = boot(html), css = styleOf(html), container = document.getElementById('a');
+    const voice = container.querySelector('.voice'), toggle = container.querySelector('[data-mb-help]');
+    for (const width of [1024, 601, 600, 390, 240]) {
+      const look = el => computed(css, el, width), px = value => parseFloat(value) || 0;
+      const cardLook = look(container), voiceLook = look(voice), toggleLook = look(toggle);
+      assert.equal(voiceLook.float, 'right');
+      assert.equal(toggleLook.position, 'absolute');
+      assert.equal(toggleLook.right, '10px');
+      assert.equal(toggleLook.top, '10px');
+      const voiceRight = px(cardLook['padding-right'] || cardLook.padding) + px(voiceLook['margin-right']);
+      const helpLeft = px(toggleLook.right) + px(toggleLook.width);
+      assert(voiceRight > helpLeft, theme + ' at ' + width + ': voice and help have separate hit areas');
+      assert.equal(look(document.getElementById('plain').querySelector('.voice'))['margin-right'], undefined);
+      assert.equal(look(container.querySelector('.mb-help')).clear, 'both', 'the bubble cannot paint under the floated voice');
+    }
+    toggle.click();
+    assert.equal(container.querySelector('.mb-help').hidden, false);
+  }
+});
+
+test('help controls always open their own panels when provided and generated IDs would collide, regardless of order', async () => {
+  const cards = [card({ help: 'Uno.' }), card({ id: 'a-', help: 'Due.' }), card({ id: 'mb-help-a-', help: 'Tre.' })];
+  const section = { id: 's', title: 'Sezione', cards };
+  const colliding = { id: 'mb-help-a', title: 'Un altro pannello', cards: [card({ id: 'mb-help-a--', help: 'Quattro.' })] };
+  for (const sections of [[section, colliding], [colliding, section]]) {
+    const html = await render({ title: 'Prova', guide: 'Leggi.', sections });
+    const { document } = boot(html);
+    const ids = createDocument(html.replace(/<(style|script)\b([^>]*)>[\s\S]*?<\/\1>/g, '<$1$2></$1>')).querySelectorAll('[id]').map(el => el.id);
+    assert.equal(new Set(ids).size, ids.length, 'HTML IDs are unique across all sections, cards, help and records');
+    for (const button of document.querySelectorAll('[data-mb-help]')) {
+      const panel = document.getElementById(button.getAttribute('aria-controls'));
+      assert(panel.classList.contains('mb-help'));
+      assert.equal(panel.closest('article'), button.closest('article'));
+      button.click();
+      assert.equal(panel.hidden, false);
+      assert.equal(button.closest('section').hidden, false);
+      button.click();
+      assert.equal(panel.hidden, true);
+    }
+  }
+  for (const id of ['usage-guide', 'mb-state', 'mb-render']) {
+    await assert.rejects(render(doc([card({ id })])), /unique stable id/);
+    await assert.rejects(render({ title: 'Prova', guide: 'Leggi.', sections: [{ id, title: 'Sezione', cards: [card()] }] }), /unique stable id/);
+  }
 });
 
 test('the header carries a badge with a closed set of inline icons, a subtitle and meta items; pills follow under it', async () => {
@@ -196,6 +246,64 @@ test('a unified diff is read file by file with line numbers, also when a removed
   // diff -u without git headers: the +++ line opens each file.
   const plain = parseDiff('--- a/x.txt\t2026\n+++ b/x.txt\t2026\n@@ -1 +1 @@\n-a\n+b\n--- vecchio.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-via\n');
   assert.deepEqual(plain.map(f => [f.name, f.status, f.added, f.removed]), [['x.txt', 'modified', 1, 1], ['vecchio.txt', 'deleted', 0, 1]]);
+});
+
+test('Git C-quoted paths decode once into the same name in Git headers and both sides of unified headers', () => {
+  const paths = [
+    [String.raw`caf\303\251.txt`, 'café.txt'],
+    [String.raw`\360\237\232\200.txt`, '🚀.txt'],
+    [String.raw`a\tb\nc\rd\\e\"f.txt`, 'a\tb\nc\rd\\e"f.txt'],
+    [String.raw`\a\b\f\v.txt`, '\x07\b\f\v.txt'],
+    [String.raw`literal\\303\\251.txt`, String.raw`literal\303\251.txt`],
+    ['plain with spaces.txt', 'plain with spaces.txt'],
+  ];
+  for (const [encoded, name] of paths) {
+    const git = 'diff --git "a/' + encoded + '" "b/' + encoded + '"\n';
+    const headers = '--- "a/' + encoded + '"\t2026\n+++ "b/' + encoded + '"\t2026\n';
+    const hunk = '@@ -1 +1 @@\n-old\n+new\n';
+    for (const text of [git, git + headers + hunk, headers + hunk])
+      assert.equal(parseDiff(text)[0].name, name);
+    for (const prefix of ['', git]) {
+      const added = parseDiff(prefix + '--- /dev/null\n+++ "b/' + encoded + '"\n@@ -0,0 +1 @@\n+new\n');
+      const deleted = parseDiff(prefix + '--- "a/' + encoded + '"\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n');
+      assert.equal(added[0].name, name);
+      assert.equal(deleted[0].name, name);
+    }
+    const renamed = parseDiff('diff --git a/old.txt "b/' + encoded + '"\nsimilarity index 100%\nrename from old.txt\nrename to "' + encoded + '"\n');
+    assert.equal(renamed[0].name, name);
+    assert.equal(renamed[0].status, 'renamed');
+  }
+});
+
+test('real Git quoted paths bind displayed file names, notes, line anchors and queued comments to the actual file', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os'), path = await import('node:path');
+  const dir = await mkdtemp(path.join(tmpdir(), 'bruvish-quoted-diff-'));
+  try {
+    await mkdir(path.join(dir, 'before'));
+    await mkdir(path.join(dir, 'after'));
+    for (const name of ['café.txt', 'café "quoted" \\name.txt', 'café\tline\nname.txt']) {
+      await writeFile(path.join(dir, 'before', name), 'old\n');
+      await writeFile(path.join(dir, 'after', name), 'new\n');
+      const output = spawnSync('git', ['-c', 'core.quotePath=true', 'diff', '--no-index', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '--', 'before/' + name, 'after/' + name], { cwd: dir, encoding: 'utf8' });
+      assert.equal(output.status, 1, output.stderr);
+      const expected = 'after/' + name;
+      assert.equal(parseDiff(output.stdout)[0].name, expected);
+      const html = await render(doc([card({ diff: { text: output.stdout, notes: { [expected + ':1']: 'Una nota sul file.' } } })]));
+      const { document, window } = boot(html);
+      assert.equal(document.querySelector('.mb-diff-name').textContent, expected);
+      assert.equal(document.querySelector('.mb-line-note').textContent, 'Una nota sul file.');
+      const row = document.querySelector('tr[data-mb-line]');
+      assert.equal(row.dataset.mbLine, expected + ':1');
+      row.querySelector('[data-mb-comment]').click();
+      const box = row.nextElementSibling;
+      box.querySelector('textarea').value = 'Un commento.';
+      box.querySelector('.mb-comment-add').click();
+      assert.deepEqual({ ...window.queued[0].data }, { file: expected, line: 1, text: 'Un commento.' });
+      assert.equal(window.queued[0].element, row);
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test('a card diff is one collapsible block per file, with coloured lines, new-side numbers and notes under their line', async () => {

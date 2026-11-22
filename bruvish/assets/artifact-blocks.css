@@ -29,9 +29,10 @@
    corner of the card, half transparent until the card is hovered or focused; a click opens the bubble right under the
    title row, before the content; another click, a click outside it or Esc closes it. Never on hover. */
 .card:has(.mb-help-toggle) .mb-card-head{padding-right:34px}
+.card:has(.mb-help-toggle)>.voice{margin-right:24px}
 .mb-help-toggle{position:absolute;top:10px;right:10px;width:24px;height:24px;padding:0;border:1px solid var(--line);border-radius:50%;font:600 14px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);cursor:help;opacity:.55;transition:opacity .2s}
 .card:hover .mb-help-toggle,.card:focus-within .mb-help-toggle,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
-.mb-help{margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.mb-help{clear:both;margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
 .mb-help-title{display:block;margin-bottom:4px;color:var(--title);font-family:STIXLocal,serif;font-variant-caps:small-caps;font-feature-settings:'smcp' 1;font-weight:650}
 .mb-help p{margin:0 0 .8em}
 .mb-help p:last-child{margin-bottom:0}
