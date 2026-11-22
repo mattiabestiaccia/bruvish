@@ -11,7 +11,8 @@ const matrix = { variant: 'matrix', headers: ['Criterion', 'Option'], rows: [['C
 
 const three = { variant: 'matrix', headers: ['Criterio', 'Disco', 'Cloud'], rows: [
     ['Costo', { text: '+ Una spesa', tone: 'verde', detail: 'Una volta sola.' }, { text: '− Abbonamento', tone: 'rosso', detail: 'Ogni mese.' }],
-    ['Rete', { text: '+ Subito', tone: 'verde', detail: 'Senza rete.' }, { text: '~ Dipende', tone: 'giallo', detail: 'Serve la *rete*.' }]] };
+    ['Rete', { text: '+ Subito', tone: 'verde', detail: 'Senza rete.' }, { text: '~ Dipende', tone: 'giallo', detail: 'Serve la *rete*.' }],
+    ['Tempo', { text: '~ Un pomeriggio.', tone: 'blu', detail: 'Da montare.' }, { text: '~ Da scegliere', tone: 'decidi', detail: 'Dipende dal piano.' }]] };
 
 function boot(html) {
     const document = createDocument(html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''));
@@ -24,7 +25,7 @@ test('form C: criteria in rows, options as header buttons, cells keep their size
     const html = await renderDocument(documentWith(three));
     assert.match(html, /<th scope="col" class="mb-matrix-criterion">Criterio<\/th><th scope="col"><button type="button" class="mb-matrix-option" data-mb-matrix-col="1" aria-pressed="false">Disco<\/button><\/th>/);
     assert.match(html, /<th scope="row" class="mb-matrix-criterion">Costo<\/th><td data-mb-matrix-col="1"><button type="button" class="mb-matrix-cell" data-tone="verde" aria-pressed="false" title="Una volta sola\."/);
-    assert.match(html, /<tr class="mb-matrix-balance"><th scope="row" class="mb-matrix-criterion">Bilancio<\/th><td data-mb-matrix-col="1"><span class="mb-matrix-counts"><span data-tone="verde">\+ 2<\/span><span data-tone="rosso">− 0<\/span><span data-tone="giallo">~ 0<\/span><\/span><\/td><td data-mb-matrix-col="2"><span class="mb-matrix-counts"><span data-tone="verde">\+ 0<\/span><span data-tone="rosso">− 1<\/span><span data-tone="giallo">~ 1<\/span>/);
+    assert.match(html, /<tr class="mb-matrix-balance"><th scope="row" class="mb-matrix-criterion">Bilancio<\/th><td data-mb-matrix-col="1"><span class="mb-matrix-counts"><span data-tone="verde">\+ 2<\/span><span data-tone="rosso">− 0<\/span><span data-tone="giallo">~ 1<\/span><\/span><\/td><td data-mb-matrix-col="2"><span class="mb-matrix-counts"><span data-tone="verde">\+ 0<\/span><span data-tone="rosso">− 1<\/span><span data-tone="giallo">~ 2<\/span>/);
     assert.match(html, /<div class="mb-matrix-detail" aria-live="polite">/);
     assert.match(html, /<section class="mb-matrix-card"><h4>Cloud<\/h4>.*<details data-tone="giallo"><summary><small>Rete<\/small>~ Dipende<\/summary><p>Serve la <em>rete<\/em>\.<\/p><\/details>/);
 });
@@ -35,12 +36,15 @@ test('a tapped cell shows its reason under the table; a tapped option highlights
     cells[3].click();
     assert.equal(cells[3].getAttribute('aria-pressed'), 'true');
     assert.match(box.innerHTML, /<b>Cloud · Rete:<\/b> ~ Dipende\. Serve la <em>rete<\/em>\./);
+    cells[4].click();
+    assert.match(box.innerHTML, /<b>Disco · Tempo:<\/b> ~ Un pomeriggio\. Da montare\./);
+    assert.doesNotMatch(box.innerHTML, /\.\./);
     cells[0].click();
-    assert.deepEqual(cells.map(c => c.getAttribute('aria-pressed')), ['true', 'false', 'false', 'false']);
+    assert.deepEqual(cells.map(c => c.getAttribute('aria-pressed')), ['true', 'false', 'false', 'false', 'false', 'false']);
     const [disco, cloud] = document.querySelectorAll('.mb-matrix-option');
     cloud.click();
     assert.equal(cloud.getAttribute('aria-pressed'), 'true');
-    assert.deepEqual(document.querySelectorAll('td[data-mb-matrix-col]').map(td => td.classList.contains('mb-matrix-dim')), [true, false, true, false, true, false]);
+    assert.deepEqual(document.querySelectorAll('td[data-mb-matrix-col]').map(td => td.classList.contains('mb-matrix-dim')), [true, false, true, false, true, false, true, false]);
     cloud.click();
     assert.ok(document.querySelectorAll('td[data-mb-matrix-col]').every(td => !td.classList.contains('mb-matrix-dim')));
     assert.equal(disco.getAttribute('aria-pressed'), 'false');
@@ -68,4 +72,10 @@ test('a matrix cell without tone or text, or a short row, stops the render with 
     await assert.rejects(renderDocument(documentWith({ ...matrix, rows: [['Cost', { text: '+ Low', detail: 'why' }]] })), message);
     await assert.rejects(renderDocument(documentWith({ ...matrix, rows: [['Cost', { tone: 'verde', detail: 'why' }]] })), message);
     await assert.rejects(renderDocument(documentWith({ ...matrix, rows: [['Cost']] })), message);
+});
+
+test('a matrix with an empty option name or criterion label stops the render with the matrix message', async () => {
+    const message = /a matrix needs column headers, row labels and cells with text, tone and detail/;
+    await assert.rejects(renderDocument(documentWith({ ...matrix, headers: ['Criterion', ' '] })), message);
+    await assert.rejects(renderDocument(documentWith({ ...matrix, rows: [['', matrix.rows[0][1]]] })), message);
 });

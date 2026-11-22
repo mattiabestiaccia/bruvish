@@ -233,8 +233,8 @@ function cardTable(card) {
     if (t.variant !== undefined && t.variant !== 'matrix')
         throw new Error('Card ' + card.id + ': table.variant must be "matrix" or absent (got ' + JSON.stringify(t.variant) + ')');
     if (t.variant === 'matrix') {
-        if (!t.headers || t.headers.length < 2 || t.rows.length === 0 || t.rows.some(row =>
-            typeof row[0] !== 'string' || row.slice(1).some(c => typeof c === 'string' ||
+        if (!t.headers || t.headers.length < 2 || t.headers.some(h => !h.trim()) || t.rows.length === 0 || t.rows.some(row =>
+            typeof row[0] !== 'string' || !row[0].trim() || row.slice(1).some(c => typeof c === 'string' ||
                 !c.text.trim() || typeof c.detail !== 'string' || !c.detail.trim())))
             throw new Error(matrixShape);
         // Form C of the lab (Mattia, 22 November 2026): criteria in rows, options in columns; the cells keep their size and
@@ -244,7 +244,7 @@ function cardTable(card) {
         const count = col => t.rows.reduce((n, row) => { const k = row[col].tone === 'verde' ? 'verde' : row[col].tone === 'rosso' ? 'rosso' : 'giallo'; n[k]++; return n; }, { verde: 0, rosso: 0, giallo: 0 });
         const counts = col => { const n = count(col); return '<span class="mb-matrix-counts"><span data-tone="verde">+ ' + n.verde + '</span><span data-tone="rosso">− ' + n.rosso + '</span><span data-tone="giallo">~ ' + n.giallo + '</span></span>'; };
         const cellButton = (c, option, criterion) => '<button type="button" class="mb-matrix-cell" data-tone="' + c.tone + '" aria-pressed="false" title="' + escape(c.detail) +
-            '" data-mb-matrix-detail="' + escape('<b>' + inline(option) + ' · ' + inline(criterion) + ':</b> ' + inline(c.text) + '. ' + inline(c.detail)) + '">' + inline(c.text) + '</button>';
+            '" data-mb-matrix-detail="' + escape('<b>' + inline(option) + ' · ' + inline(criterion) + ':</b> ' + inline(c.text) + (/[.!?…]$/.test(c.text.trimEnd()) ? ' ' : '. ') + inline(c.detail)) + '">' + inline(c.text) + '</button>';
         const table = '<div class="mb-matrix-scroll"><table class="mb-table mb-matrix-table"><thead><tr><th scope="col" class="mb-matrix-criterion">' + inline(t.headers[0]) + '</th>' +
             options.map((h, i) => '<th scope="col"><button type="button" class="mb-matrix-option" data-mb-matrix-col="' + (i + 1) + '" aria-pressed="false">' + inline(h) + '</button></th>').join('') + '</tr></thead><tbody>' +
             t.rows.map(([name, ...cells]) => '<tr><th scope="row" class="mb-matrix-criterion">' + inline(name) + '</th>' + cells.map((c, i) => '<td data-mb-matrix-col="' + (i + 1) + '">' + cellButton(c, options[i], name) + '</td>').join('') + '</tr>').join('') +
