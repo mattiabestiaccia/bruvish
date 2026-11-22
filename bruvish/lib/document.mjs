@@ -229,6 +229,8 @@ function cardTable(card) {
     if (!t || typeof t !== 'object' || Array.isArray(t) || !Array.isArray(t.rows) || (t.headers !== undefined && (!Array.isArray(t.headers) || t.headers.some(h => typeof h !== 'string')))
         || t.rows.some(row => !Array.isArray(row) || !row.every(cellOk) || (t.headers && row.length !== t.headers.length)))
         throw new Error(shape);
+    if (t.variant !== undefined && t.variant !== 'matrix')
+        throw new Error('Card ' + card.id + ': table.variant must be "matrix" or absent (got ' + JSON.stringify(t.variant) + ')');
     if (t.variant === 'matrix') {
         if (!t.headers || t.headers.length < 2 || t.rows.length === 0 || t.rows.some(row =>
             typeof row[0] !== 'string' || row.slice(1).some(c => typeof c === 'string' ||

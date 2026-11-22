@@ -72,6 +72,9 @@
 .mb-matrix details[data-tone=verde]{background:#185d36;color:#f0fff5}
 .mb-matrix details[data-tone=rosso]{background:#852e3b;color:#fff4f5}
 .mb-matrix details[data-tone=giallo]{background:#715416;color:#fff9e3}
+.mb-matrix details[data-tone=decidi]{background:#715416;color:#fff9e3;box-shadow:0 0 0 1.5px #e8c35acc,0 0 12px #e8c35a88}
+.mb-matrix details[data-tone=blu]{background:#1d4b8f;color:#eef5ff}
+.mb-matrix details[data-tone=viola]{background:#553a8c;color:#f6f0ff}
 .mb-matrix summary{text-align:left;font-weight:600;cursor:pointer}
 .mb-matrix details p{text-align:left;margin:.45em 0 0;overflow-wrap:anywhere}
 .mb-transcript{margin-top:10px}

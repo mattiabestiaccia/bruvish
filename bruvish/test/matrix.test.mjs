@@ -20,3 +20,7 @@ test('matrix rejects an incomplete cell; ordinary tables are unchanged', async (
     const html = await renderDocument(documentWith({ headers: ['Cost'], rows: [['Low']] }));
     assert.match(html, /<table class="mb-table">.*<td>Low<\/td>/);
 });
+
+test('an unknown table variant stops the render instead of falling back to an ordinary table', async () => {
+    await assert.rejects(renderDocument(documentWith({ ...matrix, variant: 'matrice' })), /table\.variant must be "matrix" or absent \(got "matrice"\)/);
+});
