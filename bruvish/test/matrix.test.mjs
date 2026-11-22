@@ -24,3 +24,10 @@ test('matrix rejects an incomplete cell; ordinary tables are unchanged', async (
 test('an unknown table variant stops the render instead of falling back to an ordinary table', async () => {
     await assert.rejects(renderDocument(documentWith({ ...matrix, variant: 'matrice' })), /table\.variant must be "matrix" or absent \(got "matrice"\)/);
 });
+
+test('a matrix cell without tone or text, or a short row, stops the render with the matrix message', async () => {
+    const message = /a matrix needs column headers, row labels and cells with text, tone and detail/;
+    await assert.rejects(renderDocument(documentWith({ ...matrix, rows: [['Cost', { text: '+ Low', detail: 'why' }]] })), message);
+    await assert.rejects(renderDocument(documentWith({ ...matrix, rows: [['Cost', { tone: 'verde', detail: 'why' }]] })), message);
+    await assert.rejects(renderDocument(documentWith({ ...matrix, rows: [['Cost']] })), message);
+});

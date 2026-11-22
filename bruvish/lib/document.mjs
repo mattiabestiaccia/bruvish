@@ -224,7 +224,8 @@ function pillsOf(pills) {
 function cardTable(card) {
     if (card.table === undefined)
         return '';
-    const t = card.table, shape = 'Card ' + card.id + ': table must be { "headers": ["File", "Rischio"], "rows": [["`a.js` · `b.js`", { "text": "alto", "tone": "rosso" }]] }, with as many cells per row as headers';
+    const t = card.table, matrixShape = 'Card ' + card.id + ': a matrix needs column headers, row labels and cells with text, tone and detail, like { "variant": "matrix", "headers": ["Criterio", "Opzione A"], "rows": [["Costo", { "text": "+ basso", "tone": "verde", "detail": "perché" }]] }, with as many cells per row as headers';
+    const shape = t?.variant === 'matrix' ? matrixShape : 'Card ' + card.id + ': table must be { "headers": ["File", "Rischio"], "rows": [["`a.js` · `b.js`", { "text": "alto", "tone": "rosso" }]] }, with as many cells per row as headers';
     const cellOk = c => typeof c === 'string' || (c && typeof c === 'object' && !Array.isArray(c) && typeof c.text === 'string' && TONES.includes(c.tone));
     if (!t || typeof t !== 'object' || Array.isArray(t) || !Array.isArray(t.rows) || (t.headers !== undefined && (!Array.isArray(t.headers) || t.headers.some(h => typeof h !== 'string')))
         || t.rows.some(row => !Array.isArray(row) || !row.every(cellOk) || (t.headers && row.length !== t.headers.length)))
@@ -235,7 +236,7 @@ function cardTable(card) {
         if (!t.headers || t.headers.length < 2 || t.rows.length === 0 || t.rows.some(row =>
             typeof row[0] !== 'string' || row.slice(1).some(c => typeof c === 'string' ||
                 !c.text.trim() || typeof c.detail !== 'string' || !c.detail.trim())))
-            throw new Error('Card ' + card.id + ': a matrix needs column headers, row labels and cells with text, tone and detail');
+            throw new Error(matrixShape);
         const item = c => '<td><details data-tone="' + c.tone + '"><summary title="' + escape(c.detail) + '">' +
             inline(c.text) + '</summary><p>' + inline(c.detail) + '</p></details></td>';
         return '<div class="mb-matrix-scroll"><table class="mb-table mb-matrix"><thead><tr>' +
