@@ -76,7 +76,8 @@
 /* Diffs: one collapsible block per file, coloured lines, numbers of both sides; nothing sticks while scrolling. */
 .mb-diff{margin:0 0 1.8em}
 .mb-diff-file{border:1px solid var(--line);border-radius:8px;margin:0 0 12px;background:var(--field)}
-.mb-diff-file>summary{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:10px 14px;font-weight:400}
+.mb-diff-file>summary{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:10px 14px;font-weight:400;list-style:none}
+.mb-diff-file>summary::-webkit-details-marker{display:none}
 .mb-diff-arrow{display:inline-block;color:var(--muted);transition:transform .15s}
 .mb-diff-file[open]>summary .mb-diff-arrow{transform:rotate(90deg)}
 @media (prefers-reduced-motion:reduce){.mb-diff-arrow{transition:none}}

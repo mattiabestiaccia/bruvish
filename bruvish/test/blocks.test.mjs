@@ -370,6 +370,8 @@ test('a card diff is one collapsible block per file, with coloured lines, new-si
   assert.match(body, /<tr class="mb-hunk"><td class="mb-num"><\/td><td class="mb-num"><\/td><td class="mb-code">@@ -1,4 \+1,4 @@ function a\(\) \{<\/td><td class="mb-cmt"><\/td><\/tr>/);
   assert.doesNotMatch(body, /<script>|<b>/, 'the diff text is escaped');
   await assert.rejects(render(doc([card({ diff: { text: DIFF, notes: { 'src/a.js:99': 'x' } } })])), /Card a: diff note "src\/a\.js:99" matches no line of the new side/);
+  const binary = cardHtml(await render(doc([card({ diff: { text: 'diff --git a/img.png b/img.png\nindex 1111111..2222222 100644\nBinary files a/img.png and b/img.png differ\n' } })])));
+  assert.match(binary, /<span class="mb-diff-name">img\.png<\/span><span class="mb-diff-stat">modificato<\/span><\/summary>/, 'a file with no added or removed line has no dangling separator');
   await assert.rejects(render(doc([card({ diff: { text: 3 } })])), /Card a: diff must be/);
   await assert.rejects(render(doc([card({ diff: { text: 'niente' } })])), /Card a: diff has no file/);
 });

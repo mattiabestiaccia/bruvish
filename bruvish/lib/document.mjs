@@ -348,7 +348,7 @@ function cardDiff(card, filesPage = false) {
         throw new Error(where + ' has no file: text must be a unified diff (diff --git or ---/+++ headers, then @@ hunks)');
     const notes = { ...(d.notes || {}) };
     const html = files.map(f => {
-        const stat = DIFF_STATUS[f.status] + ' · ' + [f.added ? '<span class="mb-plus">+' + f.added + '</span>' : '', f.removed ? '<span class="mb-minus">−' + f.removed + '</span>' : ''].filter(Boolean).join(' ');
+        const stat = [DIFF_STATUS[f.status], [f.added ? '<span class="mb-plus">+' + f.added + '</span>' : '', f.removed ? '<span class="mb-minus">−' + f.removed + '</span>' : ''].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
         const rows = f.lines.map(l => {
             if (l.type === 'hunk' || l.type === 'meta')
                 return '<tr class="mb-' + l.type + '"><td class="mb-num"></td><td class="mb-num"></td><td class="mb-code">' + escape(l.text) + '</td><td class="mb-cmt"></td></tr>';
