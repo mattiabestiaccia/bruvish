@@ -62,7 +62,7 @@
 .mb-transcript{margin-top:10px}
 .mb-transcript summary{cursor:pointer;font-size:16px;color:var(--muted)}
 .mb-transcript pre{font-size:13px;overflow-x:auto;background:var(--field);padding:10px;border-radius:6px;margin:8px 0 0}
-.mb-transcript:not([open])>:not(summary),.mb-diff-file:not([open])>:not(summary){display:none}
+.mb-transcript:not([open])>:not(summary){display:none}
 /* Secondary notes: italic, greyer, set apart from the main content by a dashed line. */
 .mb-notes{margin:16px 0 0;padding-top:10px;border-top:1px dashed var(--line)}
 .mb-notes p{margin:0 0 .6em;font-style:italic;font-size:16px;color:var(--muted);opacity:.85}

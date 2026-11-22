@@ -195,9 +195,7 @@
           "tone": "verde",
           "help": "Le prove dal vivo del gate: ogni riga è uno scenario eseguito davvero, anche *avversario* (cercando di rompere il cambio). Controlla che ci sia il caso **prima** (il difetto riprodotto) e il caso **dopo**.",
           "paragraphs": [
-            "CLI lanciata con Bun, in una HOME isolata e con una cartella `--dati` usa e getta, ==prima sul commit base e poi sul commit nuovo==.",
-            "Trascrizione: -h prima e dopo, confronti",
-            "=== PRIMA (base 5c64566) ===\n$ HOME=$ISOLATA bun base/src/cli.ts -h --dati $DATI_INESISTENTE\nstdout: []\n[stderr] Comando o argomenti non validi; usa --help\n[exit 1]\n\n=== DOPO (target 256a896) ===\n$ HOME=$ISOLATA bun src/cli.ts -h --dati .../dati-inesistente\npostit — archivio locale, senza chiamate API\n  list    tutte le voci e gli stati ricostruiti\n  ...\n[exit 0]\n\n$ HOME=$ISOLATA bun src/cli.ts -x --dati ...\n[stderr] Comando o argomenti non validi; usa --help\n[exit 1]\n\n=== CONFRONTI (target) ===\nstdout di -h == stdout di --help: identico (byte per byte)\nstdout di -h == stdout di help: identico\nexit di -h: 0\ncartella dati creata da -h? NO"
+            "CLI lanciata con Bun, in una HOME isolata e con una cartella `--dati` usa e getta, ==prima sul commit base e poi sul commit nuovo==."
           ],
           "table": {
             "rows": [
@@ -255,6 +253,10 @@
               "Scenario",
               "Esito"
             ]
+          },
+          "transcript": {
+            "summary": "Trascrizione: -h prima e dopo, confronti",
+            "text": "=== PRIMA (base 5c64566) ===\n$ HOME=$ISOLATA bun base/src/cli.ts -h --dati $DATI_INESISTENTE\nstdout: []\n[stderr] Comando o argomenti non validi; usa --help\n[exit 1]\n\n=== DOPO (target 256a896) ===\n$ HOME=$ISOLATA bun src/cli.ts -h --dati .../dati-inesistente\npostit — archivio locale, senza chiamate API\n  list    tutte le voci e gli stati ricostruiti\n  ...\n[exit 0]\n\n$ HOME=$ISOLATA bun src/cli.ts -x --dati ...\n[stderr] Comando o argomenti non validi; usa --help\n[exit 1]\n\n=== CONFRONTI (target) ===\nstdout di -h == stdout di --help: identico (byte per byte)\nstdout di -h == stdout di help: identico\nexit di -h: 0\ncartella dati creata da -h? NO"
           }
         }
       ]

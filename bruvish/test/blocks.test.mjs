@@ -723,6 +723,7 @@ const REFERENCE = {
   header: { padding: '8px clamp(8px, 1vw, 16px) 24px' },
   h1: { 'font-size': 'clamp(31px, 4vw, 46px)', margin: '10px 0 10px' }, number: { color: 'var(--muted)', 'font-weight': '400' },
   lineNote: { margin: '6px 8px 10px 80px', 'box-shadow': '0 0 0 1.5px #e8c35acc, 0 0 14px #e8c35a55' },
+  transcript: { summary: 'Trascrizione: -h prima e dopo, confronti', lines: [22, '=== PRIMA (base 5c64566) ===', '[exit 1]', '', '  list    tutte le voci e gli stati ricostruiti', 'cartella dati creata da -h? NO'] },
 };
 const flat = value => String(value ?? '').replace(/\s*,\s*/g, ',').trim();
 const box = value => { const p = flat(value).match(/(?:[^\s(]+|\([^()]*(?:\([^()]*\)[^()]*)*\))+/g); return [p[0], p[1] ?? p[0], p[2] ?? p[0], p[3] ?? p[1] ?? p[0]]; };
@@ -803,6 +804,20 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
   assert.doesNotMatch(skeleton(other), /data-mb-files|data-mb-diff-all|mb-number/);
   // Without tabs the theme keeps the section headings.
   assert.equal(((await render({ ...input, tabs: false })).match(/<h2>/g) || []).length, input.sections.length);
+  // (5) The live trials: one closed transcript right after the table, its log line by line, as on the approved page.
+  const trials = document.getElementById('carta-prove-1'), [transcript] = trials.querySelectorAll('details.mb-transcript');
+  assert.equal(trials.querySelectorAll('details.mb-transcript').length, 1);
+  assert(!transcript.hasAttribute('open'), 'the transcript starts closed');
+  assert.equal(trials.querySelector('table.mb-table').nextElementSibling, transcript, 'the transcript follows the table');
+  assert.equal(transcript.querySelector('summary').textContent, REFERENCE.transcript.summary);
+  const log = transcript.querySelector('pre').textContent.split('\n');
+  assert.deepEqual([log.length, log[0], log[4], log[5], log[9], log.at(-1)], REFERENCE.transcript.lines);
+  assert(!trials.querySelectorAll('.sentence').some(s => s.textContent.includes('[exit')), 'the log is not split into sentences');
+  assert.equal(look(transcript.querySelector('pre')).display, 'none', 'a closed transcript has no geometry');
+  transcript.setAttribute('open', '');
+  assert.notEqual(look(transcript.querySelector('pre')).display, 'none');
+  details[0].removeAttribute('open');
+  assert.notEqual(look(details[0].querySelector('.mb-diff-body')).display, 'none', 'a closed diff file stays findable in the page');
 });
 
 test('a transcript opens on demand: closed, preformatted, escaped, after the table and before the notes', async () => {
