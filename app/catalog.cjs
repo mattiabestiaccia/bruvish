@@ -8,7 +8,7 @@ function normalizeMetadata(value) {
   if (Object.keys(value).length !== 4 || typeof workedAt !== 'string' ||
     !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(workedAt)) return null;
   const date = new Date(workedAt);
-  if (!Number.isFinite(date.valueOf()) || date.toISOString().slice(0, 19) !== workedAt.slice(0, 19)) return null;
+  if (!Number.isFinite(date.valueOf()) || date.toISOString().slice(0, 19) !== workedAt.slice(0, 19) || date.valueOf() > Date.now() + 5 * 60_000) return null;
   if (typeof agent !== 'string' || !agent.trim() || agent.length > 80 || /[\p{Cc}\p{Cf}]/u.test(agent) ||
     typeof profile !== 'string' || !/^[\w.-]{1,50}$/.test(profile) ||
     typeof sessionId !== 'string' || !/^[\w.:-]{1,128}$/.test(sessionId)) return null;

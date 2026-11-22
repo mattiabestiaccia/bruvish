@@ -28,7 +28,7 @@ async function fixture() {
   await new Promise(resolve => socket.close(resolve));
   const origin = `http://127.0.0.1:${port}`, state = path.join(directory, 'state');
   const env = runtimeEnvironment({...process.env, ...isolatedEnvironment(directory), LAVISH_AXI_PORT: String(port), LAVISH_AXI_STATE_DIR: state,
-    LAVISH_APP_STATE_DIR: path.join(directory, 'app'), LAVISH_AXI_TELEMETRY: 'off', LAVISH_AXI_IDLE_TIMEOUT_MS: '60000'});
+    LAVISH_AXI_TELEMETRY: 'off', LAVISH_AXI_IDLE_TIMEOUT_MS: '60000'});
   const server = spawn(process.execPath, [sourceServer, 'server', '--port', String(port)], {env, stdio: 'ignore'});
   await until(async () => (await fetch(origin + '/health')).ok, 'fixture server starts');
   async function register(name) {
@@ -90,22 +90,27 @@ test('local metadata is monotonic and web catalog mirrors organization without e
   try {
     const review = await f.register('Taccuino di esempio');
     const headers = {'content-type':'application/json','x-bruvish-control':'1'};
-    const metadata = {agent:'Pi',profile:'pib',sessionId:'private-agent-session',workedAt:'2026-11-22T09:20:00Z'};
+    const metadata = {agent:'Pi',profile:'pib',sessionId:'private-agent-session',workedAt:'2026-11-20T09:20:00Z'};
     const record = (value,extra = {}) => fetch(f.origin + '/mb/metadata',{method:'POST',headers:{...headers,...extra},body:JSON.stringify({session:review.key,metadata:value})});
     assert.equal((await record(metadata,{origin:'https://example.invalid'})).status,403);
     assert.equal((await record(metadata,{'x-forwarded-for':'100.101.102.103'})).status,403);
     assert.equal((await record({...metadata, workedAt:'2026-02-30T09:20:00Z'})).status,400);
+    assert.equal((await record({...metadata, workedAt:new Date(Date.now() + 60 * 60_000).toISOString()})).status,400);
     const cli = fileURLToPath(new URL('../bin/lavish-axi.js', import.meta.url));
     const argv = ['metadata', `${f.origin}/session/${review.key}`, '--agent', metadata.agent, '--profile', metadata.profile, '--session-id', metadata.sessionId, '--worked-at', metadata.workedAt];
     const result = await promisify(execFile)(process.execPath,[cli,...argv],{env:f.env});
     assert.equal(JSON.parse(result.stdout).status,'updated');
     assert.equal((await (await record(metadata)).json()).status,'unchanged');
-    assert.equal((await (await record({...metadata, workedAt:'2026-11-21T09:20:00Z'})).json()).status,'unchanged');
+    assert.equal((await (await record({...metadata, workedAt:'2026-11-19T09:20:00Z'})).json()).status,'unchanged');
     const saved = JSON.parse(await readFile(path.join(f.state,'catalog-metadata',review.key + '.json'),'utf8'));
     assert.equal(saved.sessionId,metadata.sessionId);
     const appDir = path.join(f.directory,'app'), folder = '00000000-0000-4000-8000-000000000000';
     const canonical = await realpath(review.file);
     await mkdir(appDir);
+    await writeFile(path.join(appDir,'preferences.json'),'{');
+    const degraded = await fetch(f.origin + '/');
+    assert.equal(degraded.status,200);assert.equal(degraded.headers.get('x-lavish-catalog'),'1');
+    assert.match(await degraded.text(),/Taccuino di esempio/);
     await writeFile(path.join(appDir,'preferences.json'),JSON.stringify({artifacts:{[canonical]:{favorite:true,pinned:true}}}));
     await writeFile(path.join(appDir,'catalog-organization.json'),JSON.stringify({folders:[{id:folder,name:'Prove'}],folderAssignments:{[canonical]:folder}}));
     const html = await (await fetch(f.origin + '/')).text();

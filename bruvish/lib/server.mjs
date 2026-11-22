@@ -81,7 +81,11 @@ export function registerBruvishRoutes(
     try {
       const { Preferences } = createRequire(import.meta.url)(fileURLToPath(assetUrl("mb-catalog-preferences.cjs")));
       const root = env.LAVISH_APP_STATE_DIR || path.join(os.homedir(), ".local/state/lavish-mb/app-personal");
-      const html = renderCatalog(await loadCatalog().listReviews(stateDirectory), new Preferences(root).snapshot());
+      let organization = {};
+      try {
+        organization = new Preferences(root).snapshot();
+      } catch {}
+      const html = renderCatalog(await loadCatalog().listReviews(stateDirectory), organization);
       res.setHeader("x-lavish-catalog", "1");
       res.type("html").send(html);
     } catch {

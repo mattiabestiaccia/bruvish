@@ -27,6 +27,7 @@ export function isolatedEnvironment(directory, overrides = {}) {
     return {
         LAVISH_MB_OPENING_CONFIG: directory + '/opening.json',
         LAVISH_MB_REMOTE_CONFIG: directory + '/remote.json',
+        LAVISH_APP_STATE_DIR: directory + '/app',
         LAVISH_AXI_HOST: '127.0.0.1',
         LAVISH_AXI_LINK_HOST: '127.0.0.1',
         LAVISH_AXI_TELEMETRY: 'off',
