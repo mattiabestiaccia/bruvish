@@ -62,6 +62,18 @@
 .mb-level[data-tone=blu]{background:rgba(31,111,235,.55);color:#e7f1ff;box-shadow:0 0 0 1px #1f6feb,0 0 8px #1f6feb55}
 .mb-level[data-tone=viola]{background:rgba(137,87,229,.55);color:#f3ecff;box-shadow:0 0 0 1px #8957e5,0 0 8px #8957e555}
 @media(max-width:600px){.mb-table{display:block;overflow-x:auto}}
+/* Comparison matrix (table variant "matrix"): options in columns, criteria in rows, each cell a coloured
+   verdict that opens its detail; the table scrolls sideways instead of squeezing the cells. */
+.mb-matrix-scroll{overflow-x:auto;margin-bottom:1em}
+.mb-table.mb-matrix{display:table;min-width:max-content;margin:0}
+.mb-matrix th,.mb-matrix td{text-align:center;vertical-align:middle;padding:.55em}
+.mb-matrix th{font-weight:600}
+.mb-matrix details{max-width:24ch;margin:auto;padding:.55em .8em;border-radius:.5em;border:1px solid var(--line)}
+.mb-matrix details[data-tone=verde]{background:#185d36;color:#f0fff5}
+.mb-matrix details[data-tone=rosso]{background:#852e3b;color:#fff4f5}
+.mb-matrix details[data-tone=giallo]{background:#715416;color:#fff9e3}
+.mb-matrix summary{text-align:left;font-weight:600;cursor:pointer}
+.mb-matrix details p{text-align:left;margin:.45em 0 0;overflow-wrap:anywhere}
 .mb-transcript{margin-top:10px}
 .mb-transcript summary{cursor:pointer;font-size:16px;color:var(--muted)}
 .mb-transcript pre{font-size:13px;overflow-x:auto;background:var(--field);padding:10px;border-radius:6px;margin:8px 0 0}

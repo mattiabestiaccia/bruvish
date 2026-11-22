@@ -26,6 +26,7 @@ Building blocks (full example: bruvish/examples/revisione-completa.json), all op
   section: count                                       counter beside the title in the index or tab bar
   card: tone, labels: [{text, tone}], help, table: {headers, rows}, notes: [],
         events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}
+  card: table.variant: "matrix"                         comparison: criteria in rows, options in columns, cells {text, tone, detail}
   card: transcript: {summary, text}                    preformatted text, closed; opens on a tap
   card: summary: "..."                                 in the help bubble under the fixed help (Cosa notare qui)
   card: voice: "..."                                   the text the voice button reads, written for the card

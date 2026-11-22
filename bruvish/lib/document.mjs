@@ -229,6 +229,18 @@ function cardTable(card) {
     if (!t || typeof t !== 'object' || Array.isArray(t) || !Array.isArray(t.rows) || (t.headers !== undefined && (!Array.isArray(t.headers) || t.headers.some(h => typeof h !== 'string')))
         || t.rows.some(row => !Array.isArray(row) || !row.every(cellOk) || (t.headers && row.length !== t.headers.length)))
         throw new Error(shape);
+    if (t.variant === 'matrix') {
+        if (!t.headers || t.headers.length < 2 || t.rows.length === 0 || t.rows.some(row =>
+            typeof row[0] !== 'string' || row.slice(1).some(c => typeof c === 'string' ||
+                !c.text.trim() || typeof c.detail !== 'string' || !c.detail.trim())))
+            throw new Error('Card ' + card.id + ': a matrix needs column headers, row labels and cells with text, tone and detail');
+        const item = c => '<td><details data-tone="' + c.tone + '"><summary title="' + escape(c.detail) + '">' +
+            inline(c.text) + '</summary><p>' + inline(c.detail) + '</p></details></td>';
+        return '<div class="mb-matrix-scroll"><table class="mb-table mb-matrix"><thead><tr>' +
+            t.headers.map(h => '<th scope="col">' + inline(h) + '</th>').join('') + '</tr></thead><tbody>' +
+            t.rows.map(([name, ...cells]) => '<tr><th scope="row">' + inline(name) + '</th>' + cells.map(item).join('') + '</tr>').join('') +
+            '</tbody></table></div>';
+    }
     const cell = c => typeof c === 'string' ? c.split(' · ').map(inline).join('<br>') : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
     return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map(h => '<th scope="col">' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map(c => '<td>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 }
