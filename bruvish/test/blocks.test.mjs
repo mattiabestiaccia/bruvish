@@ -127,6 +127,23 @@ test('help opens with a click on «?» in the flow of the card, closes with anot
   await assert.rejects(render(doc([card({ help: '' })])), /Card a: help/);
 });
 
+test('the bubble joins the fixed meaning and a summary of this card; the voice reads the text written for the card (S6)', async () => {
+  const html = await render(doc([card({ help: 'Il significato.', summary: 'Qui conta **una** riga.', voice: 'La PR cambia "una" riga & passa.' })]));
+  const body = cardHtml(html);
+  assert.match(body, /<div class="mb-help" id="mb-help-a" hidden><b class="mb-help-title">A cosa ti serve<\/b><p><span class="sentence">Il significato\.<\/span><\/p><div class="mb-help-summary"><b class="mb-help-title">Cosa notare qui<\/b><p><span class="sentence">Qui conta <strong>una<\/strong> riga\.<\/span><\/p><\/div><\/div>/);
+  assert.match(body, /<button class="voice" type="button" data-mb-voice data-mb-voice-text="La PR cambia &quot;una&quot; riga &amp; passa\." aria-label="Leggi questa scheda">/);
+  const { document, window } = boot(html);
+  const spoken = [];
+  Object.assign(window, { SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } }, speechSynthesis: { speaking: false, speak: u => spoken.push(u.text), cancel() {} } });
+  document.querySelector('[data-mb-voice]').click();
+  assert.deepEqual(spoken, ['La PR cambia "una" riga & passa.'], 'the written text, not the card');
+  // A summary alone still opens a bubble; without voice the button reads the card as before.
+  assert.match(cardHtml(await render(doc([card({ summary: 'Solo il riassunto.' })]))), /<div class="mb-help" id="mb-help-a" hidden><div class="mb-help-summary"><b class="mb-help-title">Cosa notare qui<\/b>/);
+  assert.doesNotMatch(cardHtml(await render(doc([card()]))), /data-mb-voice-text/);
+  for (const bad of [{ voice: '' }, { voice: 3 }, { summary: '' }])
+    await assert.rejects(render(doc([card(bad)])), /Card a: (voice|summary)/);
+});
+
 test('voice sits left of the corner help with a gap at every card breakpoint, and the bubble stays below both', async () => {
   for (const theme of ['B', 'F', 'E2', 'G2', 'D3', 'revisione']) {
     const html = await render(doc([card({ help: 'Serve.' }), card({ id: 'plain' })], { theme }));
@@ -765,6 +782,9 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
   assert.equal(toggleAll.closest('.mb-diff-tools').nextElementSibling, details[0], 'the button sits above the files');
   assert.equal(toggleAll.textContent, 'Chiudi tutti');
   for (const file of details) assert.equal(look(file).width, undefined, 'a file spans the column');
+  // The files page spans the whole page; the other pages keep the narrow column (S6).
+  assert.equal(look(document.getElementById('file'))['max-width'], 'none');
+  assert.equal(look(document.getElementById('commit'))['max-width'], REFERENCE.pageWidth);
   const noteRow = document.querySelector('tr[data-mb-line="src/cli.ts:46"]').nextElementSibling;
   assert(noteRow.classList.contains('mb-note-row'));
   const note = look(noteRow.querySelector('.mb-line-note'));

@@ -34,6 +34,7 @@
 .card:hover .mb-help-toggle,.card:focus-within .mb-help-toggle,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
 .mb-help{clear:both;margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
 .mb-help-title{display:block;margin-bottom:4px;color:var(--title);font-family:STIXLocal,serif;font-variant-caps:small-caps;font-feature-settings:'smcp' 1;font-weight:650}
+.mb-help-summary{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)}
 .mb-help p{margin:0 0 .8em}
 .mb-help p:last-child{margin-bottom:0}
 /* Page header: badge and meta items above the title, subtitle under it, pills at the bottom. */
@@ -141,6 +142,8 @@ nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-
 /* page (.colonna, .pagina): header and tab bar span the column inside the page margin; sections stay 907px wide in the middle */
 [data-mb-family=revisione] main{--mb-page-margin:clamp(14px,1.5vw,24px);width:auto;margin:0 var(--mb-page-margin);padding:30px 0 80px}
 [data-mb-family=revisione] main>section{max-width:907px;margin-inline:auto}
+/* the files page spans the whole page (Mattia, S6): diffs need the width; every other page keeps the narrow column */
+[data-mb-family=revisione] main>section:has(.card[data-mb-files]){max-width:none}
 /* page header (.testa): badge and meta in one row, the title with the PR number muted, the branches line */
 [data-mb-family=revisione] header{border-bottom:1px solid var(--line);padding:8px clamp(8px,1vw,16px) 24px;margin-bottom:0}
 [data-mb-family=revisione] h1{font-size:clamp(31px,4vw,46px);font-variant-caps:small-caps;font-feature-settings:normal;margin:10px 0;overflow-wrap:anywhere}

@@ -8,7 +8,7 @@
             return; if (speechSynthesis.speaking) {
             speechSynthesis.cancel();
             return;
-        } const card = button.closest('.card'); const lines = node => { const sentences = [...node.querySelectorAll('.sentence')].map(s => s.textContent); return sentences.length ? sentences.join(' ') : node.textContent; }; const text = [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p, :scope>.mb-fields tr')].map(node => node.matches('tr') ? node.querySelector('th').textContent + ': ' + lines(node.querySelector('td')) : lines(node))].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
+        } const card = button.closest('.card'); const lines = node => { const sentences = [...node.querySelectorAll('.sentence')].map(s => s.textContent); return sentences.length ? sentences.join(' ') : node.textContent; }; const text = button.dataset?.mbVoiceText || [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p, :scope>.mb-fields tr')].map(node => node.matches('tr') ? node.querySelector('th').textContent + ': ' + lines(node.querySelector('td')) : lines(node))].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
         // The queued answer is marked next to the option itself, never with a sentence in the card. The answer is
         // queued with a selector that names the chosen option, so the chrome's queued-anchor list (lavish:queuedAnchors,
         // sent after every queue change and on each load) says which option of which question is in the queue:

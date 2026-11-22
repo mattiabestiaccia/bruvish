@@ -143,15 +143,25 @@ function taggedList(list, where) {
 function cardHead(card, helpId) {
     const title = '<h3>' + inline(card.title) + '</h3>';
     const labels = card.labels === undefined ? [] : taggedList(card.labels, 'Card ' + card.id + ': labels');
-    if (!labels.length && card.help === undefined)
+    if (!labels.length && card.help === undefined && card.summary === undefined)
         return title;
     let toggle = '', help = '';
-    if (card.help !== undefined) {
-        const body = filledParagraphs(card.help, 'Card ' + card.id + ': help is a text of one or more sentences, like "Serve a decidere se unire il ramo."');
+    // The bubble has a fixed part (what the card means, the same on every page) and a summary written for this card.
+    if (card.help !== undefined || card.summary !== undefined) {
+        const meaning = card.help === undefined ? '' : '<b class="mb-help-title">A cosa ti serve</b>' + filledParagraphs(card.help, 'Card ' + card.id + ': help is a text of one or more sentences, like "Serve a decidere se unire il ramo."');
+        const summary = card.summary === undefined ? '' : '<div class="mb-help-summary"><b class="mb-help-title">Cosa notare qui</b>' + filledParagraphs(card.summary, 'Card ' + card.id + ': summary is a text of one or more sentences, like "Un solo file cambia: la riga 46 di src/cli.ts."') + '</div>';
         toggle = '<button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="' + helpId + '" aria-label="A cosa serve questa carta">?</button>';
-        help = '<div class="mb-help" id="' + helpId + '" hidden><b class="mb-help-title">A cosa ti serve</b>' + body + '</div>';
+        help = '<div class="mb-help" id="' + helpId + '" hidden>' + meaning + summary + '</div>';
     }
     return '<div class="mb-card-head">' + title + (labels.length ? '<span class="mb-labels">' + labels.map(l => '<span class="mb-label" data-tone="' + l.tone + '">' + inline(l.text) + '</span>').join('') + '</span>' : '') + toggle + '</div>' + help;
+}
+// The text the 🔊 reads: written for this card (its main facts, for listening); without it the button reads the card.
+function voiceText(card) {
+    if (card.voice === undefined)
+        return '';
+    if (typeof card.voice !== 'string' || !card.voice.trim())
+        throw new Error('Card ' + card.id + ': voice must be a non-empty text to read aloud, like "La PR cambia un file e passa tutte le prove."');
+    return ' data-mb-voice-text="' + escape(card.voice.trim()) + '"';
 }
 // Closed set of inline icons for the header badge: Octicons by GitHub, MIT licence (bruvish/licenses/Octicons-MIT.txt),
 // 16 px paths of git-pull-request, git-merge, git-pull-request-closed, git-pull-request-draft, check, x and dot-fill.
@@ -394,7 +404,7 @@ function sectionIndex(input) {
 }
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
-const CARD_BLOCKS = ['tone', 'labels', 'help', 'table', 'notes', 'diff', 'events', 'transcript'];
+const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript'];
 const PAGE_BLOCKS = ['tabs', 'header', 'pills'];
 const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
@@ -464,7 +474,7 @@ export async function renderDocument(input, options = {}) {
     const sections = (input.sections || []).map(section => {
         return '<section id="' + section.id + '"' + (tabTitled ? ' aria-label="' + escape(section.title) + '">' : '><h2>' + escape(section.title) + '</h2>') + section.cards.map(card => {
             let helpId;
-            if (card.help !== undefined) {
+            if (card.help !== undefined || card.summary !== undefined) {
                 helpId = 'mb-help-' + card.id;
                 while (ids.has(helpId))
                     helpId += '-';
@@ -490,7 +500,7 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
