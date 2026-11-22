@@ -56,6 +56,8 @@
             }
           ],
           "help": "Riassume la PR in poche frasi. Leggila per prima: dice cosa cambia e perché.",
+          "summary": "Va via una sola regola: il push su `main` non passa più senza conferma.",
+          "voice": "La PR toglie la regola che lasciava passare il push su main senza conferma. Il rischio è medio.",
           "paragraphs": [
             "La regola che lasciava passare il push su `main` senza conferma va via. Il push resta possibile, ma lo valuta il classificatore."
           ],
