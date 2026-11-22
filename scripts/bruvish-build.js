@@ -23,6 +23,7 @@ const runtimeAssets = {
   "mb-catalog.js": "bruvish/assets/catalog.js",
   "mb-catalog-fonts.css": "bruvish/assets/fonts.css",
   "mb-catalog.cjs": "app/catalog.cjs",
+  "mb-catalog-preferences.cjs": "app/preferences.cjs",
   "chrome-addon.js": "bruvish/assets/chrome-addon.js",
   "chrome-addon.css": "bruvish/assets/chrome-addon.css",
 };

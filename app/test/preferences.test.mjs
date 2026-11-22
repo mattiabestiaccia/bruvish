@@ -30,6 +30,34 @@ test('library choices persist independently across restarts, with explicit unpin
   } finally { fs.rmSync(root, {recursive: true, force: true}); }
 });
 
+test('catalog folders survive restart without changing legacy preferences or moving files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lavish-folders-'));
+  try {
+    const {Preferences} = require('../preferences.cjs');
+    const prefs = new Preferences(root);
+    const file = path.join(root, 'example.html');
+    fs.writeFileSync(file, '<p>Example</p>');
+    prefs.mark(file, 'pinned', true);
+    const legacyFile = path.join(root, 'preferences.json');
+    const legacyBytes = fs.readFileSync(legacyFile, 'utf8');
+    const state = prefs.createFolder('  Révision  ');
+    const [folder] = state.folders;
+    assert.equal(folder.name, 'Révision');
+    assert.throws(() => prefs.createFolder('revision'), /esiste già/i);
+    assert.throws(() => prefs.createFolder('   '), /nome/);
+    assert.throws(() => prefs.assignFolder(file, 'unknown'), /non esiste/i);
+    assert.throws(() => prefs.assignFolder('relative.html', folder.id), /percorso/);
+    prefs.assignFolder(file, folder.id);
+    const restored = new Preferences(root);
+    assert.equal(restored.snapshot().folderAssignments[file], folder.id);
+    assert.equal(restored.snapshot().artifacts[file].pinned, true);
+    assert.equal(fs.readFileSync(legacyFile, 'utf8'), legacyBytes);
+    assert.equal(fs.readFileSync(file, 'utf8'), '<p>Example</p>');
+    restored.assignFolder(file, null);
+    assert.equal(new Preferences(root).snapshot().folderAssignments[file], undefined);
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
+
 test('full-screen image is chosen only by the main process, persists, and accepts only absolute images', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lavish-preferences-'));
   try {

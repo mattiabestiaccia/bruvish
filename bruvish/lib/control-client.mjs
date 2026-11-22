@@ -1,4 +1,4 @@
-import { CONTROL_HEADER, OPEN_ROUTE, REMOTE_ROUTE, SESSION_KEY } from "./control.mjs";
+import { CONTROL_HEADER, METADATA_ROUTE, OPEN_ROUTE, REMOTE_ROUTE, SESSION_KEY } from "./control.mjs";
 import { OPENING_TIMEOUT_MS } from "./opening.mjs";
 
 // The CLI side of server-side opening (control.mjs). Both calls go to the loopback Bruvish server and
@@ -66,6 +66,15 @@ export async function requestOpening(key, env, { noGate = false, fetchImpl = und
   const answer = await call(env, "POST", OPEN_ROUTE, { body, timeoutMs: OPENING_TIMEOUT_MS + 10_000, fetchImpl });
   if (!answer.opening || typeof answer.opening.status !== "string") throw new ControlError("Unexpected opening answer");
   return answer.opening;
+}
+
+export async function requestMetadata(key, metadata, env) {
+  const result = await call(env, "POST", METADATA_ROUTE, {
+    body: { session: key, metadata },
+    timeoutMs: REMOTE_TIMEOUT_MS,
+  });
+  if (!["updated", "unchanged"].includes(result.status)) throw new ControlError("Unexpected metadata answer");
+  return result;
 }
 
 function parseSessionUrl(value) {

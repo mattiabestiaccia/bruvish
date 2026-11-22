@@ -9,6 +9,7 @@ import { verifyRemoteUrl } from "./remote.mjs";
 export const SESSION_KEY = /^[a-f0-9]{16}$/;
 export const OPEN_ROUTE = "/mb/open";
 export const REMOTE_ROUTE = "/mb/remote";
+export const METADATA_ROUTE = "/mb/metadata";
 export const CONTROL_HEADER = "x-bruvish-control";
 export const DEFAULT_LIMITS = Object.freeze({
   open: { limit: 12, windowMs: 60_000 },
@@ -98,11 +99,21 @@ export function remoteBlock(remote) {
  * remote check; tests replace them so that nothing is opened and no network is used.
  * @param {any} app
  * @param {{ store: { findByKey: (key: string) => Promise<any> }, identity: string, env?: NodeJS.ProcessEnv,
- *   open?: typeof openSurface, verify?: typeof verifyRemoteUrl, limits?: typeof DEFAULT_LIMITS, now?: () => number }} options
+ *   open?: typeof openSurface, verify?: typeof verifyRemoteUrl, limits?: typeof DEFAULT_LIMITS, now?: () => number,
+ *   metadata?: { normalize: (input: unknown) => unknown, record: (key: string, input: unknown) => Promise<boolean> } }} options
  */
 export function registerControlRoutes(
   app,
-  { store, identity, env = process.env, open = openSurface, verify = verifyRemoteUrl, limits = DEFAULT_LIMITS, now },
+  {
+    store,
+    identity,
+    env = process.env,
+    open = openSurface,
+    verify = verifyRemoteUrl,
+    limits = DEFAULT_LIMITS,
+    now,
+    metadata,
+  },
 ) {
   const limiters = {
     open: createRateLimiter(limits.open, now),
@@ -165,6 +176,39 @@ export function registerControlRoutes(
       next(error);
     }
   });
+
+  if (metadata) {
+    let pending = Promise.resolve();
+    const limit = createRateLimiter({ limit: 60, windowMs: 60_000 }, now);
+    app.post(METADATA_ROUTE, async (req, res, next) => {
+      try {
+        if (refusedCaller(req) || !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress))
+          return refuse(res, 403, "FORBIDDEN_CALLER", "Artifact metadata can only be recorded by the local CLI.");
+        const { session: key, metadata: input } = req.body || {};
+        const valid = metadata.normalize(input);
+        if (Object.keys(req.body || {}).length !== 2 || typeof key !== "string" || !SESSION_KEY.test(key) || !valid)
+          return refuse(res, 400, "INVALID_METADATA", "Use lavish-axi metadata --help for the required fields.");
+        const session = await store.findByKey(key);
+        if (!session || !/\.html?$/i.test(session.file || ""))
+          return refuse(
+            res,
+            404,
+            "UNKNOWN_SESSION",
+            "No registered HTML review has this key; run lavish-axi open first.",
+          );
+        const wait = limit();
+        if (wait) return refuse(res, 429, "RATE_LIMITED", `Too many metadata writes; retry in ${wait} s.`);
+        const write = pending.then(() => metadata.record(key, valid));
+        pending = write.then(
+          () => {},
+          () => {},
+        );
+        res.json({ session: key, status: (await write) ? "updated" : "unchanged" });
+      } catch (error) {
+        next(error);
+      }
+    });
+  }
 
   // Read-only: it never creates, reopens or opens a session, so it also answers for ended ones.
   app.get(REMOTE_ROUTE, async (req, res, next) => {

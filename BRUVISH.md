@@ -67,6 +67,16 @@ Tutto questo vale dalla sandbox solo se il server gira fuori da essa: avviato da
 
 Se il server non risponde o non ha queste route (un server ufficiale o di un'altra build), il comando lo dice e si ferma: niente ripiego che apra o verifichi da sé. Un'apertura fallita lascia la sessione valida, riporta `opening.status: failed` con il motivo ed esce con 1.
 
+### Metadati dell’ultimo lavoro
+
+Dopo aver creato o modificato davvero un artefatto, l’agente registra l’ultimo lavoro sulla review già registrata. Usa l’URL locale restituito da `lavish-axi open`, un orario UTC ISO 8601 e l’ID della **sessione agente** (non la chiave della review Lavish):
+
+```sh
+lavish-axi metadata http://127.0.0.1:4388/session/0123456789abcdef --agent Pi --profile pib --session-id agent-123 --worked-at 2026-11-22T09:20:00Z
+```
+
+`lavish-axi metadata --help` descrive i campi. Non registrare una semplice apertura, un orario dedotto o un identificativo inventato. Una registrazione uguale o più vecchia non cambia nulla. Il catalogo mostra «Non disponibile» per lo storico non registrato. Il comando non riapre le review e invia i campi solo al server locale, che li salva separatamente sotto `catalog-metadata/` nella cartella di stato del servizio. Il fumetto dell’app mostra tutti i campi e il percorso; il catalogo web mostra agente, profilo e ultimo lavoro, ma non il percorso locale né l’ID della sessione agente.
+
 ## Build
 
 `pnpm run build` produce la build ufficiale e poi, con `scripts/bruvish-build.js`, `dist/bruvish.mjs` (il comando da installare), gli asset in `dist/` e `dist/bruvish-manifest.json` (versione e tag ufficiali, commit del carry, impronte; l'identità della build è l'impronta delle uscite). Nel layout installato servono `dist/`, `bruvish/`, `app/`, `plugin.json` e `skills/lavish/` (letti da `lavish-axi setup plugin` accanto a `dist/`) e le dipendenze di produzione, senza `src/` e con un `bin/` che contiene solo il link `lavish-axi` verso `dist/bruvish.mjs` (niente `bin/lavish-axi-server.js` ufficiale): così il server parte da `dist/server.mjs`.

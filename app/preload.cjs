@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('lavishApp', Object.freeze({
   snapshot: () => ipcRenderer.invoke('lavish:snapshot'),
   preferences: settings => ipcRenderer.invoke('lavish:preferences', settings),
   mark: request => ipcRenderer.invoke('lavish:mark', request),
+  createFolder: name => ipcRenderer.invoke('lavish:create-folder', name),
+  assignFolder: request => ipcRenderer.invoke('lavish:assign-folder', request),
   fileAction: request => ipcRenderer.invoke('lavish:file-action', request),
   openReview: key => ipcRenderer.invoke('lavish:open-review', key),
   chooseFile: () => ipcRenderer.invoke('lavish:choose-file'),

@@ -19,6 +19,7 @@
     "ui/backdrop.html",
     "ui/app.js",
     "ui/app.css",
+    "ui/catalog.css",
     "ui/fonts.css"
   ]
 }

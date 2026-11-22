@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, writeFile, readFile, rm} from 'node:fs/promises';
+import {mkdtemp, mkdir, writeFile, readFile, realpath, rm} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import http from 'node:http';
-import {spawn} from 'node:child_process';
+import {execFile, spawn} from 'node:child_process';
+import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
 import {runtimeEnvironment} from '../lib/env.mjs';
 import {isolatedEnvironment, sourceServer} from '../test-helpers/runtime.mjs';
 
@@ -26,7 +28,7 @@ async function fixture() {
   await new Promise(resolve => socket.close(resolve));
   const origin = `http://127.0.0.1:${port}`, state = path.join(directory, 'state');
   const env = runtimeEnvironment({...process.env, ...isolatedEnvironment(directory), LAVISH_AXI_PORT: String(port), LAVISH_AXI_STATE_DIR: state,
-    LAVISH_AXI_TELEMETRY: 'off', LAVISH_AXI_IDLE_TIMEOUT_MS: '60000'});
+    LAVISH_APP_STATE_DIR: path.join(directory, 'app'), LAVISH_AXI_TELEMETRY: 'off', LAVISH_AXI_IDLE_TIMEOUT_MS: '60000'});
   const server = spawn(process.execPath, [sourceServer, 'server', '--port', String(port)], {env, stdio: 'ignore'});
   await until(async () => (await fetch(origin + '/health')).ok, 'fixture server starts');
   async function register(name) {
@@ -36,7 +38,7 @@ async function fixture() {
     assert.equal(response.status, 200);
     return {...await response.json(), file};
   }
-  return {directory, origin, state, register, async close() {
+  return {directory, origin, state, env, register, async close() {
     if (server.exitCode === null) {server.kill('SIGTERM');await new Promise(resolve => server.once('exit', resolve));}
     await rm(directory, {recursive: true, force: true});
   }};
@@ -80,6 +82,35 @@ test('the root lists registered artifacts without reopening reviews or exposing 
     assert.equal(unavailable.headers.get('x-lavish-catalog'), null);
     assert(!(await unavailable.text()).includes(f.directory));
     await writeFile(path.join(f.state, 'state.json'), before);
+  } finally {await f.close();}
+});
+
+test('local metadata is monotonic and web catalog mirrors organization without exposing agent session IDs', {timeout: 30000}, async () => {
+  const f = await fixture();
+  try {
+    const review = await f.register('Taccuino di esempio');
+    const headers = {'content-type':'application/json','x-bruvish-control':'1'};
+    const metadata = {agent:'Pi',profile:'pib',sessionId:'private-agent-session',workedAt:'2026-11-22T09:20:00Z'};
+    const record = (value,extra = {}) => fetch(f.origin + '/mb/metadata',{method:'POST',headers:{...headers,...extra},body:JSON.stringify({session:review.key,metadata:value})});
+    assert.equal((await record(metadata,{origin:'https://example.invalid'})).status,403);
+    assert.equal((await record(metadata,{'x-forwarded-for':'100.101.102.103'})).status,403);
+    assert.equal((await record({...metadata, workedAt:'2026-02-30T09:20:00Z'})).status,400);
+    const cli = fileURLToPath(new URL('../bin/lavish-axi.js', import.meta.url));
+    const argv = ['metadata', `${f.origin}/session/${review.key}`, '--agent', metadata.agent, '--profile', metadata.profile, '--session-id', metadata.sessionId, '--worked-at', metadata.workedAt];
+    const result = await promisify(execFile)(process.execPath,[cli,...argv],{env:f.env});
+    assert.equal(JSON.parse(result.stdout).status,'updated');
+    assert.equal((await (await record(metadata)).json()).status,'unchanged');
+    assert.equal((await (await record({...metadata, workedAt:'2026-11-21T09:20:00Z'})).json()).status,'unchanged');
+    const saved = JSON.parse(await readFile(path.join(f.state,'catalog-metadata',review.key + '.json'),'utf8'));
+    assert.equal(saved.sessionId,metadata.sessionId);
+    const appDir = path.join(f.directory,'app'), folder = '00000000-0000-4000-8000-000000000000';
+    const canonical = await realpath(review.file);
+    await mkdir(appDir);
+    await writeFile(path.join(appDir,'preferences.json'),JSON.stringify({artifacts:{[canonical]:{favorite:true,pinned:true}}}));
+    await writeFile(path.join(appDir,'catalog-organization.json'),JSON.stringify({folders:[{id:folder,name:'Prove'}],folderAssignments:{[canonical]:folder}}));
+    const html = await (await fetch(f.origin + '/')).text();
+    assert.match(html,/Fissati in alto/);assert.match(html,/>Prove</);assert.match(html,/Ultimo profilo: pib/);
+    assert(!html.includes(metadata.sessionId));assert(!html.includes(canonical));
   } finally {await f.close();}
 });
 
@@ -133,7 +164,7 @@ test('a phone browser searches the catalog, sees fresh entries and consults ende
     assert.equal(await page.evaluate('getComputedStyle(document.documentElement).colorScheme'), 'dark');
     await page.evaluate('document.getElementById("search").value="pixel";document.getElementById("search").dispatchEvent(new Event("input"))');
     assert.deepEqual(await page.evaluate('Array.from(document.querySelectorAll(".review:not([hidden]) h2")).map(el=>el.textContent)'), ['Prova Pixel — una scelta da rivedere insieme']);
-    await page.evaluate('document.getElementById("search").value="";document.getElementById("search").dispatchEvent(new Event("input"));document.getElementById("filter").value="ended";document.getElementById("filter").dispatchEvent(new Event("change"))');
+    await page.evaluate('document.getElementById("search").value="";document.getElementById("search").dispatchEvent(new Event("input"));[...document.querySelectorAll("[data-filter]")].find(b=>b.dataset.filter==="ended").click()');
     assert.deepEqual(await page.evaluate('Array.from(document.querySelectorAll(".review:not([hidden]) h2")).map(el=>el.textContent)'), ['Decisioni concluse']);
     await f.register('Un nuovo Lavish pronto');
     await page.evaluate('document.querySelector(".refresh").click()');

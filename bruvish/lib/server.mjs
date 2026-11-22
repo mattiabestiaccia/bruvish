@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { parse } from "parse5";
 import { renderCatalog } from "./catalog-page.mjs";
@@ -44,7 +45,17 @@ export function registerBruvishRoutes(
 ) {
   if (!isBruvishRuntime(env)) return;
   const identity = runtimeIdentity();
-  registerControlRoutes(app, { store, identity, env, ...control });
+  const stateDirectory = path.dirname(stateFile);
+  registerControlRoutes(app, {
+    store,
+    identity,
+    env,
+    metadata: {
+      normalize: (input) => loadCatalog().normalizeMetadata(input),
+      record: (key, input) => loadCatalog().recordMetadata(stateDirectory, key, input),
+    },
+    ...control,
+  });
   for (const [name, type, addon] of CHROME_ADDONS) {
     app.get(`/${name}`, async (_req, res, next) => {
       try {
@@ -68,7 +79,9 @@ export function registerBruvishRoutes(
     res.setHeader("cache-control", "no-store");
     res.setHeader("content-security-policy", CATALOG_CSP);
     try {
-      const html = renderCatalog(await loadCatalog().listReviews(path.dirname(stateFile)));
+      const { Preferences } = createRequire(import.meta.url)(fileURLToPath(assetUrl("mb-catalog-preferences.cjs")));
+      const root = env.LAVISH_APP_STATE_DIR || path.join(os.homedir(), ".local/state/lavish-mb/app-personal");
+      const html = renderCatalog(await loadCatalog().listReviews(stateDirectory), new Preferences(root).snapshot());
       res.setHeader("x-lavish-catalog", "1");
       res.type("html").send(html);
     } catch {
