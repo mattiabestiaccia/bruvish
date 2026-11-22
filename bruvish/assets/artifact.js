@@ -8,14 +8,14 @@
             return; if (speechSynthesis.speaking) {
             speechSynthesis.cancel();
             return;
-        } const card = button.closest('.card'); const lines = node => { const sentences = [...node.querySelectorAll('.sentence')].map(s => s.textContent); return sentences.length ? sentences.join(' ') : node.textContent; }; const text = [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p, :scope>.mb-fields tr')].map(node => node.matches('tr') ? node.querySelector('th').textContent + ': ' + lines(node.querySelector('td')) : lines(node))].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
+        } const card = button.closest('.card'); const lines = node => { const sentences = [...node.querySelectorAll('.sentence')].map(s => s.textContent); return sentences.length ? sentences.join(' ') : node.textContent; }; const text = button.dataset?.mbVoiceText || [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p, :scope>.mb-fields tr')].map(node => node.matches('tr') ? node.querySelector('th').textContent + ': ' + lines(node.querySelector('td')) : lines(node))].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
         // The queued answer is marked next to the option itself, never with a sentence in the card. The answer is
         // queued with a selector that names the chosen option, so the chrome's queued-anchor list (lavish:queuedAnchors,
         // sent after every queue change and on each load) says which option of which question is in the queue:
         // the mark moves when the answer changes and goes away when the answer is removed from the queue. An answer
         // the chrome reports as delivered (lavish:deliveredAnchors) shows "inviata" instead, until the page reloads
         // or another answer to the same question enters the queue.
-        const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/\n/g, '\\a ');
+        const quoted = value => String(value).replace(/["\\]/g, '\\$&').replace(/[\n\r\f]/g, c => '\\' + c.charCodeAt(0).toString(16) + ' ');
         const optionSelector = (form, input) => '[data-mb-question="' + form.dataset.mbQuestion + '"] input[value="' + quoted(input.value) + '"]';
         // The status region stays out of sight; it only speaks to screen readers, unless it has a problem to show.
         const say = (form, text, problem = false) => { const status = form.querySelector('.queue-status'); if (!status)

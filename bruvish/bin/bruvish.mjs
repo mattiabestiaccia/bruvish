@@ -14,7 +14,24 @@ const help = `Bruvish artifact tools
 Card JSON (full example: bruvish/examples/carte-complete.json):
   fields: [{"label": "Oggi", "paragraphs": ["..."]}]   two-column table after the paragraphs
   question.reason: "..."                               why the recommended option, under the answers
-  Text marks: \`code\`, **bold**, *italic*. Each sentence renders on its own line; a string with
+Building blocks (full example: bruvish/examples/revisione-completa.json), all optional:
+  page: tabs: true, header: {badge: {text, tone, icon}, subtitle, meta: []}, pills: [{text, tone}]
+  page: header.notice: "..."                           dashed box above the header (mockup, test page)
+  page: header.stat: {added, removed}                  closes the subtitle: +added green, -removed red
+  page: pills: [{text, tone, level: true}]             a level (risk): full semantic colour
+  page: theme: "revisione"                             look of the approved review page; asked by name only.
+        With tabs the tab names the section (no heading); a title ending in " #6" shows the number
+        muted; a card with a diff is the files page: no card frame, one Chiudi/Apri tutti button;
+        no "Come usare questa pagina" guide (guide is optional and ignored; other themes require it)
+  section: count                                       counter beside the title in the index or tab bar
+  card: tone, labels: [{text, tone}], help, table: {headers, rows}, notes: [],
+        events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}
+  card: transcript: {summary, text}                    preformatted text, closed; opens on a tap
+  card: summary: "..."                                 in the help bubble under the fixed help (Cosa notare qui)
+  card: voice: "..."                                   the text the voice button reads, written for the card
+  question.text: {label, placeholder, for: ["value"]}   a text with the answer: {choice, text}
+  tone: blu, verde, giallo, rosso, decidi, viola; icon: open, merged, closed, draft, check, x, dot
+  Text marks: \`code\`, **bold**, *italic*, ==highlight==. Each sentence renders on its own line; a string with
   several sentences is split (non-breaking space after the point keeps it together).
 Present the page with: lavish-axi page.html (style guide: lavish-axi design).
 `;

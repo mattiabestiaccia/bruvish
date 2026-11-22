@@ -1,0 +1,171 @@
+/* Building blocks of Bruvish pages (tabs, header, pills, tones, labels, help, tables, notes, diffs, events).
+   Embedded only in pages that use them. Values from the approved review page (agenti-comune/tools/pr-revisione/revisione.css). */
+:root{--mb-violet:#a371f7}
+/* Card tone: refines the colour of the state; the minimap reads --mb-state-color. An answered card keeps its green. */
+.card[data-mb-tone=blu]:not([data-mb-state=answered]){--mb-state-color:var(--mb-blue)}
+.card[data-mb-tone=verde]:not([data-mb-state=answered]){--mb-state-color:var(--mb-green)}
+.card[data-mb-tone=rosso]:not([data-mb-state=answered]){--mb-state-color:var(--mb-red)}
+.card[data-mb-tone=viola]:not([data-mb-state=answered]){--mb-state-color:var(--mb-violet)}
+.card[data-mb-tone=giallo]:not([data-mb-state=answered]),.card[data-mb-tone=decidi]:not([data-mb-state=answered]){--mb-state-color:#e8c35a}
+/* Background tinted very lightly in the colour of the category; still glow, no pulse. */
+.card[data-mb-tone]{background:linear-gradient(color-mix(in srgb,var(--mb-state-color) 7%,transparent),color-mix(in srgb,var(--mb-state-color) 7%,transparent)),var(--card)}
+/* Yellow is always intense: giallo (attention) and decidi (a decision of the reader) share the brightest still glow
+   (.carta.giallo, .carta.decidi of revisione.css). */
+.card[data-mb-tone=giallo]:not([data-mb-state=answered]),.card[data-mb-tone=decidi]:not([data-mb-state=answered]){border-color:#d6ab32cc;box-shadow:0 0 0 1.5px #e8c35acc,0 0 22px #e8c35a88,0 0 46px #d6ab3240,inset 0 0 24px #e8c35a22;background:linear-gradient(rgba(232,195,90,.08),rgba(232,195,90,.08)),var(--card)}
+/* Title row: labels right after the title on the same line, then the «?» of the help. */
+.mb-card-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;margin:0 0 12px}
+.mb-card-head h3{margin:0}
+.mb-labels{display:inline-flex;flex-wrap:wrap;gap:8px}
+.mb-label,.mb-pill{font-size:16px;line-height:1.3;border:1px solid var(--line);border-radius:999px;padding:1px 10px;color:var(--ink);white-space:nowrap}
+[data-tone=blu]{--mb-tone:var(--mb-blue)}
+[data-tone=verde]{--mb-tone:var(--mb-green)}
+[data-tone=giallo]{--mb-tone:var(--mb-yellow)}
+[data-tone=rosso]{--mb-tone:var(--mb-red)}
+[data-tone=viola]{--mb-tone:var(--mb-violet)}
+[data-tone=decidi]{--mb-tone:#e8c35a}
+.mb-label[data-tone],.mb-pill[data-tone]{box-shadow:0 0 0 1px color-mix(in srgb,var(--mb-tone) 40%,transparent)}
+.mb-label[data-tone=decidi],.mb-pill[data-tone=decidi]{box-shadow:0 0 0 1.5px #e8c35acc,0 0 10px #e8c35a66}
+/* Help, as on the approved review page (.carta > .aiuto and .fumetto of revisione.css): a round «?» in the top right
+   corner of the card, half transparent until the card is hovered or focused; a click opens the bubble right under the
+   title row, before the content; another click, a click outside it or Esc closes it. Never on hover. */
+.card:has(.mb-help-toggle) .mb-card-head{padding-right:34px}
+.card:has(.mb-help-toggle)>.voice{margin-right:24px}
+.mb-help-toggle{position:absolute;top:10px;right:10px;width:24px;height:24px;padding:0;border:1px solid var(--line);border-radius:50%;font:600 14px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);cursor:help;opacity:.55;transition:opacity .2s}
+.card:hover .mb-help-toggle,.card:focus-within .mb-help-toggle,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
+.mb-help{clear:both;margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.mb-help-title{display:block;margin-bottom:4px;color:var(--title);font-family:STIXLocal,serif;font-variant-caps:small-caps;font-feature-settings:'smcp' 1;font-weight:650}
+.mb-help-summary:not(:first-child){margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)}
+.mb-help p{margin:0 0 .8em}
+.mb-help p:last-child{margin-bottom:0}
+/* Page header: badge and meta items above the title, subtitle under it, pills at the bottom. */
+.mb-header-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 12px;font-size:16px;color:var(--muted)}
+.mb-badge{display:inline-flex;align-items:center;gap:6px;color:#fff;font-size:15px;font-weight:600;border-radius:999px;padding:4px 12px 4px 10px;background:#1f6feb}
+.mb-badge[data-tone=verde]{background:#238636}
+.mb-badge[data-tone=viola]{background:#8957e5}
+.mb-badge[data-tone=rosso]{background:#da3633}
+.mb-badge[data-tone=giallo]{background:#9e6a03}
+.mb-badge[data-tone=decidi]{background:#bf8700;box-shadow:0 0 10px #e8c35a88}
+.mb-icon{flex:none}
+.mb-subtitle{margin:-6px 0 14px;font-size:17px;color:var(--muted)}
+.mb-pills{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:12px}
+/* Notice above the header (a mockup, a test page): one dashed box, muted, set apart from the PR data. */
+.mb-notice{margin:0 0 18px;padding:8px 12px;font-size:16px;color:var(--muted);border:1px dashed var(--line);border-radius:8px}
+/* Tables of several columns; a level or outcome is a semantic colour halfway between a soft tint and a full fill. */
+.mb-table{margin:0 0 1.8em;font-size:17px;border-top:1px solid var(--line)}
+.mb-table th{color:var(--muted);font-weight:400;font-size:15px;vertical-align:bottom}
+.mb-table td{vertical-align:top}
+.mb-level{display:inline-block;font-size:16px;font-weight:700;border-radius:999px;padding:2px 14px;white-space:nowrap;letter-spacing:.02em;color:#fff}
+.mb-level[data-tone=verde]{background:rgba(46,160,67,.55);color:#e6ffec;box-shadow:0 0 0 1px #2ea043,0 0 8px #2ea04355}
+.mb-level[data-tone=giallo]{background:rgba(210,153,34,.55);color:#fff6dc;box-shadow:0 0 0 1px #d29922,0 0 8px #d2992255}
+.mb-level[data-tone=decidi]{background:rgba(210,153,34,.55);color:#fff6dc;box-shadow:0 0 0 1.5px #e8c35acc,0 0 12px #e8c35a88}
+.mb-level[data-tone=rosso]{background:rgba(218,54,51,.55);color:#ffe9e8;box-shadow:0 0 0 1px #da3633,0 0 8px #da363355}
+.mb-level[data-tone=blu]{background:rgba(31,111,235,.55);color:#e7f1ff;box-shadow:0 0 0 1px #1f6feb,0 0 8px #1f6feb55}
+.mb-level[data-tone=viola]{background:rgba(137,87,229,.55);color:#f3ecff;box-shadow:0 0 0 1px #8957e5,0 0 8px #8957e555}
+@media(max-width:600px){.mb-table{display:block;overflow-x:auto}}
+.mb-transcript{margin-top:10px}
+.mb-transcript summary{cursor:pointer;font-size:16px;color:var(--muted)}
+.mb-transcript pre{font-size:13px;overflow-x:auto;background:var(--field);padding:10px;border-radius:6px;margin:8px 0 0}
+.mb-transcript:not([open])>:not(summary){display:none}
+/* Secondary notes: italic, greyer, set apart from the main content by a dashed line. */
+.mb-notes{margin:16px 0 0;padding-top:10px;border-top:1px dashed var(--line)}
+.mb-notes p{margin:0 0 .6em;font-style:italic;font-size:16px;color:var(--muted);opacity:.85}
+.mb-notes p:last-child{margin-bottom:0}
+/* Events: one line each, with a dot in the colour of its tone. */
+.mb-events{margin:0 0 1.8em}
+.mb-event{display:grid;grid-template-columns:22px 1fr;gap:8px;margin:0 0 10px;font-size:17px}
+.mb-dot{width:10px;height:10px;border-radius:50%;margin:8px 0 0 6px;background:var(--mb-tone,var(--line))}
+/* Diffs: one collapsible block per file, coloured lines, numbers of both sides; nothing sticks while scrolling. */
+.mb-diff{margin:0 0 1.8em}
+.mb-diff-file{border:1px solid var(--line);border-radius:8px;margin:0 0 12px;background:var(--field)}
+.mb-diff-file>summary{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:10px 14px;font-weight:400;list-style:none}
+.mb-diff-file>summary::-webkit-details-marker{display:none}
+.mb-diff-arrow{display:inline-block;color:var(--muted);transition:transform .15s}
+.mb-diff-file[open]>summary .mb-diff-arrow{transform:rotate(90deg)}
+@media (prefers-reduced-motion:reduce){.mb-diff-arrow{transition:none}}
+.mb-diff-name{font-family:ui-monospace,Menlo,monospace;font-size:16px;color:#ffb38a;overflow-wrap:anywhere}
+.mb-diff-stat{font-size:15px;color:var(--muted)}
+.mb-plus{color:var(--mb-green)}
+.mb-minus{color:var(--mb-red)}
+.mb-diff-body{overflow-x:auto;border-top:1px solid var(--line)}
+.mb-diff-lines{font-family:ui-monospace,Menlo,monospace;font-size:13.5px;line-height:1.5}
+.mb-diff-lines td{border:0;padding:1px 8px;white-space:pre;vertical-align:top}
+.mb-diff-lines td.mb-num{width:1%;text-align:right;color:var(--muted);opacity:.75;user-select:none}
+.mb-sign{display:inline-block;width:1.2em;color:var(--muted);user-select:none}
+.mb-add td.mb-code{background:rgba(99,202,132,.14)}
+.mb-del td.mb-code{background:rgba(254,139,131,.14)}
+.mb-add .mb-sign{color:var(--mb-green)}
+.mb-del .mb-sign{color:var(--mb-red)}
+.mb-hunk td,.mb-meta td{color:var(--mb-blue);background:var(--field)}
+.mb-note-row td{white-space:normal;padding:0}
+.mb-line-note{margin:6px 8px 10px 80px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--field);font:16px/1.45 'Atkinson Hyperlegible Next',system-ui,sans-serif;white-space:normal;box-shadow:0 0 0 1.5px #e8c35acc,0 0 14px #e8c35a55}
+@media(max-width:600px){.mb-line-note{margin-left:8px}}
+/* Line comments: a discreet «commenta» on each line of the new side, a text box under the line. */
+.mb-diff-lines td.mb-cmt{width:1%;padding:0 6px;text-align:right;white-space:nowrap}
+.mb-comment-toggle{font:14px/1.2 'Atkinson Hyperlegible Next',system-ui,sans-serif;padding:1px 8px;color:var(--muted);background:transparent;border-color:transparent;opacity:0}
+tr:hover>td>.mb-comment-toggle,.mb-comment-toggle:focus-visible,.mb-comment-toggle[aria-expanded=true]{opacity:1;border-color:var(--line)}
+@media(hover:none){.mb-comment-toggle{opacity:.6}}
+.mb-line-mark{margin-left:6px;font:14px 'Atkinson Hyperlegible Next',system-ui,sans-serif;color:var(--title)}
+.mb-comment-row td{white-space:normal;padding:0}
+.mb-comment-box{margin:6px 8px 10px 80px;padding:10px 12px;border:1px solid var(--title);border-radius:8px;background:var(--field);font:16px/1.45 'Atkinson Hyperlegible Next',system-ui,sans-serif}
+.mb-comment-box textarea,.mb-answer-text textarea{display:block;width:100%;min-height:4.5em;resize:vertical;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--field);color:var(--ink);font-size:17px}
+.mb-comment-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.mb-comment-status{font-size:16px;color:var(--muted)}
+.mb-announce{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:600px){.mb-comment-box{margin-left:8px}}
+/* Section counter and tab bar: the active tab is framed in the accent; the bar does not stick. */
+.mb-count{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--field);border:1px solid var(--line);font-size:14px;line-height:1.5;color:var(--muted)}
+nav.mb-tabs{gap:4px}
+nav.mb-tabs a{padding:6px 12px;border:1px solid transparent;border-radius:7px;color:var(--muted);text-decoration:none;font-size:17px}
+nav.mb-tabs a:hover,nav.mb-tabs a:focus-visible{color:var(--ink);border-color:var(--line)}
+nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-color:var(--title)}
+/* Theme «revisione» (S53, 22 novembre 2026): the look of the approved review page, value by value
+   (laboratorio-stile/lavish/revisione-pr/mockup-pr-postit-6.html and agenti-comune/tools/pr-revisione/revisione.css).
+   Asked by name with "theme": "revisione"; never drawn at random. */
+:root[data-mb-family=revisione]{--card:rgba(5,40,44,0.5);--line:#245156;--ink:#d1e9eb;--muted:#95babe;--title:#4ed1de;--field:rgba(0,0,0,.18);--highlight:rgba(236,214,120,.30)}
+:where([data-mb-family=revisione]) p{margin:0 0 .7em}
+:where([data-mb-family=revisione]) .sentence+.sentence{margin-top:0}
+:where([data-mb-family=revisione]) h3{font-size:20px}
+:where([data-mb-family=revisione]) code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.86em;background:none;padding:0}
+:where([data-mb-family=revisione]) mark{border-radius:3px;padding:0 .15em}
+/* cards: 20% narrower, in a central column; still glows, no pulse; very light tint of the category */
+[data-mb-family=revisione] .card{width:calc((100% - 18px) * .8);margin:0 auto 18px;padding:20px;border-radius:10px;scroll-margin-top:calc(var(--mb-tabs-height,0px) + 24px)}
+@media(max-width:600px){[data-mb-family=revisione] .card{width:100%}}
+[data-mb-family=revisione] .card[data-mb-new]::after{animation:none}
+[data-mb-family=revisione] .card[data-mb-tone=verde]:not([data-mb-state=answered]),[data-mb-family=revisione] .card[data-mb-state=answered]{box-shadow:0 0 0 1px #63ca84aa,0 0 18px #63ca8466,inset 0 0 20px #63ca841f;background:linear-gradient(rgba(99,202,132,.07),rgba(99,202,132,.07)),var(--card)}
+[data-mb-family=revisione] .card[data-mb-state=info]:not([data-mb-tone]),[data-mb-family=revisione] .card[data-mb-tone=blu]:not([data-mb-state=answered]){box-shadow:0 0 0 1px #6bb5ffaa,0 0 18px #6bb5ff66,inset 0 0 20px #6bb5ff1f;background:linear-gradient(rgba(107,181,255,.07),rgba(107,181,255,.07)),var(--card)}
+[data-mb-family=revisione] .card[data-mb-state=blocked]:not([data-mb-tone]),[data-mb-family=revisione] .card[data-mb-tone=rosso]:not([data-mb-state=answered]){box-shadow:0 0 0 1px #fe8b83aa,0 0 18px #fe8b8366,inset 0 0 20px #fe8b831f;background:linear-gradient(rgba(254,139,131,.08),rgba(254,139,131,.08)),var(--card)}
+/* title row and tables as on the review page */
+[data-mb-family=revisione] .mb-card-head{gap:12px;margin-bottom:10px}
+:where([data-mb-family=revisione]) table{font-size:17px}
+:where([data-mb-family=revisione]) th,:where([data-mb-family=revisione]) td{padding:8px 6px}
+[data-mb-family=revisione] .mb-notes p{font-size:15px;opacity:.8}
+/* page (.colonna, .pagina): header and tab bar span the column inside the page margin; sections stay 907px wide in the middle */
+[data-mb-family=revisione] main{--mb-page-margin:clamp(14px,1.5vw,24px);width:auto;margin:0 var(--mb-page-margin);padding:30px 0 80px}
+[data-mb-family=revisione] main>section{max-width:907px;margin-inline:auto}
+/* the files page spans the whole page (Mattia, S6): diffs need the width; every other page keeps the narrow column */
+[data-mb-family=revisione] main>section:has(.card[data-mb-files]){max-width:none}
+/* page header (.testa): badge and meta in one row, the title with the PR number muted, the branches line */
+[data-mb-family=revisione] header{border-bottom:1px solid var(--line);padding:8px clamp(8px,1vw,16px) 24px;margin-bottom:0}
+[data-mb-family=revisione] h1{font-size:clamp(31px,4vw,46px);font-variant-caps:small-caps;font-feature-settings:normal;margin:10px 0;overflow-wrap:anywhere}
+[data-mb-family=revisione] h1::first-letter{font-size:inherit;font-weight:inherit;text-transform:uppercase}
+[data-mb-family=revisione] h3::first-letter{font-size:inherit;font-weight:inherit}
+[data-mb-family=revisione] h1 .mb-number{color:var(--muted);font-weight:400;font-variant-caps:normal}
+[data-mb-family=revisione] .mb-header-meta{gap:12px;margin:0}
+[data-mb-family=revisione] .mb-subtitle{margin:0;font-size:16px}
+[data-mb-family=revisione] .mb-subtitle code{background:var(--field);border-radius:6px;padding:1px 6px}
+/* the tab bar (nav.schede) sticks to the top with a blur across the whole column, the active tab framed in the accent */
+[data-mb-family=revisione] nav.mb-tabs{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:4px;padding:10px var(--mb-page-margin);margin:0 calc(-1 * var(--mb-page-margin)) 14px;border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+@media(min-width:1000px){[data-mb-family=revisione] nav.mb-tabs{justify-content:space-between}}
+[data-mb-family=revisione] nav.mb-tabs a{font-size:17px;padding:6px 12px;border-radius:7px}
+[data-mb-family=revisione] .mb-count{background:none;border:0;padding:0;font-size:14px}
+/* diffs: each file a card-like block; the card that holds them loses its frame, so the files span the column (.pagina-file),
+   under one button (button.piccolo); «?» and 🔊 keep their corner and their gap */
+[data-mb-family=revisione] .mb-diff-file{background:var(--card);border-radius:10px;margin:0 0 14px}
+[data-mb-family=revisione] .mb-diff-file>summary{padding:12px 16px}
+:root[data-mb-family=revisione] .card[data-mb-files][data-mb-state]{width:100%;padding:0;border:0;background:none;box-shadow:none}
+[data-mb-family=revisione] .card[data-mb-files] .mb-help-toggle{top:0;right:0}
+[data-mb-family=revisione] .card[data-mb-files]:has(.mb-help-toggle)>.voice{margin-right:34px}
+.mb-diff-tools{margin:0 0 12px}
+.mb-diff-all{font-size:15px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 10px}
+.mb-diff-all:hover{color:var(--ink);border-color:var(--title)}
+[data-mb-family=revisione] .card[data-mb-state=waiting]:not([data-mb-tone]){border-color:#d6ab32cc;box-shadow:0 0 0 1.5px #e8c35acc,0 0 22px #e8c35a88,0 0 46px #d6ab3240,inset 0 0 24px #e8c35a22;background:linear-gradient(rgba(232,195,90,.08),rgba(232,195,90,.08)),var(--card)}

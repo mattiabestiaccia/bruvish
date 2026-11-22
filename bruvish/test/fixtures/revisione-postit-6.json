@@ -1,0 +1,458 @@
+{
+  "id": "revisione:mattiabestiaccia/postit#6",
+  "theme": "revisione",
+  "tabs": true,
+  "title": "feat: fa stampare l'aiuto anche a -h #6",
+  "header": {
+    "badge": {
+      "text": "Unita",
+      "tone": "viola",
+      "icon": "merged"
+    },
+    "subtitle": "Ha unito 1 commit da `fm/postit-aiuto-h` in `master` · 2 file",
+    "meta": [
+      "mattiabestiaccia/postit",
+      "unita da mattiabestiaccia · 18 nov 2026, 13:52"
+    ],
+    "notice": "Mockup del template «revisione di una PR» su una PR ==vera e già unita==: `mattiabestiaccia/postit#6`. Dati da GitHub (`gh pr view`, `gh pr diff`) e dall'archivio di no-mistakes (corsa `01M7Q9VAW31MFJK61RWRHD0XQJ`).",
+    "stat": {
+      "added": 12,
+      "removed": 1
+    }
+  },
+  "guide": "Usa le schede per esaminare la PR. Questa versione di prova non pubblica operazioni sul repository.",
+  "pills": [
+    {
+      "text": "Rischio **basso** · nessun tema",
+      "tone": "verde",
+      "level": true
+    },
+    {
+      "text": "Gate 9 su 9",
+      "tone": "verde"
+    },
+    {
+      "text": "Prova dal vivo: **7 su 7**",
+      "tone": "verde"
+    },
+    {
+      "text": "Nessun rilievo",
+      "tone": "verde"
+    }
+  ],
+  "sections": [
+    {
+      "id": "sintesi",
+      "title": "Sintesi",
+      "cards": [
+        {
+          "id": "carta-sintesi-1",
+          "title": "Cosa fa",
+          "tone": "blu",
+          "help": "Il cambio in una tabella **prima/dopo**: leggila per prima. Se una riga ti sorprende, la PR fa più (o meno) di quanto chiedeva il compito: controllalo nella pagina *File modificati*.",
+          "table": {
+            "rows": [
+              [
+                "`postit help`, `postit --help`",
+                "stampano l'aiuto",
+                "uguale"
+              ],
+              [
+                "`postit -h`",
+                "==«Comando o argomenti non validi»==, uscita **1**",
+                "stampa ==lo stesso aiuto==, uscita **0**"
+              ],
+              [
+                "`postit -x`, `postit -H`",
+                "errore, uscita 1",
+                "uguale: ==ancora errore=="
+              ]
+            ],
+            "headers": [
+              "Comando",
+              "Prima",
+              "Dopo"
+            ]
+          }
+        },
+        {
+          "id": "carta-sintesi-2",
+          "title": "Perché (intent)",
+          "tone": "blu",
+          "help": "Il compito che ha lanciato il lavoro. Confrontalo con *Cosa fa*: la PR deve fare ==questo e solo questo==.",
+          "paragraphs": [
+            "*Lancia un lavoro piccolo su Postit che passi dal gate no-mistakes: serve come prova di S1 (agente Claude del gate in auto).*",
+            "Il lavoro scelto: la convenzione comune è che `-h` mostri l'aiuto."
+          ]
+        },
+        {
+          "id": "carta-sintesi-3",
+          "title": "Valutazione del rischio di no-mistakes",
+          "tone": "verde",
+          "help": "Il giudizio del gate sul rischio. **Basso** e nessun tema: puoi fidarti delle verifiche. **Medio o alto**, o un tema toccato: la regola del gate vuole la tua decisione prima del merge.",
+          "table": {
+            "rows": [
+              [
+                "Livello",
+                {
+                  "text": "Basso",
+                  "tone": "verde"
+                }
+              ],
+              [
+                "Motivo",
+                "aggiunge solo un alias `-h` al confronto che già gestiva `help` e `--help` (`src/cli.ts:46`); ==nessun effetto collaterale=="
+              ],
+              [
+                "Non tocca",
+                "segreti, permessi, rete, dati personali, azioni irreversibili"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "conversazione",
+      "title": "Conversazione",
+      "count": 4,
+      "cards": [
+        {
+          "id": "carta-conversazione-1",
+          "title": "Cronologia",
+          "tone": "blu",
+          "help": "La storia della PR in ordine di tempo: chi ha fatto cosa e quando (agente, gate, revisore, CI, merge). Serve a vedere se ci sono stati giri di correzione, attese lunghe o passi saltati. Una cronologia corta e tutta verde vuol dire che il gate è passato al primo colpo.",
+          "events": [
+            {
+              "text": "**First mate** lancia la corsa di no-mistakes sul ramo `fm/postit-aiuto-h` · 18 nov, 13:24",
+              "tone": "blu"
+            },
+            {
+              "text": "**no-mistakes**: intent, rebase, revisione, prove, documentazione, lint e push ==superati senza rilievi==",
+              "tone": "verde"
+            },
+            {
+              "text": "**no-mistakes** apre la PR #6 · 13:27",
+              "tone": "blu"
+            },
+            {
+              "text": "**mattiabestiaccia** unisce in `master` · 13:52",
+              "tone": "viola"
+            }
+          ]
+        },
+        {
+          "id": "carta-conversazione-2",
+          "title": "Descrizione scritta da no-mistakes",
+          "tone": "blu",
+          "help": "Il testo della PR scritto dall'agente. Serve a capire l'intenzione; i fatti stanno nelle altre pagine.",
+          "paragraphs": [
+            "`src/cli.ts`: `-h` ora stampa lo stesso testo di aiuto di `help` e `--help`.",
+            "`tests/cli.test.ts`: test nuovo che lancia la CLI con `--help` e con `-h`, controlla ==uscita 0==, ==stesso output== e il testo «postit — archivio locale»."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "revisione",
+      "title": "Revisione",
+      "count": 0,
+      "cards": [
+        {
+          "id": "carta-revisione-1",
+          "title": "Esito del revisore",
+          "tone": "verde",
+          "help": "Cosa ha guardato il revisore e cosa ha trovato. Nessun rilievo **non** vuol dire nessun difetto: controlla che i *file letti* siano tutti quelli cambiati.",
+          "table": {
+            "rows": [
+              [
+                "Rilievi",
+                {
+                  "text": "Nessuno",
+                  "tone": "verde"
+                }
+              ],
+              [
+                "File letti",
+                "`src/cli.ts`, `tests/cli.test.ts`"
+              ],
+              [
+                "Agente",
+                "Claude, `claude-opus-5-5` · 24 s"
+              ],
+              [
+                "Nota sul test",
+                "senza la correzione il test nuovo ==fallirebbe==: `-h` finiva nel ramo di errore con uscita 1"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "prove",
+      "title": "Prove dal vivo",
+      "count": 7,
+      "cards": [
+        {
+          "id": "carta-prove-1",
+          "title": "Scenari provati sulla CLI vera",
+          "tone": "verde",
+          "help": "Le prove dal vivo del gate: ogni riga è uno scenario eseguito davvero, anche *avversario* (cercando di rompere il cambio). Controlla che ci sia il caso **prima** (il difetto riprodotto) e il caso **dopo**.",
+          "paragraphs": [
+            "CLI lanciata con Bun, in una HOME isolata e con una cartella `--dati` usa e getta, ==prima sul commit base e poi sul commit nuovo==."
+          ],
+          "table": {
+            "rows": [
+              [
+                "**Prima** (base `5c64566`): `postit -h` finisce in «Comando o argomenti non validi», uscita 1",
+                {
+                  "text": "Passato",
+                  "tone": "verde"
+                }
+              ],
+              [
+                "**Dopo**: `postit -h` stampa l'aiuto, uscita 0",
+                {
+                  "text": "Passato",
+                  "tone": "verde"
+                }
+              ],
+              [
+                "`-h` stampa ==lo stesso testo== di `--help` e `help`, byte per byte",
+                {
+                  "text": "Passato",
+                  "tone": "verde"
+                }
+              ],
+              [
+                "`-h` funziona anche senza `--dati`",
+                {
+                  "text": "Passato",
+                  "tone": "verde"
+                }
+              ],
+              [
+                "*Avversario*: `-x` e `-H` danno ancora errore",
+                {
+                  "text": "Passato",
+                  "tone": "verde"
+                }
+              ],
+              [
+                "*Avversario*: `-h` ==non crea la cartella dati== e non scrive nella HOME",
+                {
+                  "text": "Passato",
+                  "tone": "verde"
+                }
+              ],
+              [
+                "Il test nuovo passa",
+                {
+                  "text": "Passato",
+                  "tone": "verde"
+                }
+              ]
+            ],
+            "headers": [
+              "Scenario",
+              "Esito"
+            ]
+          },
+          "transcript": {
+            "summary": "Trascrizione: -h prima e dopo, confronti",
+            "text": "=== PRIMA (base 5c64566) ===\n$ HOME=$ISOLATA bun base/src/cli.ts -h --dati $DATI_INESISTENTE\nstdout: []\n[stderr] Comando o argomenti non validi; usa --help\n[exit 1]\n\n=== DOPO (target 256a896) ===\n$ HOME=$ISOLATA bun src/cli.ts -h --dati .../dati-inesistente\npostit — archivio locale, senza chiamate API\n  list    tutte le voci e gli stati ricostruiti\n  ...\n[exit 0]\n\n$ HOME=$ISOLATA bun src/cli.ts -x --dati ...\n[stderr] Comando o argomenti non validi; usa --help\n[exit 1]\n\n=== CONFRONTI (target) ===\nstdout di -h == stdout di --help: identico (byte per byte)\nstdout di -h == stdout di help: identico\nexit di -h: 0\ncartella dati creata da -h? NO"
+          }
+        }
+      ]
+    },
+    {
+      "id": "controlli",
+      "title": "Controlli",
+      "count": 9,
+      "cards": [
+        {
+          "id": "carta-controlli-1",
+          "title": "Passi del gate",
+          "tone": "verde",
+          "help": "Ogni passo di no-mistakes con esito, tempo e agente. Serve a vedere se un passo è stato saltato o è durato troppo; i token dicono quanto è costato.",
+          "notes": [
+            "Dalla corsa alla PR: **3 min**. L'attesa della CI è il passo più lungo, anche ==senza una CI configurata==."
+          ],
+          "table": {
+            "rows": [
+              [
+                "Intent",
+                {
+                  "text": "Superato",
+                  "tone": "verde"
+                },
+                "0 s",
+                "—"
+              ],
+              [
+                "Rebase",
+                {
+                  "text": "Superato",
+                  "tone": "verde"
+                },
+                "1,5 s",
+                "—"
+              ],
+              [
+                "Revisione",
+                {
+                  "text": "Superata",
+                  "tone": "verde"
+                },
+                "25 s",
+                "Claude Opus 5.5 · 189 mila token letti"
+              ],
+              [
+                "Prove",
+                {
+                  "text": "Superate",
+                  "tone": "verde"
+                },
+                "1 min 33 s",
+                "Claude Opus 5.5 · 404 mila token letti"
+              ],
+              [
+                "Documentazione",
+                {
+                  "text": "Nulla da cambiare",
+                  "tone": "verde"
+                },
+                "29 s",
+                "Claude Opus 5.5"
+              ],
+              [
+                "Lint",
+                {
+                  "text": "Superato",
+                  "tone": "verde"
+                },
+                "8,6 s",
+                "—"
+              ],
+              [
+                "Push",
+                {
+                  "text": "Fatto",
+                  "tone": "verde"
+                },
+                "5,9 s",
+                "—"
+              ],
+              [
+                "PR",
+                {
+                  "text": "Aperta",
+                  "tone": "verde"
+                },
+                "37 s",
+                "Claude Opus 5.5"
+              ],
+              [
+                "CI",
+                {
+                  "text": "Nessuna CI nel repository",
+                  "tone": "blu"
+                },
+                "20 min di attesa",
+                "—"
+              ]
+            ],
+            "headers": [
+              "Passo",
+              "Esito",
+              "Tempo",
+              "Agente"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "commit",
+      "title": "Commit",
+      "count": 1,
+      "cards": [
+        {
+          "id": "carta-commit-1",
+          "title": "Commit",
+          "tone": "blu",
+          "help": "I commit della PR, ognuno spiegato in parole semplici. Un commit per ogni idea rende la PR facile da rivedere e da annullare.",
+          "table": {
+            "rows": [
+              [
+                "`256a896`",
+                "`-h` stampa l'aiuto come `--help`, con un test",
+                "2"
+              ]
+            ],
+            "headers": [
+              "Commit",
+              "In parole semplici",
+              "File"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "file",
+      "title": "File modificati",
+      "count": 2,
+      "cards": [
+        {
+          "id": "carta-diff",
+          "title": "File modificati",
+          "help": "Apri o chiudi il diff di un file toccando il suo nome.",
+          "diff": {
+            "text": "diff --git a/src/cli.ts b/src/cli.ts\nindex f3f83a0..5727cec 100644\n--- a/src/cli.ts\n+++ b/src/cli.ts\n@@ -43,7 +43,7 @@ try {\n         ? Object.fromEntries([\"stato\", \"motivo\"].map(n => [n, flag(`--${n}`, \"\") || undefined]))\n         : {};\n   const [cmd = \"help\", ...rest] = args;\n-  if (cmd === \"help\" || cmd === \"--help\") console.log(aiuto);\n+  if (cmd === \"help\" || cmd === \"--help\" || cmd === \"-h\") console.log(aiuto);\n   else if (cmd === \"cura\" || cmd === \"giro\") throw new Error(\"Rimandato: la cura con Jev aspetta l'intermediario per le chiavi (plancia#7)\");\n   else if (cmd === \"list\" && rest.length === 0) console.log(JSON.stringify(consulta(dati).voci, null, 2));\n   else if (cmd === \"temi\" && rest.length === 0) {\ndiff --git a/tests/cli.test.ts b/tests/cli.test.ts\nindex 1ea2a14..92db760 100644\n--- a/tests/cli.test.ts\n+++ b/tests/cli.test.ts\n@@ -156,3 +156,14 @@ test(\"chiudi registra superata o scartata con motivo e rifiuta i casi non validi\n     void d;\n   } finally { rmSync(dir, { recursive: true }); }\n });\n+test(\"-h stampa lo stesso aiuto di --help, con codice 0\", () => {\n+  const dir = mkdtempSync(join(tmpdir(), \"postit-aiuto-test-\"));\n+  const run = (...args: string[]) => Bun.spawnSync([process.execPath, cli, ...args, \"--dati\", dir], { env: { ...process.env }, stdout: \"pipe\", stderr: \"pipe\" });\n+  try {\n+    const lungo = run(\"--help\");\n+    const corto = run(\"-h\");\n+    expect(corto.exitCode).toBe(0);\n+    expect(corto.stdout.toString()).toBe(lungo.stdout.toString());\n+    expect(corto.stdout.toString()).toContain(\"postit — archivio locale\");\n+  } finally { rmSync(dir, { recursive: true }); }\n+});\n",
+            "notes": {
+              "src/cli.ts:46": "**Revisore** · nessun rilievo. `-h` non viene consumato dal parsing dei flag, che riconosce solo `--dati`, `--output` e le opzioni per comando."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "esito",
+      "title": "Esito",
+      "cards": [
+        {
+          "id": "carta-esito-1",
+          "title": "Unita",
+          "tone": "verde",
+          "help": "L'esito finale: chi ha unito, dove e quando. In una PR aperta qui c'è la pagina *Decisione*.",
+          "notes": [
+            "In una PR ancora aperta, questa pagina è la **Decisione**: scelte con la risposta a due tocchi."
+          ],
+          "table": {
+            "rows": [
+              [
+                "Da",
+                "mattiabestiaccia, 18 nov 2026 alle 13:52"
+              ],
+              [
+                "In",
+                "`master`, commit `256a896`"
+              ],
+              [
+                "Decisione",
+                "nessuna domanda aperta: ==rischio basso, nessun rilievo, 7 prove su 7=="
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "state": {
+    "revision": 1,
+    "answers": {},
+    "comments": []
+  }
+}
