@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, writeFile, readFile, rm} from 'node:fs/promises';
+import {mkdtemp, mkdir, writeFile, readFile, realpath, rm} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import http from 'node:http';
-import {spawn} from 'node:child_process';
+import {execFile, spawn} from 'node:child_process';
+import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
 import {runtimeEnvironment} from '../lib/env.mjs';
 import {isolatedEnvironment, sourceServer} from '../test-helpers/runtime.mjs';
+import {renderCatalog} from '../lib/catalog-page.mjs';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn, message) {
@@ -36,11 +39,24 @@ async function fixture() {
     assert.equal(response.status, 200);
     return {...await response.json(), file};
   }
-  return {directory, origin, state, register, async close() {
+  return {directory, origin, state, env, register, async close() {
     if (server.exitCode === null) {server.kill('SIGTERM');await new Promise(resolve => server.once('exit', resolve));}
     await rm(directory, {recursive: true, force: true});
   }};
 }
+
+test('artifacts that share a title get the short review key, and only then', () => {
+  const row = (key, name, file) => ({key, name, file, available: true, status: 'active', updatedAt: ''});
+  const html = renderCatalog([
+    row('aaaa1111bbbb2222', 'pagina', '/Users/esempio/revisioni/uno/pagina.html'),
+    row('cccc3333dddd4444', 'pagina', '/Users/esempio/revisioni/due/pagina.html'),
+    row('eeee5555ffff6666', 'Altro', '/Users/esempio/revisioni/uno/altro.html'),
+  ]);
+  const entries = [...html.matchAll(/<article\b[\s\S]*?<\/article>/g)].map(([article]) => [
+    article.match(/<h2>([^<]*)<\/h2>/)[1], article.match(/<span class="identifier">([^<]*)<\/span>/)?.[1] ?? null]);
+  assert.deepEqual(entries, [['pagina', 'aaaa1111'], ['pagina', 'cccc3333'], ['Altro', null]]);
+  assert(!html.includes('/Users/esempio') && !html.includes('>uno<') && !html.includes('>due<'), 'the web distinguishes titles without folder names or paths');
+});
 
 test('the root lists registered artifacts without reopening reviews or exposing local paths', {timeout: 30000}, async () => {
   const f = await fixture();
@@ -80,6 +96,40 @@ test('the root lists registered artifacts without reopening reviews or exposing 
     assert.equal(unavailable.headers.get('x-lavish-catalog'), null);
     assert(!(await unavailable.text()).includes(f.directory));
     await writeFile(path.join(f.state, 'state.json'), before);
+  } finally {await f.close();}
+});
+
+test('local metadata is monotonic and web catalog mirrors organization without exposing agent session IDs', {timeout: 30000}, async () => {
+  const f = await fixture();
+  try {
+    const review = await f.register('Taccuino di esempio');
+    const headers = {'content-type':'application/json','x-bruvish-control':'1'};
+    const metadata = {agent:'Pi',profile:'pib',sessionId:'private-agent-session',workedAt:'2026-11-20T09:20:00Z'};
+    const record = (value,extra = {}) => fetch(f.origin + '/mb/metadata',{method:'POST',headers:{...headers,...extra},body:JSON.stringify({session:review.key,metadata:value})});
+    assert.equal((await record(metadata,{origin:'https://example.invalid'})).status,403);
+    assert.equal((await record(metadata,{'x-forwarded-for':'100.101.102.103'})).status,403);
+    assert.equal((await record({...metadata, workedAt:'2026-02-30T09:20:00Z'})).status,400);
+    assert.equal((await record({...metadata, workedAt:new Date(Date.now() + 60 * 60_000).toISOString()})).status,400);
+    const cli = fileURLToPath(new URL('../bin/lavish-axi.js', import.meta.url));
+    const argv = ['metadata', `${f.origin}/session/${review.key}`, '--agent', metadata.agent, '--profile', metadata.profile, '--session-id', metadata.sessionId, '--worked-at', metadata.workedAt];
+    const result = await promisify(execFile)(process.execPath,[cli,...argv],{env:f.env});
+    assert.equal(JSON.parse(result.stdout).status,'updated');
+    assert.equal((await (await record(metadata)).json()).status,'unchanged');
+    assert.equal((await (await record({...metadata, workedAt:'2026-11-19T09:20:00Z'})).json()).status,'unchanged');
+    const saved = JSON.parse(await readFile(path.join(f.state,'catalog-metadata',review.key + '.json'),'utf8'));
+    assert.equal(saved.sessionId,metadata.sessionId);
+    const appDir = path.join(f.directory,'app'), folder = '00000000-0000-4000-8000-000000000000';
+    const canonical = await realpath(review.file);
+    await mkdir(appDir);
+    await writeFile(path.join(appDir,'preferences.json'),'{');
+    const degraded = await fetch(f.origin + '/');
+    assert.equal(degraded.status,200);assert.equal(degraded.headers.get('x-lavish-catalog'),'1');
+    assert.match(await degraded.text(),/Taccuino di esempio/);
+    await writeFile(path.join(appDir,'preferences.json'),JSON.stringify({artifacts:{[canonical]:{favorite:true,pinned:true}}}));
+    await writeFile(path.join(appDir,'catalog-organization.json'),JSON.stringify({folders:[{id:folder,name:'Prove'}],folderAssignments:{[canonical]:folder}}));
+    const html = await (await fetch(f.origin + '/')).text();
+    assert.match(html,/Fissati in alto/);assert.match(html,/>Prove</);assert.match(html,/Ultimo profilo: pib/);
+    assert(!html.includes(metadata.sessionId));assert(!html.includes(canonical));
   } finally {await f.close();}
 });
 
@@ -133,7 +183,7 @@ test('a phone browser searches the catalog, sees fresh entries and consults ende
     assert.equal(await page.evaluate('getComputedStyle(document.documentElement).colorScheme'), 'dark');
     await page.evaluate('document.getElementById("search").value="pixel";document.getElementById("search").dispatchEvent(new Event("input"))');
     assert.deepEqual(await page.evaluate('Array.from(document.querySelectorAll(".review:not([hidden]) h2")).map(el=>el.textContent)'), ['Prova Pixel — una scelta da rivedere insieme']);
-    await page.evaluate('document.getElementById("search").value="";document.getElementById("search").dispatchEvent(new Event("input"));document.getElementById("filter").value="ended";document.getElementById("filter").dispatchEvent(new Event("change"))');
+    await page.evaluate('document.getElementById("search").value="";document.getElementById("search").dispatchEvent(new Event("input"));[...document.querySelectorAll("[data-filter]")].find(b=>b.dataset.filter==="ended").click()');
     assert.deepEqual(await page.evaluate('Array.from(document.querySelectorAll(".review:not([hidden]) h2")).map(el=>el.textContent)'), ['Decisioni concluse']);
     await f.register('Un nuovo Lavish pronto');
     await page.evaluate('document.querySelector(".refresh").click()');

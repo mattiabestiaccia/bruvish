@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { assetUrl } from "./assets.mjs";
 import { runtimeEnvironment } from "./env.mjs";
 import { runtimeIdentity } from "./identity.mjs";
-import { requestRemote, sessionFromUrl } from "./control-client.mjs";
+import { requestMetadata, requestRemote, sessionFromUrl } from "./control-client.mjs";
 import { printRemoteStatus } from "./remote.mjs";
 import { assertCompatibleServer } from "./runtime.mjs";
 
@@ -10,6 +10,7 @@ export const HELP = `Bruvish: Lavish (upstream lavish-axi) with a personal delta
 The Bruvish server opens the review and verifies the phone link: the command sends it only the session key, so open and remote also work inside an agent sandbox, provided the server runs outside it (started by the LaunchAgent service or from a normal terminal). The server picks the surface from its own configuration (~/.config/lavish-mb/opening.json: app or Chrome; without it, Chrome); a call cannot override it. If no server is running, a sandboxed open starts one inside the sandbox: the opening then fails with a clear error and that caller's environment pins the surface until the server stops. --no-open only creates the session.
 Presenting a review includes its verified remote.url for the phone and an immediate tracked poll. remote.catalog_url is the separately verified fixed catalog bookmark.
 Existing session: lavish-axi remote <local-session-url> (read-only check by the server).
+Record an artifact's latest agent work: lavish-axi metadata --help.
 Artifact style: lavish-axi design (upstream reference: lavish-axi design --upstream). Only native Send to Agent sends feedback.
 `;
 
@@ -26,6 +27,10 @@ async function readDesign(env) {
     throw error;
   }
 }
+
+const METADATA_USAGE = `Usage: lavish-axi metadata <local-session-url> --agent <name> --profile <profile> --session-id <agent-session-id> --worked-at <UTC-ISO-date>
+Records the latest actual work, not a review open. Use the agent session ID, not the Lavish review key. A repeated or older record does not change the catalog.
+Example: lavish-axi metadata http://127.0.0.1:4388/session/0123456789abcdef --agent Pi --profile pib --session-id agent-123 --worked-at 2026-11-22T09:20:00Z`;
 
 const REMOTE_USAGE =
   "Usage: lavish-axi remote <local-session-url>\nAsk the Bruvish server to verify the private Tailscale review URL and fixed catalog URL of a registered session, without creating, reopening or opening a review.";
@@ -66,6 +71,33 @@ export async function runBruvish(argv, { run, normalizeArgv, env = process.env }
       return;
     }
     if (argv[0] === "design" && argv[1] === "--upstream") return run(["design", ...argv.slice(2)]);
+    if (argv[0] === "metadata") {
+      if (argv.length === 2 && argv[1] === "--help") {
+        console.log(METADATA_USAGE);
+        return;
+      }
+      const session = sessionFromUrl(argv[1], env);
+      const fields = new Map([
+        ["--agent", "agent"],
+        ["--profile", "profile"],
+        ["--session-id", "sessionId"],
+        ["--worked-at", "workedAt"],
+      ]);
+      const metadata = {};
+      for (let i = 2; i + 1 < argv.length; i += 2) {
+        const key = fields.get(argv[i]);
+        if (!key || Object.hasOwn(metadata, key) || argv[i + 1].startsWith("--")) break;
+        metadata[key] = argv[i + 1];
+      }
+      if (!session || argv.length !== 10 || Object.keys(metadata).length !== 4) {
+        console.error(METADATA_USAGE);
+        process.exitCode = 2;
+        return;
+      }
+      await assertCompatibleServer(env, runtimeIdentity());
+      console.log(JSON.stringify(await requestMetadata(session.key, metadata, env)));
+      return;
+    }
     if (argv[0] === "remote") {
       if (argv.length !== 2 || argv[1] === "--help") {
         console.log(REMOTE_USAGE);

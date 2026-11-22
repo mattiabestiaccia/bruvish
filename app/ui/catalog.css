@@ -1,0 +1,51 @@
+body:not(.in-review):not(.transparent){background:#1f2023}
+#catalog{width:min(907px,100% - 40px);max-width:none;padding:32px 0 38px}
+#catalog h1{font-family:STIXLocal,Georgia,serif;font-size:38px;line-height:1.12;margin:0 0 6px}
+#catalog .filters{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:24px 0 12px}
+#catalog .search{position:relative;min-width:0;display:grid;gap:4px}
+#catalog :is(button,input,select,summary){min-height:42px}
+#catalog :is(button,input,select,summary):focus-visible{outline:2px solid var(--mb-title);outline-offset:2px}
+#catalog label{font-size:16px}
+.catalog-icon{display:grid;place-items:center;width:42px;padding:4px;font-weight:700}
+.catalog-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.catalog-icon.favorite[aria-pressed=true] svg{fill:currentColor}
+#catalog-filter{position:relative}
+#catalog-filter summary{list-style:none;cursor:pointer;border:1px solid #3b424e;border-radius:7px;background:var(--mb-field)}
+#catalog-filter summary::-webkit-details-marker{display:none}
+#catalog-filter:is(.active,[open]) summary{border-color:#c5a976;color:#ecd099}
+#suggestions,#filter-options{position:absolute;top:calc(100% + 4px);z-index:2;overflow:auto;max-height:min(20rem,60vh);margin:0;padding:5px;list-style:none;border:1px solid #4b4c56;border-radius:8px;background:#24242a}
+#suggestions{inset-inline:0}
+#suggestions li{cursor:pointer;overflow-wrap:anywhere;padding:8px;border-radius:5px}
+#suggestions li:is(:hover,[aria-selected=true]){background:#353126;color:#ecd099}
+#filter-options{inset-inline-end:0;width:min(240px,100vw - 24px)}
+#catalog-filter:not([open]) #filter-options{display:none}
+#filter-options button{width:100%;min-height:36px;text-align:start;background:none;border-color:transparent;overflow-wrap:anywhere}
+#filter-options button:is(:hover,[aria-pressed=true]){background:#353126}
+#folder-bar,#folders{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#folder-bar{justify-content:space-between}
+#folders{min-width:0}
+#folders button{overflow-wrap:anywhere}
+#folder-form:not([hidden]){display:grid;gap:6px;grid-template-columns:minmax(0,1fr) auto auto;margin-top:10px}
+#folder-form label{grid-column:1/-1}
+.catalog-group h2{font-size:16px;font-weight:650;margin:0 0 6px;color:#ead7b3}
+.catalog-entries{margin:0;padding:0;list-style:none;border:1px solid #414957;border-radius:10px;background:#27282d}
+body.transparent .catalog-entries{background:rgba(31,28,43,.82)}
+.catalog-row{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,8rem) auto;align-items:center;gap:8px 12px;padding:7px 10px}
+.catalog-row+.catalog-row{border-top:1px solid #414957}
+.catalog-name,.catalog-folder{overflow-wrap:anywhere}.catalog-name{font-weight:700}.catalog-identifier{margin-inline-start:8px;font:400 12px ui-monospace,monospace;color:#bbbec8}.catalog-folder{color:#bbbec8}
+.catalog-actions{display:flex;gap:4px;align-items:center}.catalog-actions .open-review{color:#ead7b3}
+#catalog-info{position:fixed;inset:auto;margin:0;width:min(360px,100% - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:14px;border:1px solid #4b4c56;border-radius:10px;background:#24242a;color:#e8e6e1;box-shadow:0 8px 24px #0006}
+#catalog-info header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+#catalog-info h2{font-size:19px;color:#ead7b3;margin:0;overflow-wrap:anywhere}
+#catalog-info dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin-block:12px}
+#catalog-info dt{color:#bbbec8}#catalog-info dd{margin:0;overflow-wrap:anywhere}
+#catalog-info select{display:block;margin-top:4px}
+#catalog-info .catalog-actions{margin-top:10px;flex-wrap:wrap}
+@media(max-width:540px){
+ #catalog{width:calc(100% - 24px);padding-top:22px}
+ .catalog-row{grid-template-columns:auto minmax(0,1fr) auto;gap:2px 6px;padding:6px}
+ .catalog-row .catalog-actions:first-child{grid-row:1/3}
+ .catalog-row .catalog-actions:last-child{grid-column:3;grid-row:1/3}
+ .catalog-row .catalog-folder{grid-column:2}
+ .catalog-row .catalog-icon{width:40px;min-height:44px}
+}

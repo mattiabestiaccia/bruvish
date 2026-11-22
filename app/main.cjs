@@ -203,6 +203,14 @@ function registerIpc() {
       const row = await core.review(request.key);
       const result = preferences.mark(row.file, request.field, request.value);notify();return result;
     },
+    'lavish:create-folder': name => {
+      const result = preferences.createFolder(name);notify();return result;
+    },
+    'lavish:assign-folder': async request => {
+      if (!request || typeof request !== 'object' || Array.isArray(request)) throw Error('Scegli un artefatto registrato e una cartella.');
+      const row = await core.review(request.key);
+      const result = preferences.assignFolder(row.file, request.folderId);notify();return result;
+    },
     'lavish:file-action': async request => {
       if (!request || !['reveal', 'copy'].includes(request.action)) throw Error('Invalid file action');
       const row = await core.review(request.key);

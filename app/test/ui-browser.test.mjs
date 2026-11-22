@@ -15,11 +15,11 @@ async function until(fn) {
 }
 const fixture = `
 window.calls = [];
-window.libraryPreferences = {layout:'list',transparent:false,artifactBackground:true,artifacts:{}};
+window.libraryPreferences = {transparent:false,artifactBackground:true,artifacts:{},folders:[],folderAssignments:{}};
 window.lavishApp = {
   catalog: async () => [
     {key:'1',name:'Intervista',file:'/tmp/intervista.html',status:'active',available:true},
-    {key:'2',name:'Concluso',file:'/tmp/concluso.html',status:'ended',available:true},
+    {key:'2',name:'Concluso',file:'/tmp/concluso.html',status:'ended',available:true,metadata:{workedAt:'2026-11-22T01:25:00Z',agent:'Pi',profile:'pib',sessionId:'demo-123'}},
     {key:'3',name:'<img src=x onerror=alert(1)>',file:'/tmp/missing.html',status:'active',available:false}
   ],
   snapshot: async () => ({preferences:libraryPreferences,tabs:[{id:'tab1',title:'Scheda esistente'}],active:null}),
@@ -36,11 +36,13 @@ window.lavishApp = {
     libraryPreferences.artifacts[file] = {...libraryPreferences.artifacts[file],[request.field]:request.value};
     return libraryPreferences;
   },
+  createFolder: async name => {libraryPreferences.folders.push({id:'folder-fixture',name});return libraryPreferences;},
+  assignFolder: async ({key,folderId}) => {if(key === '2')libraryPreferences.folderAssignments['/tmp/concluso.html']=folderId;return libraryPreferences;},
   fileAction: async request => calls.push(['file',request]),
   onChange: fn => window.changed = fn
 };`;
 
-test('catalog searches, switches square grid, manages favorites/pins, and routes file actions safely', {timeout: 30000, skip: !chrome && 'set LAVISH_MB_TEST_CHROME to a Chrome for Testing executable'}, async () => {
+test('catalog suggests titles, filters, assigns folders, and routes file actions safely', {timeout: 30000, skip: !chrome && 'set LAVISH_MB_TEST_CHROME to a Chrome for Testing executable'}, async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'lavish-home-ui-'));
   let browser, ws, chromeErrors = '';
   try {
@@ -71,36 +73,37 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     await call('Emulation.setDeviceMetricsOverride',{width:1240,height:920,deviceScaleFactor:1,mobile:false});
     await call('Page.addScriptToEvaluateOnNewDocument',{source:fixture});
     await call('Page.navigate',{url:new URL('../ui/index.html',import.meta.url).href});
-    await until(() => evaluate('document.querySelectorAll(".review").length===3'));
-    assert.equal(await evaluate('document.querySelectorAll(".review img").length'),0);
-    assert.equal(await evaluate('document.querySelector(".missing .open-review").disabled'),true);
-    assert.equal(await evaluate('document.querySelector(".missing .reveal").disabled'),true);
-    assert.equal(await evaluate('document.querySelector(".missing .copy-path").disabled'),false);
-    await evaluate('document.querySelector(".ended .open-review").click()');
+    await until(() => evaluate('document.querySelectorAll(".catalog-row").length===3'));
+    assert.equal(await evaluate('document.querySelectorAll(".catalog-row img").length'),0);
+    assert.equal(await evaluate('document.querySelectorAll(".open-review")[2].disabled'),true);
+    await evaluate('document.querySelectorAll(".open-review")[1].click()');
     assert.deepEqual(await evaluate('calls'),[['open','2']]);
     await evaluate('document.getElementById("search").value="intervista";document.getElementById("search").dispatchEvent(new Event("input"))');
-    assert.equal(await evaluate('document.querySelectorAll(".review").length'),1);
+    assert.equal(await evaluate('document.querySelectorAll(".catalog-row").length'),1);
+    assert.equal(await evaluate('document.querySelector("#suggestions [role=option]").textContent'),'Intervista');
     await evaluate('document.querySelector(".tab .title").click();document.querySelector(".tab .close").click()');
     assert.deepEqual(await evaluate('calls.slice(1)'),[['select','tab1'],['close','tab1']]);
     assert.equal(await evaluate('document.querySelector("#choose,#artifact-background")'),null);
     assert.deepEqual(await evaluate('(()=>{const b=document.getElementById("transparent");return [b.getAttribute("role"),b.getAttribute("aria-label"),b.getAttribute("aria-checked"),b.textContent.trim()]})()'),['switch','Trasparenza','false','']);
     await evaluate('changed({tabs:[],active:null});document.getElementById("search").value="";document.getElementById("search").dispatchEvent(new Event("input"))');
     assert.equal(await evaluate('document.querySelectorAll(".tab").length'),0);
-    await evaluate('document.getElementById("layout").click()');
-    await until(() => evaluate('document.getElementById("reviews").classList.contains("grid")'));
-    const boxes = await evaluate('Array.from(document.querySelectorAll(".review")).map(n=>({x:n.getBoundingClientRect().x,y:n.getBoundingClientRect().y,w:n.getBoundingClientRect().width,h:n.getBoundingClientRect().height}))');
-    assert.equal(boxes[0].y,boxes[1].y);assert.notEqual(boxes[0].x,boxes[1].x);
-    assert(Math.abs(boxes[0].w-boxes[0].h)<2,'grid cards are square');
-    // Pin the second item: it moves before the first, retaining its identity.
-    await evaluate('document.querySelectorAll(".review .pin")[1].click()');
-    await until(() => evaluate('document.querySelector(".review h2").textContent==="Concluso"'));
-    await evaluate('document.querySelector(".review .favorite").click()');
-    await until(() => evaluate('document.querySelector(".favorite").getAttribute("aria-pressed")==="true"'));
-    await evaluate('document.querySelector(".review .copy-path").click();document.querySelector(".review .reveal").click()');
+    assert.equal(await evaluate('document.getElementById("layout")'),null);
+    await evaluate('document.getElementById("pinned-2").click()');
+    await until(() => evaluate('document.querySelector(".catalog-name").textContent==="Concluso"'));
+    await evaluate('document.getElementById("favorite-2").click()');
+    await until(() => evaluate('document.getElementById("favorite-2").getAttribute("aria-pressed")==="true"'));
+    await evaluate('document.getElementById("new-folder").click();document.getElementById("folder-name").value="Note";document.getElementById("folder-form").requestSubmit()');
+    await until(() => evaluate('document.getElementById("folders").textContent.includes("Note")'));
+    await evaluate('document.getElementById("info-2").click()');
+    assert.equal(await evaluate('document.querySelector("#catalog-info").matches(":popover-open")'),true);
+    assert.match(await evaluate('document.querySelector("#catalog-info dl").textContent'),/demo-123/);
+    await evaluate('(()=>{const s=document.querySelector("#catalog-info select");s.value="folder-fixture";s.dispatchEvent(new Event("change"));})()');
+    await until(() => evaluate('document.querySelector(".catalog-folder").textContent==="Note"'));
+    await evaluate('document.getElementById("info-2").click();[...document.querySelectorAll("#catalog-info .catalog-actions button")].reverse().forEach(b=>b.click())');
     await until(() => evaluate('calls.filter(c=>c[0]==="file").length===2'));
     assert.deepEqual(await evaluate('calls.filter(c=>c[0]==="file")'),[['file',{key:'2',action:'copy'}],['file',{key:'2',action:'reveal'}]]);
-    await evaluate('document.getElementById("collection").value="favorites";document.getElementById("collection").dispatchEvent(new Event("change"))');
-    assert.equal(await evaluate('document.querySelectorAll(".review").length'),1);
+    await evaluate('document.querySelector("#catalog-filter summary").click();[...document.querySelectorAll("#filter-options button")].find(b=>b.textContent==="Solo preferiti").click()');
+    assert.equal(await evaluate('document.querySelectorAll(".catalog-row").length'),1);
     await evaluate('document.getElementById("transparent").click()');
     await until(() => evaluate('document.body.classList.contains("transparent")'));
     assert.equal(await evaluate('document.getElementById("transparent").getAttribute("aria-checked")'),'true');
@@ -110,12 +113,12 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     if (process.env.LAVISH_MB_TEST_EVIDENCE_DIR) {
       await fs.mkdir(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,{recursive:true});
       const shot = await call('Page.captureScreenshot',{format:'png'});
-      await fs.writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'app-catalog-grid.png'),Buffer.from(shot.data,'base64'));
+      await fs.writeFile(path.join(process.env.LAVISH_MB_TEST_EVIDENCE_DIR,'app-catalog-list.png'),Buffer.from(shot.data,'base64'));
     }
-    await evaluate('document.getElementById("layout").click()');
-    await until(() => evaluate('!document.getElementById("reviews").classList.contains("grid")'));
-    await evaluate('document.querySelector(".review .favorite").click()');
-    await until(() => evaluate('document.querySelectorAll(".review").length===0'));
+    await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
+    await evaluate('document.getElementById("favorite-2").click()');
+    await until(() => evaluate('document.querySelectorAll(".catalog-row").length===0'));
     await evaluate('window.reviewState={preferences:libraryPreferences,tabs:[{id:"tab1",title:"An unusually long review title to exercise tab overflow"}],active:"tab1",controls:Object.fromEntries(["annotate","closed","panel","more","revisions","warnings"].map(id=>[id,{hidden:false,disabled:false,checked:true,expanded:false,count:id==="warnings"?"3":""}]))};changed(reviewState)');
     assert.equal(await evaluate('getComputedStyle(document.body).backgroundColor'),'rgba(0, 0, 0, 0)','the transparent review composition is unchanged');
     for (const width of [720,1000,1240]) {
@@ -125,6 +128,15 @@ test('catalog searches, switches square grid, manages favorites/pins, and routes
     await evaluate('document.getElementById("annotate").click()');
     await until(()=>evaluate('document.getElementById("annotate").getAttribute("aria-checked")==="false"'));
     assert.deepEqual(await evaluate('calls.at(-1)'),['review-action','annotate']);
+    await evaluate('lavishApp.catalog=async()=>[{key:"a",name:"pagina",file:"/r/uno/pagina.html",status:"active",available:true},{key:"b",name:"pagina",file:"/r/due/pagina.html",status:"active",available:true},{key:"c",name:"Altro",file:"/r/uno/altro.html",status:"active",available:true}];document.getElementById("clear-catalog").click();document.getElementById("refresh").click()');
+    await until(() => evaluate('document.querySelectorAll(".catalog-row").length===3&&document.querySelector(".catalog-name").firstChild.textContent==="pagina"'));
+    const titles = selector => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].map(n=>[n.firstChild.textContent,n.querySelector(".catalog-identifier")?.textContent??null])`);
+    assert.deepEqual(await titles('.catalog-name'),[['pagina','uno'],['pagina','due'],['Altro',null]]);
+    await evaluate('document.getElementById("search").value="pagina";document.getElementById("search").dispatchEvent(new Event("input"))');
+    assert.deepEqual(await titles('#suggestions [role=option]'),[['pagina','uno'],['pagina','due']]);
+    await evaluate('document.querySelectorAll("#suggestions [role=option]")[1].click()');
+    assert.equal(await evaluate('document.getElementById("search").value'),'pagina');
+    assert.deepEqual(await titles('.catalog-name'),[['pagina','due']]);
     await call('Page.navigate',{url:new URL('../ui/backdrop.html',import.meta.url).href});
     await until(() => evaluate('document.readyState==="complete"&&getComputedStyle(document.body).backgroundColor!=="rgba(0, 0, 0, 0)"'));
     assert.equal(await evaluate('getComputedStyle(document.body).backgroundColor'),'rgba(16, 19, 24, 0.4)','the backdrop paints the single 40% tint');

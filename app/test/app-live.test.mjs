@@ -59,8 +59,10 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   const debugPort=bootstrapDebugPort||await until(async()=>Number((await readFile(path.join(dir,'app/profile/DevToolsActivePort'),'utf8')).split('\n')[0]),'app CDP');
   const pages=await(await fetch('http://127.0.0.1:'+debugPort+'/json/list')).json();client=await cdp(pages.find(p=>p.url===session.url).webSocketDebuggerUrl);
   uiClient=await cdp(pages.find(p=>p.url.startsWith('file:')&&p.url.endsWith('/ui/index.html')).webSocketDebuggerUrl);
-  await uiClient.evaluate('document.getElementById("home").click()');await until(()=>uiClient.evaluate('Array.from(document.querySelectorAll(".review .path")).some(n=>n.textContent==='+JSON.stringify(file)+')'),'native catalog reads canonical state');
-  await uiClient.evaluate('Array.from(document.querySelectorAll(".review")).find(n=>n.querySelector(".path").textContent==='+JSON.stringify(file)+').querySelector("button").click()');await until(()=>uiClient.evaluate('document.body.classList.contains("in-review")'),'catalog opens through canonical CLI');
+  // The index shows the title and keeps the path in the ? bubble: find the row by its title.
+  const rowName=path.basename(file).replace(/\.html?$/i,'');
+  await uiClient.evaluate('document.getElementById("home").click()');await until(()=>uiClient.evaluate('Array.from(document.querySelectorAll(".catalog-row .catalog-name")).some(n=>n.textContent==='+JSON.stringify(rowName)+')'),'native catalog reads canonical state');
+  await uiClient.evaluate('Array.from(document.querySelectorAll(".catalog-row")).find(n=>n.querySelector(".catalog-name").textContent==='+JSON.stringify(rowName)+').querySelector(".open-review").click()');await until(()=>uiClient.evaluate('document.body.classList.contains("in-review")'),'catalog opens through canonical CLI');
   const again=await execute(process.execPath,[adapter,session.url,file],{env});assert.equal(again.code,0,again.stderr);assert.equal(JSON.parse(again.stdout).pid,first.pid);assert.equal(JSON.parse(again.stdout).window,first.window);
   // Interview cards have no free text field: the draft is the chosen answer.
   const choice='document.querySelector("[data-mb-question=q0] input:checked")?.value';
@@ -146,20 +148,23 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   await until(()=>client.evaluate('document.documentElement.dataset.mbMode==="dark"',true),'toolbar off sets dark mode despite legacy transparent web storage');
   assert.equal(await client.evaluate('getComputedStyle(document.body).backgroundColor',true),backgroundBeforeToggle);
   await uiClient.evaluate('document.getElementById("home").click()');
-  await until(()=>uiClient.evaluate('!document.body.classList.contains("in-review") && document.querySelectorAll(".review").length>0'),'catalog after appearance changes');
-  await uiClient.evaluate('document.getElementById("layout").click()');
-  await uiClient.evaluate('window.lavishApp.snapshot()');
-  await until(()=>uiClient.evaluate('document.getElementById("reviews").classList.contains("grid")'),'compact native catalog');
-  await uiClient.evaluate('document.querySelector(".review .favorite").click()');
-  await until(()=>uiClient.evaluate('document.querySelector(".review .favorite").getAttribute("aria-pressed")==="true"'),'native favorite persisted');
-  await uiClient.evaluate('document.querySelector(".review .pin").click()');
-  await until(()=>uiClient.evaluate('document.querySelector(".review .pin").getAttribute("aria-pressed")==="true"'),'native pin persisted');
-  await uiClient.evaluate('document.querySelector(".review .copy-path").click()');
-  await until(()=>uiClient.evaluate('document.getElementById("status").textContent.startsWith("Percorso copiato:")'),'copy file path through native IPC');
+  await until(()=>uiClient.evaluate('!document.body.classList.contains("in-review") && document.querySelectorAll(".catalog-row").length>0'),'catalog after appearance changes');
+  await uiClient.evaluate('document.querySelector(".catalog-row .favorite").click()');
+  await until(()=>uiClient.evaluate('document.querySelector(".catalog-row .favorite").getAttribute("aria-pressed")==="true"'),'native favorite persisted');
+  await uiClient.evaluate('document.querySelector(".catalog-row .pin").click()');
+  await until(()=>uiClient.evaluate('document.querySelector(".catalog-row .pin").getAttribute("aria-pressed")==="true"'),'native pin persisted');
+  await uiClient.evaluate('document.getElementById("new-folder").click();document.getElementById("folder-name").value="Prove";document.getElementById("folder-form").requestSubmit()');
+  await until(()=>uiClient.evaluate('document.getElementById("folders").textContent.includes("Prove")'),'folder created through native IPC');
+  await uiClient.evaluate('document.querySelector(".catalog-row [aria-controls=catalog-info]").click();const s=document.querySelector("#catalog-info select");s.selectedIndex=1;s.dispatchEvent(new Event("change"))');
+  await until(()=>uiClient.evaluate('document.querySelector(".catalog-folder").textContent==="Prove"'),'folder assignment through native IPC');
+  await uiClient.evaluate('document.querySelector(".catalog-row [aria-controls=catalog-info]").click();[...document.querySelectorAll("#catalog-info button")].find(b=>b.textContent==="Copia percorso").click()');
+  await until(()=>uiClient.evaluate('document.getElementById("status").textContent.startsWith("Percorso copiato")'),'copy file path through native IPC');
   const saved = JSON.parse(await readFile(path.join(dir,'app/preferences.json'),'utf8'));
-  assert.equal(saved.layout,'grid');assert.equal(saved.artifacts[file].favorite,true);assert.equal(saved.artifacts[file].pinned,true);
+  assert.equal(saved.artifacts[file].favorite,true);assert.equal(saved.artifacts[file].pinned,true);
+  const organization = JSON.parse(await readFile(path.join(dir,'app/catalog-organization.json'),'utf8'));
+  assert.equal(organization.folderAssignments[file],organization.folders[0].id);
   await uiClient.call('Page.reload');
-  await until(()=>uiClient.evaluate('document.querySelector(".review .pin")?.getAttribute("aria-pressed")==="true" && document.getElementById("reviews").classList.contains("grid")'),'catalog choices survive UI reload');
+  await until(()=>uiClient.evaluate('document.querySelector(".catalog-row .pin")?.getAttribute("aria-pressed")==="true" && document.querySelector(".catalog-folder")?.textContent==="Prove"'),'catalog choices survive UI reload');
   const afterAppearance=await execute(process.execPath,[adapter,session.url,file],{env});
   assert.equal(afterAppearance.code,0,afterAppearance.stderr);assert.equal(JSON.parse(afterAppearance.stdout).view,stableView);
   const voices=await until(()=>client.evaluate('typeof speechSynthesis==="object"?speechSynthesis.getVoices().filter(v=>v.lang.startsWith("it")).length:0',true),'Italian SpeechSynthesis voices');
