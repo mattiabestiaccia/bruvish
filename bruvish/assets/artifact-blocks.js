@@ -146,6 +146,23 @@
             lastQueued = null;
         };
         document.querySelectorAll('[data-mb-question]').forEach(form => { form.addEventListener('click', rearm, true); form.addEventListener('keyup', rearm, true); });
+        // Files of a diff in the theme «revisione»: one button above them closes them all when every file is open, and
+        // opens them all otherwise; its words follow the files also when one is opened or closed by its own name.
+        document.querySelectorAll('[data-mb-diff-all]').forEach(button => {
+            const files = [...button.closest('.mb-diff').querySelectorAll('details.mb-diff-file')];
+            const allOpen = () => files.every(file => file.hasAttribute('open'));
+            const update = () => { button.textContent = allOpen() ? 'Chiudi tutti' : 'Apri tutti'; };
+            button.addEventListener('click', () => {
+                const open = !allOpen();
+                files.forEach(file => { if (open)
+                    file.setAttribute('open', '');
+                else
+                    file.removeAttribute('open'); });
+                update();
+            });
+            files.forEach(file => file.addEventListener('toggle', update));
+            update();
+        });
         // Line comments on a diff: «commenta» opens a text box under the line; «Aggiungi» queues the comment with the
         // line as anchor. The queued and sent marks follow the chrome's anchor lists, as for the answers.
         const lineSelector = key => 'tr[data-mb-line="' + quoted(key) + '"]';

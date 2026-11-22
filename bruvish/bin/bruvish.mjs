@@ -16,13 +16,15 @@ Card JSON (full example: bruvish/examples/carte-complete.json):
   question.reason: "..."                               why the recommended option, under the answers
 Building blocks (full example: bruvish/examples/revisione-completa.json), all optional:
   page: tabs: true, header: {badge: {text, tone, icon}, subtitle, meta: []}, pills: [{text, tone}]
-  page: theme: "revisione"                             look of the approved review page; asked by name only
+  page: theme: "revisione"                             look of the approved review page; asked by name only.
+        With tabs the tab names the section (no heading); a title ending in " #6" shows the number
+        muted; a card with a diff is the files page: no card frame, one Chiudi/Apri tutti button
   section: count                                       counter beside the title in the index or tab bar
   card: tone, labels: [{text, tone}], help, table: {headers, rows}, notes: [],
         events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}
   question.text: {label, placeholder, for: ["value"]}   a text with the answer: {choice, text}
   tone: blu, verde, giallo, rosso, decidi, viola; icon: open, merged, closed, draft, check, x, dot
-  Text marks: \`code\`, **bold**, *italic*. Each sentence renders on its own line; a string with
+  Text marks: \`code\`, **bold**, *italic*, ==highlight==. Each sentence renders on its own line; a string with
   several sentences is split (non-breaking space after the point keeps it together).
 Present the page with: lavish-axi page.html (style guide: lavish-axi design).
 `;

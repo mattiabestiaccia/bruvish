@@ -26,12 +26,24 @@ test('inline marks become fixed tags and everything else stays escaped', () => {
   // Unmatched or spaced marks stay literal: globs, products, lone backticks.
   for (const literal of ['2 * 3 * 4', '~/.pi/* e ~/.codex*', 'un ` solo', '``', '** e * x*', 'snake_case_name'])
     assert.equal(inline(literal), literal.replace(/&/g, '&amp;'));
+  // ==text== is a highlight (the straw yellow of the approved review page); it may hold code, bold and italic.
+  assert.equal(inline('stampa ==lo stesso aiuto==, uscita **0**'), 'stampa <mark>lo stesso aiuto</mark>, uscita <strong>0</strong>');
+  assert.equal(inline('==**basso**, `-h` e *ok*=='), '<mark><strong>basso</strong>, <code>-h</code> e <em>ok</em></mark>');
+  assert.equal(inline('**molto ==forte==**'), '<strong>molto <mark>forte</mark></strong>');
+  assert.equal(inline('`a ==b==`'), '<code>a ==b==</code>');
+  assert.equal(inline('==<b>=='), '<mark>&lt;b&gt;</mark>');
+  // Comparisons, banners and unmatched or spaced marks stay literal.
+  for (const literal of ['-h == --help', 'x === y', '=== PRIMA ===', '== a ==', 'a==', '==a\nb=='])
+    assert.equal(inline(literal), literal);
 });
 
 test('a string with several sentences is split at sentence ends, not at abbreviations, numbers, paths or marks', () => {
   const cases = {
     'Uno. Due! Tre? Quattro… Cinque.': ['Uno.', 'Due!', 'Tre?', 'Quattro…', 'Cinque.'],
     'Il file `settings.json`. Poi va.': ['Il file `settings.json`.', 'Poi va.'],
+    'Prima ==evidenziata==. ==Seconda== frase.': ['Prima ==evidenziata==.', '==Seconda== frase.'],
+    'Una ==frase intera.== Poi va.': ['Una ==frase intera.==', 'Poi va.'],
+    'Uno ==a. Due== resta.': ['Uno ==a. Due== resta.'],
     'Versione 0.1.97 pronta. 33 regole restano.': ['Versione 0.1.97 pronta.', '33 regole restano.'],
     'Vedi es. Claude o cfr. S42. Poi basta.': ['Vedi es. Claude o cfr. S42.', 'Poi basta.'],
     'Il dott. Rossi e M. Verdi firmano per la S.p.A. Fine.': ['Il dott. Rossi e M. Verdi firmano per la S.p.A. Fine.'],

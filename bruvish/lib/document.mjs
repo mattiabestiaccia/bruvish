@@ -29,10 +29,11 @@ export function applyDelta(current, delta) {
     next.history = [...(current.history || []), { revision: next.revision, delta: structuredClone(delta) }];
     return next;
 }
-// Inline marks in agent text: `code`, **bold**, *italic*. Every other character stays escaped: the marks
+// Inline marks in agent text: `code`, **bold**, *italic*, ==highlight==. Every other character stays escaped: the marks
 // become fixed tags and no HTML from the input ever reaches the page. An unmatched mark stays literal text.
-// A code span is literal (no marks inside); bold may hold code and italic; italic may hold code.
-const INLINE = /`([^`\n]+)`|\*\*(?=[^\s*])((?:`[^`\n]+`|[^`*]|\*(?!\*))+?)(?<=[^\s*])\*\*|\*(?=[^\s*])((?:`[^`\n]+`|[^`*])+?)(?<=[^\s*])\*/g;
+// A code span is literal (no marks inside); bold may hold code and italic; italic may hold code; a highlight may hold
+// code, bold and italic. Like the stars, == opens and closes only next to a non-space, so a == b and === stay literal.
+const INLINE = /`([^`\n]+)`|\*\*(?=[^\s*])((?:`[^`\n]+`|[^`*]|\*(?!\*))+?)(?<=[^\s*])\*\*|\*(?=[^\s*])((?:`[^`\n]+`|[^`*])+?)(?<=[^\s*])\*|==(?=[^\s=])((?:`[^`\n]+`|[^`=\n]|=(?!=))+?)(?<=[^\s=])==/g;
 export function inline(value) {
     const text = String(value ?? '');
     let html = '', last = 0;
@@ -42,15 +43,17 @@ export function inline(value) {
             html += '<code>' + escape(match[1]) + '</code>';
         else if (match[2] !== undefined)
             html += '<strong>' + inline(match[2]) + '</strong>';
-        else
+        else if (match[3] !== undefined)
             html += '<em>' + inline(match[3]) + '</em>';
+        else
+            html += '<mark>' + inline(match[4]) + '</mark>';
         last = match.index + match[0].length;
     }
     return html + escape(text.slice(last));
 }
 // One sentence per line: the renderer splits every agent string at a sentence end, so a string with several
 // sentences still shows one per line. A sentence end is . ! ? or … (closing quotes, brackets or inline marks may follow),
-// then a space or a newline, then a capital letter, a digit, a backtick or an asterisk (an opening quote or
+// then a space or a newline, then a capital letter, a digit, a backtick, an asterisk or == (an opening quote or
 // bracket may come first). It is never a split point inside an inline mark, after a known abbreviation
 // (es., cfr., dott. ...), after a number abbreviation followed by a digit (pag. 3, art. 5, 20 nov. 2026),
 // or after a single letter (initials, S.p.A.). A list number (digits only) stays with the sentence it opens:
@@ -61,7 +64,7 @@ export function inline(value) {
 // A non-breaking space (U+00A0) after the point keeps two parts on one line.
 const ABBREVIATIONS = new Set(['es', 'p.es', 'p.e', 'cfr', 'dott', 'dott.ssa', 'sig', 'sigg', 'sig.ra', 'prof', 'ing', 'avv', 'arch', 'geom', 'rag', 'sen', 'ibid', 'cit', 'op', 'ed', 'trad', 'rif', 'vs', 'mr', 'mrs', 'ms', 'dr', 'st', 'jr', 'sr', 'e.g', 'i.e']);
 const NUMBER_ABBREVIATIONS = new Set(['pag', 'pagg', 'pp', 'art', 'artt', 'cap', 'par', 'fig', 'figg', 'tab', 'vol', 'voll', 'nr', 'num', 'nn', 'tel', 'ca', 'gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic', 'jan', 'jun', 'jul', 'aug', 'sep', 'oct', 'dec']);
-const SENTENCE_END = /([.!?…]+)([»"”’')\]*`]*)[ \t\r\n]+(?=[«"“‘(\[]?[\p{Lu}\p{N}`*])/gu;
+const SENTENCE_END = /([.!?…]+)([»"”’')\]*`=]*)[ \t\r\n]+(?=[«"“‘(\[]?(?:[\p{Lu}\p{N}`*]|==))/gu;
 export function splitSentences(value) {
     const text = String(value ?? '');
     const marks = [...text.matchAll(INLINE)].map(m => [m.index, m.index + m[0].length]);
@@ -81,7 +84,7 @@ export function splitSentences(value) {
                 const lead = before.slice(0, -word.length).trim();
                 if (!lead)
                     continue;
-                if (/[:;]$/.test(lead) && !inside(at - word.length) && new RegExp('[.!?…][»"”’\')\\]*`]*\\s+' + (Number(word) + 1) + '\\.\\s').test(text.slice(next))) {
+                if (/[:;]$/.test(lead) && !inside(at - word.length) && new RegExp('[.!?…][»"”’\')\\]*`=]*\\s+' + (Number(word) + 1) + '\\.\\s').test(text.slice(next))) {
                     parts.push(lead);
                     start = at - word.length;
                     continue;
@@ -302,8 +305,9 @@ export function parseDiff(text) {
 }
 const DIFF_STATUS = { added: 'nuovo', deleted: 'cancellato', renamed: 'rinominato' };
 // A diff in a card: one collapsible block per file (open), coloured lines, numbers of both sides, the reviewer's notes
-// under the line they name ("<file>:<line of the new side>"). Every character of the diff is escaped.
-function cardDiff(card) {
+// under the line they name ("<file>:<line of the new side>"). Every character of the diff is escaped. In the theme
+// «revisione» the files sit in the column without a card around them, under one button that closes or opens them all.
+function cardDiff(card, filesPage = false) {
     if (card.diff === undefined)
         return '';
     const d = card.diff, where = 'Card ' + card.id + ': diff';
@@ -332,7 +336,7 @@ function cardDiff(card) {
     const unmatched = Object.keys(notes)[0];
     if (unmatched !== undefined)
         throw new Error(where + ' note ' + JSON.stringify(unmatched) + ' matches no line of the new side; keys are "<file>:<line of the new side>"');
-    return '<div class="mb-diff">' + html + '</div>';
+    return '<div class="mb-diff">' + (filesPage ? '<div class="mb-diff-tools"><button class="mb-diff-all" type="button" data-mb-diff-all>Chiudi tutti</button></div>' : '') + html + '</div>';
 }
 // A text field in an answer, under the options: always there, or only for the options listed in "for". A saved
 // answer fills it back. artifact-blocks.js shows it, checks it and queues { choice, text }.
@@ -421,8 +425,10 @@ export async function renderDocument(input, options = {}) {
         for (const card of section.cards)
             unique(card.id);
     }
+    // In the theme «revisione» with tabs, the tab names the section: no heading repeats it.
+    const review = family === 'revisione', tabTitled = review && input.tabs === true;
     const sections = (input.sections || []).map(section => {
-        return '<section id="' + section.id + '"><h2>' + escape(section.title) + '</h2>' + section.cards.map(card => {
+        return '<section id="' + section.id + '"' + (tabTitled ? ' aria-label="' + escape(section.title) + '">' : '><h2>' + escape(section.title) + '</h2>') + section.cards.map(card => {
             let helpId;
             if (card.help !== undefined) {
                 helpId = 'mb-help-' + card.id;
@@ -449,14 +455,17 @@ export async function renderDocument(input, options = {}) {
             }
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
-            const fresh = novelty(card.id);
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardDiff(card) + context + question + cardNotes(card) + follow + '</article>';
+            const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + '><button class="voice" type="button" data-mb-voice aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardDiff(card, filesPage) + context + question + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
     const blocks = usesBlocks(input, family), head = headerParts(input.header);
+    // In the theme «revisione» a title ending in « #<number> » (the PR) shows the number muted, as on the review page.
+    const number = review ? / #\d+$/.exec(input.title) : null;
+    const title = number ? escape(input.title.slice(0, number.index)) + ' <span class="mb-number">' + escape(number[0].slice(1)) + '</span>' : escape(input.title);
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header>' + head.before + '<h1>' + escape(input.title) + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header>' + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + '</header><details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }

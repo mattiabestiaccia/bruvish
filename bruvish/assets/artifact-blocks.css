@@ -113,7 +113,6 @@ nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-
 :root[data-mb-family=revisione]{--card:rgba(5,40,44,0.5);--line:#245156;--ink:#d1e9eb;--muted:#95babe;--title:#4ed1de;--field:rgba(0,0,0,.18);--highlight:rgba(236,214,120,.30)}
 :where([data-mb-family=revisione]) p{margin:0 0 .7em}
 :where([data-mb-family=revisione]) .sentence+.sentence{margin-top:0}
-:where([data-mb-family=revisione]) h1{font-size:34px}
 :where([data-mb-family=revisione]) h3{font-size:20px}
 :where([data-mb-family=revisione]) code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:.86em;background:none;padding:0}
 :where([data-mb-family=revisione]) mark{border-radius:3px;padding:0 .15em}
@@ -129,12 +128,31 @@ nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-
 :where([data-mb-family=revisione]) table{font-size:17px}
 :where([data-mb-family=revisione]) th,:where([data-mb-family=revisione]) td{padding:8px 6px}
 [data-mb-family=revisione] .mb-notes p{font-size:15px;opacity:.8}
-/* page header with a bottom rule; the tab bar sticks to the top with a blur, the active tab framed in the accent */
-[data-mb-family=revisione] header{border-bottom:1px solid var(--line);padding-bottom:16px}
-[data-mb-family=revisione] nav.mb-tabs{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:4px;padding:10px 0;margin-bottom:14px;border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+/* page (.colonna, .pagina): header and tab bar span the column inside the page margin; sections stay 907px wide in the middle */
+[data-mb-family=revisione] main{--mb-page-margin:clamp(14px,1.5vw,24px);width:auto;margin:0 var(--mb-page-margin);padding:30px 0 80px}
+[data-mb-family=revisione] main>section{max-width:907px;margin-inline:auto}
+/* page header (.testa): badge and meta in one row, the title with the PR number muted, the branches line */
+[data-mb-family=revisione] header{border-bottom:1px solid var(--line);padding:8px clamp(8px,1vw,16px) 24px;margin-bottom:0}
+[data-mb-family=revisione] h1{font-size:clamp(31px,4vw,46px);font-variant-caps:small-caps;font-feature-settings:normal;margin:10px 0;overflow-wrap:anywhere}
+[data-mb-family=revisione] h1::first-letter{font-size:inherit;font-weight:inherit;text-transform:uppercase}
+[data-mb-family=revisione] h3::first-letter{font-size:inherit;font-weight:inherit}
+[data-mb-family=revisione] h1 .mb-number{color:var(--muted);font-weight:400;font-variant-caps:normal}
+[data-mb-family=revisione] .mb-header-meta{gap:12px;margin:0}
+[data-mb-family=revisione] .mb-subtitle{margin:0;font-size:16px}
+[data-mb-family=revisione] .mb-subtitle code{background:var(--field);border-radius:6px;padding:1px 6px}
+/* the tab bar (nav.schede) sticks to the top with a blur across the whole column, the active tab framed in the accent */
+[data-mb-family=revisione] nav.mb-tabs{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:4px;padding:10px var(--mb-page-margin);margin:0 calc(-1 * var(--mb-page-margin)) 14px;border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+@media(min-width:1000px){[data-mb-family=revisione] nav.mb-tabs{justify-content:space-between}}
 [data-mb-family=revisione] nav.mb-tabs a{font-size:17px;padding:6px 12px;border-radius:7px}
 [data-mb-family=revisione] .mb-count{background:none;border:0;padding:0;font-size:14px}
-/* diffs: each file a card-like block of the same narrower column */
+/* diffs: each file a card-like block; the card that holds them loses its frame, so the files span the column (.pagina-file),
+   under one button (button.piccolo); «?» and 🔊 keep their corner and their gap */
 [data-mb-family=revisione] .mb-diff-file{background:var(--card);border-radius:10px;margin:0 0 14px}
 [data-mb-family=revisione] .mb-diff-file>summary{padding:12px 16px}
+:root[data-mb-family=revisione] .card[data-mb-files][data-mb-state]{width:100%;padding:0;border:0;background:none;box-shadow:none}
+[data-mb-family=revisione] .card[data-mb-files] .mb-help-toggle{top:0;right:0}
+[data-mb-family=revisione] .card[data-mb-files]:has(.mb-help-toggle)>.voice{margin-right:34px}
+.mb-diff-tools{margin:0 0 12px}
+.mb-diff-all{font-size:15px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 10px}
+.mb-diff-all:hover{color:var(--ink);border-color:var(--title)}
 [data-mb-family=revisione] .card[data-mb-state=waiting]:not([data-mb-tone]){border-color:#d6ab32cc;box-shadow:0 0 0 1.5px #e8c35acc,0 0 22px #e8c35a88,0 0 46px #d6ab3240,inset 0 0 24px #e8c35a22;background:linear-gradient(rgba(232,195,90,.08),rgba(232,195,90,.08)),var(--card)}

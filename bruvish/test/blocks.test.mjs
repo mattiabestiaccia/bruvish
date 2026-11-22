@@ -657,7 +657,8 @@ test('one help open at a time; a click outside the bubble or Esc closes it, a cl
 // at 13.5px with 1px 8px cells (.diff table, .diff td).
 test('the theme «revisione» is asked by name, never drawn, and brings the look of the approved review page', async () => {
   const diff = { text: 'diff --git a/x.js b/x.js\n--- a/x.js\n+++ b/x.js\n@@ -1,1 +1,1 @@\n-a\n+b\n', notes: { 'x.js:1': 'Una nota.' } };
-  const input = doc([card({ table: { headers: ['A', 'B'], rows: [['1', '2']] }, fields: [{ label: 'Oggi', paragraphs: ['Un campo.', 'Un altro campo.'] }], clarification: 'Un chiarimento.', diff })], { tabs: true, theme: 'revisione', state: { comments: [{ card: 'a', text: 'Un commento.', response: 'Una risposta.' }] } });
+  // The diff sits in a card of its own: in this theme a card with a diff is the files page, without a frame.
+  const input = doc([card({ table: { headers: ['A', 'B'], rows: [['1', '2']] }, fields: [{ label: 'Oggi', paragraphs: ['Un campo.', 'Un altro campo.'] }], clarification: 'Un chiarimento.' }), card({ id: 'b', diff })], { tabs: true, theme: 'revisione', state: { comments: [{ card: 'a', text: 'Un commento.', response: 'Una risposta.' }] } });
   const html = await render(input);
   assert.match(html, /data-mb-family="revisione"/);
   const look = (page, selector) => { const { document } = boot(page); return computed(styleOf(page), document.querySelector(selector)); };
@@ -710,4 +711,90 @@ test('the theme «revisione» is asked by name, never drawn, and brings the look
   await assert.rejects(render({ ...doc([card()]), theme: 'nessuno' }), /expected B, F, E2, G2, D3, revisione/);
   const { FAMILIES } = await import('../lib/document.mjs');
   assert.equal(FAMILIES.includes('revisione'), false);
+});
+
+// The approved review page of mattiabestiaccia/postit#6 (brus/lavori/pr-revisione/esempio/postit-6-feedback.html, the
+// binding reference of the theme chosen by Mattia on 22 novembre 2026), rendered from its own data
+// (fixtures/revisione-postit-6.json). Every expected value below is copied from that page, not from the renderer.
+const REFERENCE = {
+  marks: ['vera e già unita', '«Comando o argomenti non validi»', 'lo stesso aiuto', 'ancora errore', 'questo e solo questo', 'nessun effetto collaterale', 'superati senza rilievi', 'uscita 0', 'stesso output', 'fallirebbe', 'prima sul commit base e poi sul commit nuovo', 'lo stesso testo', 'non crea la cartella dati', 'senza una CI configurata', 'rischio basso, nessun rilievo, 7 prove su 7'],
+  paglierino: 'rgba(236,214,120,.30)', mark: { 'border-radius': '3px', padding: '0 .15em' },
+  pageMargin: 'clamp(14px, 1.5vw, 24px)', pageWidth: '907px',
+  header: { padding: '8px clamp(8px, 1vw, 16px) 24px' },
+  h1: { 'font-size': 'clamp(31px, 4vw, 46px)', margin: '10px 0 10px' }, number: { color: 'var(--muted)', 'font-weight': '400' },
+  lineNote: { margin: '6px 8px 10px 80px', 'box-shadow': '0 0 0 1.5px #e8c35acc, 0 0 14px #e8c35a55' },
+};
+const flat = value => String(value ?? '').replace(/\s*,\s*/g, ',').trim();
+const box = value => { const p = flat(value).match(/(?:[^\s(]+|\([^()]*(?:\([^()]*\)[^()]*)*\))+/g); return [p[0], p[1] ?? p[0], p[2] ?? p[0], p[3] ?? p[1] ?? p[0]]; };
+
+test('the review page of postit#6 in the theme «revisione» matches the approved page: highlights, tabs, header and files', async () => {
+  const input = JSON.parse(await readFile(new URL('./fixtures/revisione-postit-6.json', import.meta.url), 'utf8'));
+  const html = await render(input);
+  const { document } = boot(html), css = styleOf(html), look = (el, width = 1024) => computed(css, el, width);
+  // (1) ==text== is a highlight in the straw yellow of the review page; no closed pair stays literal.
+  assert.deepEqual(document.querySelectorAll('mark').map(m => m.textContent), REFERENCE.marks);
+  assert.equal(look(document.documentElement)['--highlight'], REFERENCE.paglierino);
+  for (const [name, value] of Object.entries(REFERENCE.mark)) assert.equal(look(document.querySelector('mark'))[name], value, name);
+  for (const sentence of document.querySelectorAll('.sentence')) assert.doesNotMatch(sentence.textContent, /==[^\s=][^=]*[^\s=]==/);
+  // (2) The tab names the section: no heading repeats it, the section keeps the name for assistive technology.
+  const tabs = document.querySelectorAll('nav.mb-tabs a');
+  assert.equal(tabs.length, input.sections.length);
+  assert.equal(document.querySelectorAll('section h2').length, 0);
+  for (const section of input.sections) assert.equal(document.getElementById(section.id).getAttribute('aria-label'), section.title);
+  // (3) The files sit in the column without a card around them, under one button; the reviewer note glows under its line.
+  const files = document.getElementById('carta-diff');
+  const frame = look(files);
+  assert.deepEqual([frame.width, frame.padding, frame.border, frame.background, frame['box-shadow']], ['100%', '0', '0', 'none', 'none']);
+  const [toggleAll] = document.querySelectorAll('[data-mb-diff-all]'), details = files.querySelectorAll('details.mb-diff-file');
+  assert.equal(document.querySelectorAll('[data-mb-diff-all]').length, 1);
+  assert.equal(details.length, 2);
+  assert.equal(toggleAll.closest('.mb-diff-tools').nextElementSibling, details[0], 'the button sits above the files');
+  assert.equal(toggleAll.textContent, 'Chiudi tutti');
+  for (const file of details) assert.equal(look(file).width, undefined, 'a file spans the column');
+  const noteRow = document.querySelector('tr[data-mb-line="src/cli.ts:46"]').nextElementSibling;
+  assert(noteRow.classList.contains('mb-note-row'));
+  const note = look(noteRow.querySelector('.mb-line-note'));
+  for (const [name, value] of Object.entries(REFERENCE.lineNote)) assert.equal(flat(note[name]), flat(value), name);
+  toggleAll.click();
+  assert.deepEqual(details.map(d => d.hasAttribute('open')), [false, false]);
+  assert.equal(toggleAll.textContent, 'Apri tutti');
+  toggleAll.click();
+  assert.deepEqual(details.map(d => d.hasAttribute('open')), [true, true]);
+  assert.equal(toggleAll.textContent, 'Chiudi tutti');
+  details[1].removeAttribute('open');
+  document.dispatch(details[1], 'toggle');
+  assert.equal(toggleAll.textContent, 'Apri tutti', 'the button follows a file closed by its own name');
+  // 🔊 stays beside «?» on the files page too, with separate hit areas.
+  const voice = files.querySelector('.voice'), help = files.querySelector('[data-mb-help]');
+  for (const width of [1024, 600, 390]) {
+    const px = v => parseFloat(v) || 0, v = look(voice, width), h = look(help, width), c = look(files, width);
+    assert(px(c['padding-right'] || c.padding) + px(v['margin-right']) > px(h.right) + px(h.width), 'files page at ' + width + ': voice and help do not overlap');
+  }
+  // (4) Header: the PR number muted and plain in the title; title, header padding and full-width tab bar as on the page.
+  const h1 = document.querySelector('h1');
+  assert.equal(h1.textContent, input.title);
+  assert.equal(h1.querySelector('.mb-number').textContent, '#6');
+  for (const [name, value] of Object.entries(REFERENCE.number)) assert.equal(look(h1.querySelector('.mb-number'))[name], value, name);
+  assert.equal(flat(look(h1)['font-size']), flat(REFERENCE.h1['font-size']));
+  assert.deepEqual(box(look(h1).margin), box(REFERENCE.h1.margin));
+  assert.deepEqual(box(look(document.querySelector('header')).padding), box(REFERENCE.header.padding));
+  const main = look(document.querySelector('main')), nav = look(document.querySelector('nav.mb-tabs'));
+  assert.equal(flat(main['--mb-page-margin']), flat(REFERENCE.pageMargin));
+  assert.equal(nav.position, 'sticky');
+  assert.deepEqual(box(nav.padding), ['10px', 'var(--mb-page-margin)', '10px', 'var(--mb-page-margin)']);
+  assert.deepEqual(box(nav.margin).filter((_, i) => i % 2), ['calc(-1 * var(--mb-page-margin))', 'calc(-1 * var(--mb-page-margin))'].map(flat), 'the bar spans the page margin');
+  assert.equal(nav['justify-content'], 'space-between');
+  assert.equal(look(document.querySelector('nav.mb-tabs'), 600)['justify-content'], undefined);
+  assert.equal(look(document.getElementById('sintesi'))['max-width'], REFERENCE.pageWidth);
+  // Bruvish keeps its usage guide and the voice with the help on every card.
+  assert(document.getElementById('usage-guide'));
+  const cards = input.sections.flatMap(s => s.cards);
+  assert.equal(document.querySelectorAll('article.card .voice').length, cards.length);
+  assert.equal(document.querySelectorAll('article.card [data-mb-help]').length, cards.filter(c => c.help).length);
+  // Only the theme «revisione» changes: the same data in a drawn family keeps headings, the framed diff card and the title.
+  const other = await render({ ...input, theme: 'B' });
+  assert.equal((other.match(/<h2>/g) || []).length, input.sections.length);
+  assert.doesNotMatch(skeleton(other), /data-mb-files|data-mb-diff-all|mb-number/);
+  // Without tabs the theme keeps the section headings.
+  assert.equal(((await render({ ...input, tabs: false })).match(/<h2>/g) || []).length, input.sections.length);
 });
