@@ -237,12 +237,22 @@ function cardTable(card) {
             typeof row[0] !== 'string' || row.slice(1).some(c => typeof c === 'string' ||
                 !c.text.trim() || typeof c.detail !== 'string' || !c.detail.trim())))
             throw new Error(matrixShape);
-        const item = c => '<td><details data-tone="' + c.tone + '"><summary title="' + escape(c.detail) + '">' +
-            inline(c.text) + '</summary><p>' + inline(c.detail) + '</p></details></td>';
-        return '<div class="mb-matrix-scroll"><table class="mb-table mb-matrix"><thead><tr>' +
-            t.headers.map(h => '<th scope="col">' + inline(h) + '</th>').join('') + '</tr></thead><tbody>' +
-            t.rows.map(([name, ...cells]) => '<tr><th scope="row">' + inline(name) + '</th>' + cells.map(item).join('') + '</tr>').join('') +
-            '</tbody></table></div>';
+        // Form C of the lab (Mattia, 22 November 2026): criteria in rows, options in columns; the cells keep their size and
+        // the reason of the tapped cell shows in one box under the table; a «Bilancio» row counts + − ~ per option; tapping
+        // an option highlights its column. Under 700 px the same data becomes one card per option, with native disclosures.
+        const options = t.headers.slice(1);
+        const count = col => t.rows.reduce((n, row) => { const k = row[col].tone === 'verde' ? 'verde' : row[col].tone === 'rosso' ? 'rosso' : 'giallo'; n[k]++; return n; }, { verde: 0, rosso: 0, giallo: 0 });
+        const counts = col => { const n = count(col); return '<span class="mb-matrix-counts"><span data-tone="verde">+ ' + n.verde + '</span><span data-tone="rosso">− ' + n.rosso + '</span><span data-tone="giallo">~ ' + n.giallo + '</span></span>'; };
+        const cellButton = (c, option, criterion) => '<button type="button" class="mb-matrix-cell" data-tone="' + c.tone + '" aria-pressed="false" title="' + escape(c.detail) +
+            '" data-mb-matrix-detail="' + escape('<b>' + inline(option) + ' · ' + inline(criterion) + ':</b> ' + inline(c.text) + '. ' + inline(c.detail)) + '">' + inline(c.text) + '</button>';
+        const table = '<div class="mb-matrix-scroll"><table class="mb-table mb-matrix-table"><thead><tr><th scope="col" class="mb-matrix-criterion">' + inline(t.headers[0]) + '</th>' +
+            options.map((h, i) => '<th scope="col"><button type="button" class="mb-matrix-option" data-mb-matrix-col="' + (i + 1) + '" aria-pressed="false">' + inline(h) + '</button></th>').join('') + '</tr></thead><tbody>' +
+            t.rows.map(([name, ...cells]) => '<tr><th scope="row" class="mb-matrix-criterion">' + inline(name) + '</th>' + cells.map((c, i) => '<td data-mb-matrix-col="' + (i + 1) + '">' + cellButton(c, options[i], name) + '</td>').join('') + '</tr>').join('') +
+            '<tr class="mb-matrix-balance"><th scope="row" class="mb-matrix-criterion">Bilancio</th>' + options.map((_, i) => '<td data-mb-matrix-col="' + (i + 1) + '">' + counts(i + 1) + '</td>').join('') + '</tr></tbody></table></div>';
+        const detail = '<div class="mb-matrix-detail" aria-live="polite"><span class="mb-matrix-hint">Tocca una casella: qui compare il motivo. Tocca un\'alternativa per metterla in risalto.</span></div>';
+        const cards = '<div class="mb-matrix-cards">' + options.map((h, i) => '<section class="mb-matrix-card"><h4>' + inline(h) + '</h4>' + counts(i + 1) +
+            t.rows.map(row => { const c = row[i + 1]; return '<details data-tone="' + c.tone + '"><summary><small>' + inline(row[0]) + '</small>' + inline(c.text) + '</summary><p>' + inline(c.detail) + '</p></details>'; }).join('') + '</section>').join('') + '</div>';
+        return '<div class="mb-matrix" data-mb-matrix>' + table + detail + cards + '</div>';
     }
     const cell = c => typeof c === 'string' ? c.split(' · ').map(inline).join('<br>') : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
     return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map(h => '<th scope="col">' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map(c => '<td>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
