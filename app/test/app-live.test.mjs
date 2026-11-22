@@ -59,8 +59,10 @@ test('dedicated app reuses its window, persists drafts and handles two sends in 
   const debugPort=bootstrapDebugPort||await until(async()=>Number((await readFile(path.join(dir,'app/profile/DevToolsActivePort'),'utf8')).split('\n')[0]),'app CDP');
   const pages=await(await fetch('http://127.0.0.1:'+debugPort+'/json/list')).json();client=await cdp(pages.find(p=>p.url===session.url).webSocketDebuggerUrl);
   uiClient=await cdp(pages.find(p=>p.url.startsWith('file:')&&p.url.endsWith('/ui/index.html')).webSocketDebuggerUrl);
-  await uiClient.evaluate('document.getElementById("home").click()');await until(()=>uiClient.evaluate('Array.from(document.querySelectorAll(".review .path")).some(n=>n.textContent==='+JSON.stringify(file)+')'),'native catalog reads canonical state');
-  await uiClient.evaluate('Array.from(document.querySelectorAll(".review")).find(n=>n.querySelector(".path").textContent==='+JSON.stringify(file)+').querySelector("button").click()');await until(()=>uiClient.evaluate('document.body.classList.contains("in-review")'),'catalog opens through canonical CLI');
+  // The index shows the title and keeps the path in the ? bubble: find the row by its title.
+  const rowName=path.basename(file).replace(/\.html?$/i,'');
+  await uiClient.evaluate('document.getElementById("home").click()');await until(()=>uiClient.evaluate('Array.from(document.querySelectorAll(".catalog-row .catalog-name")).some(n=>n.textContent==='+JSON.stringify(rowName)+')'),'native catalog reads canonical state');
+  await uiClient.evaluate('Array.from(document.querySelectorAll(".catalog-row")).find(n=>n.querySelector(".catalog-name").textContent==='+JSON.stringify(rowName)+').querySelector(".open-review").click()');await until(()=>uiClient.evaluate('document.body.classList.contains("in-review")'),'catalog opens through canonical CLI');
   const again=await execute(process.execPath,[adapter,session.url,file],{env});assert.equal(again.code,0,again.stderr);assert.equal(JSON.parse(again.stdout).pid,first.pid);assert.equal(JSON.parse(again.stdout).window,first.window);
   // Interview cards have no free text field: the draft is the chosen answer.
   const choice='document.querySelector("[data-mb-question=q0] input:checked")?.value';

@@ -47,8 +47,12 @@ test('--version prints only the upstream version and touches no state', { timeou
     }
 });
 
+// The catalog (page, mb-catalog.css, mb-catalog.js, mb-catalog.cjs) was redesigned on purpose for the
+// organized index, so it no longer matches the former overlay; parity holds for the surfaces kept equal.
+const formerOverlayFiles = ['mb-artifact.js', 'mb-catalog-fonts.css'];
+
 test('derived files equal the former overlay', { skip: cacheSkip }, async () => {
-    for (const name of ['mb-artifact.js', 'mb-catalog.css', 'mb-catalog.js', 'mb-catalog-fonts.css', 'mb-catalog.cjs']) {
+    for (const name of formerOverlayFiles) {
         assert.equal(sha(await read('dist/' + name)), sha(await readFile(path.join(cache, 'dist', name))), name);
     }
 });
@@ -116,11 +120,9 @@ test('the Bruvish server answers like the overlay server', { skip: cacheSkip, ti
             keys.push(registered);
         }
         assert.deepEqual(keys[0], keys[1], 'the session key is the canonical path in both');
-        for (const url of ['/', '/mb-artifact.js', '/mb-catalog.css', '/mb-catalog.js', '/mb-catalog-fonts.css', '/chrome-client.js', '/chrome.css', '/sdk.js?key=' + keys[0][0]]) {
+        for (const url of [...formerOverlayFiles.map((name) => '/' + name), '/chrome-client.js', '/chrome.css', '/sdk.js?key=' + keys[0][0]]) {
             const [a, b] = [await snapshot(overlay.base, url), await snapshot(bruvish.base, url)];
-            // Catalog dates come from each server's own state: compare them as structure only.
-            const normalize = (s) => ({ ...s, body: url === '/' ? s.body.replace(/<time[^>]*>[^<]*<\/time>/g, '<time/>') : s.body });
-            assert.deepEqual(normalize(b), normalize(a), url);
+            assert.deepEqual(b, a, url);
         }
         for (const name of ['chrome-client.js', 'chrome.css']) {
             const served = Buffer.from(await (await fetch(bruvish.base + '/' + name)).arrayBuffer());
