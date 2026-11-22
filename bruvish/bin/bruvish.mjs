@@ -23,6 +23,7 @@ Building blocks (full example: bruvish/examples/revisione-completa.json), all op
   section: count                                       counter beside the title in the index or tab bar
   card: tone, labels: [{text, tone}], help, table: {headers, rows}, notes: [],
         events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}
+  card: transcript: {summary, text}                      preformatted text, closed; opens on a tap
   question.text: {label, placeholder, for: ["value"]}   a text with the answer: {choice, text}
   tone: blu, verde, giallo, rosso, decidi, viola; icon: open, merged, closed, draft, check, x, dot
   Text marks: \`code\`, **bold**, *italic*, ==highlight==. Each sentence renders on its own line; a string with

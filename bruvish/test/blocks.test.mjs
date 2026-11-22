@@ -804,3 +804,12 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
   // Without tabs the theme keeps the section headings.
   assert.equal(((await render({ ...input, tabs: false })).match(/<h2>/g) || []).length, input.sections.length);
 });
+
+test('a transcript opens on demand: closed, preformatted, escaped, after the table and before the notes', async () => {
+  const transcript = { summary: 'Trascrizione: `-h` prima e dopo', text: '$ postit -h\n  <aiuto> == ok\n[exit 0]' };
+  const body = cardHtml(await render(doc([card({ table: { headers: ['A'], rows: [['1']] }, transcript, notes: ['Nota.'] })])));
+  assert.match(body, /<\/table><details class="mb-transcript"><summary>Trascrizione: <code>-h<\/code> prima e dopo<\/summary><pre>\$ postit -h\n  &lt;aiuto&gt; == ok\n\[exit 0\]<\/pre><\/details><div class="mb-notes">/);
+  assert.doesNotMatch(body, /<details class="mb-transcript" open/);
+  for (const bad of ['x', { summary: '', text: 'a' }, { summary: 'a', text: ' ' }, ['a']])
+    await assert.rejects(render(doc([card({ transcript: bad })])), /Card a: transcript must be/);
+});
