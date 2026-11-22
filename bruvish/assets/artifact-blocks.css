@@ -47,6 +47,8 @@
 .mb-icon{flex:none}
 .mb-subtitle{margin:-6px 0 14px;font-size:17px;color:var(--muted)}
 .mb-pills{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:12px}
+/* Notice above the header (a mockup, a test page): one dashed box, muted, set apart from the PR data. */
+.mb-notice{margin:0 0 18px;padding:8px 12px;font-size:16px;color:var(--muted);border:1px dashed var(--line);border-radius:8px}
 /* Tables of several columns; a level or outcome is a semantic colour halfway between a soft tint and a full fill. */
 .mb-table{margin:0 0 1.8em;font-size:17px;border-top:1px solid var(--line)}
 .mb-table th{color:var(--muted);font-weight:400;font-size:15px;vertical-align:bottom}
@@ -75,6 +77,9 @@
 .mb-diff{margin:0 0 1.8em}
 .mb-diff-file{border:1px solid var(--line);border-radius:8px;margin:0 0 12px;background:var(--field)}
 .mb-diff-file>summary{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:10px 14px;font-weight:400}
+.mb-diff-arrow{display:inline-block;color:var(--muted);transition:transform .15s}
+.mb-diff-file[open]>summary .mb-diff-arrow{transform:rotate(90deg)}
+@media (prefers-reduced-motion:reduce){.mb-diff-arrow{transition:none}}
 .mb-diff-name{font-family:ui-monospace,Menlo,monospace;font-size:16px;color:#ffb38a;overflow-wrap:anywhere}
 .mb-diff-stat{font-size:15px;color:var(--muted)}
 .mb-plus{color:var(--mb-green)}

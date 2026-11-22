@@ -3,24 +3,29 @@
   "theme": "revisione",
   "tabs": true,
   "title": "feat: fa stampare l'aiuto anche a -h #6",
-  "intro": "Mockup del template «revisione di una PR» su una PR ==vera e già unita==: `mattiabestiaccia/postit#6`. Dati da GitHub (`gh pr view`, `gh pr diff`) e dall'archivio di no-mistakes (corsa `01M7Q9VAW31MFJK61RWRHD0XQJ`).",
   "header": {
     "badge": {
       "text": "Unita",
       "tone": "viola",
       "icon": "merged"
     },
-    "subtitle": "Ha unito 1 commit da `fm/postit-aiuto-h` in `master`",
+    "subtitle": "Ha unito 1 commit da `fm/postit-aiuto-h` in `master` · 2 file",
     "meta": [
       "mattiabestiaccia/postit",
       "unita da mattiabestiaccia · 18 nov 2026, 13:52"
-    ]
+    ],
+    "notice": "Mockup del template «revisione di una PR» su una PR ==vera e già unita==: `mattiabestiaccia/postit#6`. Dati da GitHub (`gh pr view`, `gh pr diff`) e dall'archivio di no-mistakes (corsa `01M7Q9VAW31MFJK61RWRHD0XQJ`).",
+    "stat": {
+      "added": 12,
+      "removed": 1
+    }
   },
   "guide": "Usa le schede per esaminare la PR. Questa versione di prova non pubblica operazioni sul repository.",
   "pills": [
     {
       "text": "Rischio **basso** · nessun tema",
-      "tone": "verde"
+      "tone": "verde",
+      "level": true
     },
     {
       "text": "Gate 9 su 9",

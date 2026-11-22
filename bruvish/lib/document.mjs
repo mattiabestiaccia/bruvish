@@ -168,7 +168,7 @@ const icon = name => '<svg class="mb-icon" viewBox="0 0 16 16" width="16" height
 // Page header: a badge (text, tone, optional icon), the meta items on the same row above the title, the subtitle under it.
 function headerParts(header) {
     if (header === undefined)
-        return { before: '', after: '' };
+        return { notice: '', before: '', after: '' };
     if (!header || typeof header !== 'object' || Array.isArray(header))
         throw new Error('header must be an object like { "badge": { "text": "Aperta", "tone": "verde", "icon": "open" }, "subtitle": "...", "meta": ["..."] }');
     let badge = '';
@@ -185,10 +185,30 @@ function headerParts(header) {
         throw new Error('header.meta must be an array of strings, like ["repo **bruvish**", "21 novembre 2026"]');
     if (header.subtitle !== undefined && typeof header.subtitle !== 'string')
         throw new Error('header.subtitle must be a string');
+    if (header.notice !== undefined && (typeof header.notice !== 'string' || !header.notice.trim()))
+        throw new Error('header.notice must be a non-empty string, like "Mockup su una PR già unita."');
+    const count = n => Number.isInteger(n) && n >= 0;
+    if (header.stat !== undefined && (!header.stat || typeof header.stat !== 'object' || Array.isArray(header.stat) || !count(header.stat.added) || !count(header.stat.removed)))
+        throw new Error('header.stat must be { "added": 12, "removed": 1 }, two whole numbers from 0');
     const meta = (header.meta || []).map(m => '<span class="mb-meta-item">' + inline(m) + '</span>').join('');
-    return { before: badge || meta ? '<div class="mb-header-meta">' + badge + meta + '</div>' : '', after: header.subtitle ? '<p class="mb-subtitle">' + inline(header.subtitle) + '</p>' : '' };
+    // The line count closes the subtitle, in the colours of the diff: added green, removed red.
+    const stat = header.stat ? '<span class="mb-plus">+' + header.stat.added + '</span> <span class="mb-minus">−' + header.stat.removed + '</span>' : '';
+    const subtitle = [header.subtitle ? inline(header.subtitle) : '', stat].filter(Boolean).join(' · ');
+    return {
+        notice: header.notice === undefined ? '' : '<p class="mb-notice">' + inline(header.notice) + '</p>',
+        before: badge || meta ? '<div class="mb-header-meta">' + badge + meta + '</div>' : '',
+        after: subtitle ? '<p class="mb-subtitle">' + subtitle + '</p>' : '',
+    };
 }
-const pillsOf = pills => pills === undefined ? '' : '<div class="mb-pills">' + taggedList(pills, 'pills').map(p => '<span class="mb-pill" data-tone="' + p.tone + '">' + inline(p.text) + '</span>').join('') + '</div>';
+// A pill with "level": true is a level (risk, outcome): full semantic colour, like a level cell of a table.
+function pillsOf(pills) {
+    if (pills === undefined)
+        return '';
+    taggedList(pills, 'pills');
+    if (pills.some(p => p.level !== undefined && typeof p.level !== 'boolean'))
+        throw new Error('pills: level must be true or false, like { "text": "Rischio basso", "tone": "verde", "level": true }');
+    return '<div class="mb-pills">' + pills.map(p => '<span class="' + (p.level ? 'mb-level' : 'mb-pill') + '" data-tone="' + p.tone + '">' + inline(p.text) + '</span>').join('') + '</div>';
+}
 // A table of several columns. A cell is a string with inline marks, where « · » separates two items that go on two
 // lines (never two items on one line), or { text, tone } for a level or an outcome in its semantic colour.
 function cardTable(card) {
@@ -313,7 +333,7 @@ export function parseDiff(text) {
     }
     return files;
 }
-const DIFF_STATUS = { added: 'nuovo', deleted: 'cancellato', renamed: 'rinominato' };
+const DIFF_STATUS = { added: 'nuovo', deleted: 'cancellato', renamed: 'rinominato', modified: 'modificato' };
 // A diff in a card: one collapsible block per file (open), coloured lines, numbers of both sides, the reviewer's notes
 // under the line they name ("<file>:<line of the new side>"). Every character of the diff is escaped. In the theme
 // «revisione» the files sit in the column without a card around them, under one button that closes or opens them all.
@@ -328,7 +348,7 @@ function cardDiff(card, filesPage = false) {
         throw new Error(where + ' has no file: text must be a unified diff (diff --git or ---/+++ headers, then @@ hunks)');
     const notes = { ...(d.notes || {}) };
     const html = files.map(f => {
-        const stat = (DIFF_STATUS[f.status] ? DIFF_STATUS[f.status] + ' · ' : '') + [f.added ? '<span class="mb-plus">+' + f.added + '</span>' : '', f.removed ? '<span class="mb-minus">−' + f.removed + '</span>' : ''].filter(Boolean).join(' ');
+        const stat = DIFF_STATUS[f.status] + ' · ' + [f.added ? '<span class="mb-plus">+' + f.added + '</span>' : '', f.removed ? '<span class="mb-minus">−' + f.removed + '</span>' : ''].filter(Boolean).join(' ');
         const rows = f.lines.map(l => {
             if (l.type === 'hunk' || l.type === 'meta')
                 return '<tr class="mb-' + l.type + '"><td class="mb-num"></td><td class="mb-num"></td><td class="mb-code">' + escape(l.text) + '</td><td class="mb-cmt"></td></tr>';
@@ -341,7 +361,7 @@ function cardDiff(card, filesPage = false) {
             }
             return row;
         }).join('');
-        return '<details class="mb-diff-file" open><summary><span class="mb-diff-name">' + escape(f.name) + '</span><span class="mb-diff-stat">' + stat + '</span></summary><div class="mb-diff-body"><table class="mb-diff-lines"><tbody>' + rows + '</tbody></table></div></details>';
+        return '<details class="mb-diff-file" open><summary><span class="mb-diff-arrow" aria-hidden="true">▸</span><span class="mb-diff-name">' + escape(f.name) + '</span><span class="mb-diff-stat">' + stat + '</span></summary><div class="mb-diff-body"><table class="mb-diff-lines"><tbody>' + rows + '</tbody></table></div></details>';
     }).join('');
     const unmatched = Object.keys(notes)[0];
     if (unmatched !== undefined)
@@ -481,5 +501,5 @@ export async function renderDocument(input, options = {}) {
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main><header>' + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + '</header>' + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main>' + head.notice + '<header>' + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + '</header>' + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }

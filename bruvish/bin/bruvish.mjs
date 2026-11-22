@@ -16,6 +16,9 @@ Card JSON (full example: bruvish/examples/carte-complete.json):
   question.reason: "..."                               why the recommended option, under the answers
 Building blocks (full example: bruvish/examples/revisione-completa.json), all optional:
   page: tabs: true, header: {badge: {text, tone, icon}, subtitle, meta: []}, pills: [{text, tone}]
+  page: header.notice: "..."                         dashed box above the header (mockup, test page)
+  page: header.stat: {added, removed}                closes the subtitle: +added green, -removed red
+  page: pills: [{text, tone, level: true}]           a level (risk): full semantic colour
   page: theme: "revisione"                             look of the approved review page; asked by name only.
         With tabs the tab names the section (no heading); a title ending in " #6" shows the number
         muted; a card with a diff is the files page: no card frame, one Chiudi/Apri tutti button;

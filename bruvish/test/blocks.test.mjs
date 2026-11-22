@@ -190,6 +190,17 @@ test('the header carries a badge with a closed set of inline icons, a subtitle a
   await assert.rejects(render(doc([card()], { header: { badge: { text: '', tone: 'blu' } } })), /header\.badge/);
   await assert.rejects(render(doc([card()], { header: { meta: 'x' } })), /header\.meta/);
   await assert.rejects(render(doc([card()], { pills: [{ text: 'x' }] })), /pills must be an array/);
+  // Notice above the header, line count at the end of the subtitle in the diff colours, a pill that is a level.
+  const full = await render(doc([card()], { header: { notice: 'Pagina di **prova**.', subtitle: 'Unisce `a` in `b`', stat: { added: 12, removed: 1 } }, pills: [{ text: 'Rischio basso', tone: 'verde', level: true }, { text: 'Gate 9 su 9', tone: 'verde' }] }));
+  assert.match(full, /<main><p class="mb-notice">Pagina di <strong>prova<\/strong>\.<\/p><header>/, 'the notice is one paragraph above the header');
+  assert.match(full, /<p class="mb-subtitle">Unisce <code>a<\/code> in <code>b<\/code> · <span class="mb-plus">\+12<\/span> <span class="mb-minus">−1<\/span><\/p>/);
+  assert.match(full, /<div class="mb-pills"><span class="mb-level" data-tone="verde">Rischio basso<\/span><span class="mb-pill" data-tone="verde">Gate 9 su 9<\/span><\/div>/);
+  assert.match(await render(doc([card()], { header: { stat: { added: 0, removed: 3 } } })), /<p class="mb-subtitle"><span class="mb-plus">\+0<\/span> <span class="mb-minus">−3<\/span><\/p>/, 'the count stands alone without a subtitle');
+  for (const stat of [{ added: 1 }, { added: -1, removed: 0 }, { added: 1.5, removed: 0 }, [1, 2], '+1 −1'])
+    await assert.rejects(render(doc([card()], { header: { stat } })), /header\.stat/);
+  for (const notice of ['', '  ', 3])
+    await assert.rejects(render(doc([card()], { header: { notice } })), /header\.notice/);
+  await assert.rejects(render(doc([card()], { pills: [{ text: 'x', tone: 'verde', level: 'sì' }] })), /level must be true or false/);
   const license = await readFile(new URL('../licenses/Octicons-MIT.txt', import.meta.url), 'utf8');
   assert.match(license, /MIT License[\s\S]*GitHub/);
 });
@@ -351,8 +362,8 @@ test('answer selectors preserve CR, LF and FF in values with and without an answ
 
 test('a card diff is one collapsible block per file, with coloured lines, new-side numbers and notes under their line', async () => {
   const body = cardHtml(await render(doc([card({ diff: { text: DIFF, notes: { 'src/a.js:2': 'Qui **attenzione** <b>.', 'docs/nuovo.md:1': 'Titolo nuovo.' } } })])));
-  assert.match(body, /<div class="mb-diff"><details class="mb-diff-file" open><summary><span class="mb-diff-name">src\/a\.js<\/span><span class="mb-diff-stat"><span class="mb-plus">\+2<\/span> <span class="mb-minus">−1<\/span><\/span><\/summary>/);
-  assert.match(body, /<summary><span class="mb-diff-name">docs\/nuovo\.md<\/span><span class="mb-diff-stat">nuovo · <span class="mb-plus">\+2<\/span><\/span><\/summary>/);
+  assert.match(body, /<div class="mb-diff"><details class="mb-diff-file" open><summary><span class="mb-diff-arrow" aria-hidden="true">▸<\/span><span class="mb-diff-name">src\/a\.js<\/span><span class="mb-diff-stat">modificato · <span class="mb-plus">\+2<\/span> <span class="mb-minus">−1<\/span><\/span><\/summary>/);
+  assert.match(body, /<summary><span class="mb-diff-arrow" aria-hidden="true">▸<\/span><span class="mb-diff-name">docs\/nuovo\.md<\/span><span class="mb-diff-stat">nuovo · <span class="mb-plus">\+2<\/span><\/span><\/summary>/);
   assert.match(body, /<tr class="mb-del"><td class="mb-num">2<\/td><td class="mb-num"><\/td><td class="mb-code"><span class="mb-sign">−<\/span>const due = &quot;&lt;b&gt;2&lt;\/b&gt;&quot;;<\/td><td class="mb-cmt"><\/td><\/tr>/);
   assert.match(body, /<tr class="mb-add" data-mb-line="src\/a\.js:2"><td class="mb-num"><\/td><td class="mb-num">2<\/td><td class="mb-code"><span class="mb-sign">\+<\/span>const due = &#39;&lt;script&gt;alert\(2\)&lt;\/script&gt;&#39;;<\/td><td class="mb-cmt">[\s\S]*?<\/td><\/tr><tr class="mb-note-row"><td colspan="4"><div class="mb-line-note">Qui <strong>attenzione<\/strong> &lt;b&gt;\.<\/div><\/td><\/tr>/);
   assert.match(body, /<tr class="mb-context" data-mb-line="src\/a\.js:4"><td class="mb-num">3<\/td><td class="mb-num">4<\/td>/);
@@ -771,6 +782,16 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
     const px = v => parseFloat(v) || 0, v = look(voice, width), h = look(help, width), c = look(files, width);
     assert(px(c['padding-right'] || c.padding) + px(v['margin-right']) > px(h.right) + px(h.width), 'files page at ' + width + ': voice and help do not overlap');
   }
+  // The file name opens with an arrow that turns when the file opens, then the state and the coloured counts (S5).
+  assert.deepEqual(details.map(d => d.querySelector('summary').textContent), ['▸src/cli.tsmodificato · +1 −1', '▸tests/cli.test.tsmodificato · +11']);
+  assert.equal(look(details[0].querySelector('.mb-diff-arrow')).transform, 'rotate(90deg)', 'an open file turns its arrow');
+  // Mockup notice in a dashed box above the header; +12 green and −1 red; the risk is a level in full colour (S5).
+  const notice = document.querySelector('main > .mb-notice');
+  assert.equal(notice.nextElementSibling.tagName.toLowerCase(), 'header');
+  assert.match(look(notice).border, /dashed/);
+  assert.equal(document.querySelector('.mb-subtitle .mb-plus').textContent, '+12');
+  assert.equal(document.querySelector('.mb-subtitle .mb-minus').textContent, '−1');
+  assert.equal(document.querySelector('.mb-pills > .mb-level').textContent, 'Rischio basso · nessun tema');
   // (4) Header: the PR number muted and plain in the title; title, header padding and full-width tab bar as on the page.
   const h1 = document.querySelector('h1');
   assert.equal(h1.textContent, input.title);
