@@ -147,7 +147,7 @@ test('a fixed operation is an always-visible header button beside the main ones;
     assert.doesNotMatch(alone.slice(alone.indexOf('<body>')), /mb-actions-primary|mb-actions-menu/);
     for (const input of [page(), page({ actions: { ...actions, fixed: [] } })])
         assert.match(await renderDocument(input), /<div class="mb-actions" data-mb-actions><div class="mb-actions-primary">/, 'no fixed operation: no row wrapper');
-    for (const bad of [{ ...actions, fixed: reviewer }, { ...actions, fixed: [{ ...reviewer, field: 'area' }] }, { ...actions, fixed: [{ ...reviewer, required: 'yes' }] },
+    for (const bad of [{ ...actions, fixed: reviewer }, { ...actions, fixed: [{ ...reviewer, field: 'area' }] }, { ...actions, fixed: [{ ...reviewer, field: 'text' }] }, { ...actions, fixed: [{ ...reviewer, required: 'yes' }] },
         { ...actions, fixed: [{ ...reviewer, field: undefined }] }, { ...actions, fixed: [{ ...reviewer, placeholder: 3 }] }, { ...actions, fixed: [{ ...reviewer, confirm: '' }] }])
         await assert.rejects(renderDocument(page({ actions: bad })), /actions must be/);
 });

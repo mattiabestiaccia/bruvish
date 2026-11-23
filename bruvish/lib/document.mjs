@@ -167,7 +167,7 @@ function headerActions(actions) {
     const item = o => o && typeof o === 'object' && !Array.isArray(o) && OP_ID.test(o.operation || '') && typeof o.label === 'string' && o.label.trim()
         && typeof o.confirm === 'string' && o.confirm.trim() && (o.hint === undefined || typeof o.hint === 'string') && (o.danger === undefined || typeof o.danger === 'boolean');
     // A fixed operation may ask for a text in its confirmation dropdown: a single line (a login) or a longer text.
-    const fixedItem = o => item(o) && (o.field === undefined || ['line', 'text'].includes(o.field)) && (o.placeholder === undefined || typeof o.placeholder === 'string')
+    const fixedItem = o => item(o) && (o.field === undefined || o.field === 'line') && (o.placeholder === undefined || typeof o.placeholder === 'string')
         && (o.required === undefined || typeof o.required === 'boolean') && !(o.required && o.field === undefined);
     if (!actions || typeof actions !== 'object' || Array.isArray(actions) || typeof actions.view !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(actions.view)
         || (actions.primary !== undefined && !Array.isArray(actions.primary)) || (actions.menu !== undefined && !Array.isArray(actions.menu)) || (actions.fixed !== undefined && !Array.isArray(actions.fixed))
@@ -486,13 +486,16 @@ function questionText(card, q, answer) {
 }
 // Diagnostics of an operation executor (diagnostics in the page JSON): what the executor did with each operation the page
 // or the chat sent. Bruvish renders two cards at the top of the section «diagnostica» (added at the end when the page
-// has none): the last problem, framed in its colour, and the table of the attempts, most recent first. The executor
-// writes these facts, never the agent; times are Unix seconds, shown in the local time of the renderer.
+// has none): the last problem, framed in its colour, and the table of the attempts, most recent first. They replace the
+// producer's own cards with the same roles: by the producer's card order, «Tentativi» is carta-diagnostica-3 and «Ultimo
+// problema» carta-diagnostica-4. The executor writes these facts, never the agent; times are Unix seconds, shown in the
+// local time of the renderer.
 const OUTCOMES = { fatto: ['Fatto', 'verde'], parziale: ['Fatto a metà', 'giallo'], rimandato: ['Rimandato', 'giallo'], rifiutato: ['Rifiutato', 'rosso'], incerto: ['Incerto', 'rosso'], scartato: ['Scartato', 'blu'] };
 const outcomeOf = value => value === undefined || value === null || value === '' ? ['In corso', 'giallo'] : OUTCOMES[value] || [String(value), 'blu'];
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 const two = n => String(n).padStart(2, '0');
-const localTime = t => { if (typeof t === 'string' && t.trim()) return t; if (typeof t !== 'number' || !Number.isFinite(t)) return '—'; const d = new Date(t * 1000); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ', ' + two(d.getHours()) + ':' + two(d.getMinutes()); };
+const localTime = t => { if (typeof t !== 'number' || !Number.isFinite(t)) return '—'; const d = new Date(t * 1000); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ', ' + two(d.getHours()) + ':' + two(d.getMinutes()); };
+const REPLACED_DIAGNOSTIC_CARDS = new Set(['carta-diagnostica-3', 'carta-diagnostica-4']);
 const ATTEMPT_TEXTS = ['id', 'operazione', 'fonte', 'esito', 'motivo', 'passo', 'dettaglio', 'frase'];
 // An operation name shows as code when it is a plain identifier; anything else stays text, escaped like every other.
 const operationText = op => typeof op === 'string' && OP_ID.test(op) ? '`' + op + '`' : (op ? String(op) : '?');
@@ -502,7 +505,7 @@ function withDiagnostics(input) {
         return input;
     const shape = 'diagnostics must be { "attempts": [{ "ora": 1795435566, "operazione": "unisci", "fonte": "pagina", "esito": "rifiutato", "motivo": "...", "passo": "...", "dettaglio": "...", "frase": "..." }], "total": 1, "problem": { ...the last attempt that did not succeed } | null }';
     const attemptOk = a => a && typeof a === 'object' && !Array.isArray(a) && ATTEMPT_TEXTS.every(k => a[k] === undefined || a[k] === null || typeof a[k] === 'string')
-        && (a.ora === undefined || a.ora === null || typeof a.ora === 'string' || (typeof a.ora === 'number' && Number.isFinite(a.ora)));
+        && (a.ora === undefined || a.ora === null || (typeof a.ora === 'number' && Number.isFinite(a.ora)));
     if (!d || typeof d !== 'object' || Array.isArray(d) || (d.attempts !== undefined && (!Array.isArray(d.attempts) || !d.attempts.every(attemptOk)))
         || (d.total !== undefined && !(Number.isInteger(d.total) && d.total >= 0)) || (d.problem !== undefined && d.problem !== null && !attemptOk(d.problem)))
         throw new Error(shape);
@@ -527,7 +530,7 @@ function withDiagnostics(input) {
     const at = sections.findIndex(s => s && s.id === 'diagnostica');
     return { ...input, sections: at < 0
             ? [...sections, { id: 'diagnostica', title: 'Diagnostica', ...(total ? { count: total } : {}), cards }]
-            : sections.map((s, i) => i === at ? { ...s, cards: [...cards, ...(s.cards || [])] } : s) };
+            : sections.map((s, i) => i === at ? { ...s, cards: [...cards, ...(s.cards || []).filter(c => !REPLACED_DIAGNOSTIC_CARDS.has(c?.id))] } : s) };
 }
 // The index of the sections. With tabs: true it is the tab bar: artifact-blocks.js shows one
 // section at a time; without JS every section stays visible, one under the other. A section count shows beside its title.

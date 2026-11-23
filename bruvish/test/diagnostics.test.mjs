@@ -73,16 +73,35 @@ test('a page without diagnostics is unchanged; malformed diagnostics stop the re
     const html = await renderDocument(plain);
     assert.doesNotMatch(body(html), /mb-diag-/);
     assert.match(html, /<section id="diagnostica" aria-label="Diagnostica"><article class="card" id="carta-diagnostica-1"/);
-    for (const bad of [null, [], 'x', { attempts: {} }, { attempts: [null] }, { attempts: [{ motivo: 3 }] }, { attempts: [{ ora: {} }] }, { total: -1 }, { total: 1.5 }, { problem: 'x' }, { problem: { esito: 1 } }])
+    for (const bad of [null, [], 'x', { attempts: {} }, { attempts: [null] }, { attempts: [{ motivo: 3 }] }, { attempts: [{ ora: {} }] }, { attempts: [{ ora: 'adesso' }] }, { problem: { ora: '14:20' } }, { total: -1 }, { total: 1.5 }, { problem: 'x' }, { problem: { esito: 1 } }])
         await assert.rejects(renderDocument(page({ diagnostics: bad })), /diagnostics must be/);
 });
 
 test('texts from the executor are escaped; an odd operation name is shown as text, not as code', async () => {
-    const html = await renderDocument(page({ diagnostics: { attempts: [{ ora: 'adesso', operazione: 'x`<b>', esito: 'rifiutato', motivo: '<script>alert(1)</script>' }], problem: null } }));
+    const html = await renderDocument(page({ diagnostics: { attempts: [{ ora: T1, operazione: 'x`<b>', esito: 'rifiutato', motivo: '<script>alert(1)</script>' }], problem: null } }));
     const attempts = cardHtml(html, 'mb-diag-attempts');
-    assert.match(attempts, /<tr><td>adesso<\/td><td>x`&lt;b&gt;<\/td>/);
+    assert.match(attempts, /<tr><td>23 nov, 14:05<\/td><td>x`&lt;b&gt;<\/td>/);
     assert.match(attempts, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
     assert.doesNotMatch(attempts, /<script>|<b>/);
+});
+
+// The producer's Diagnostica section as the pr-revisione adapter sends it (tools/pr-revisione README, «Contratto dei dati
+// per Bruvish»): five cards in this order, with the ids carta-diagnostica-<n>.
+const PRODUCER_TITLES = ['Stato dell\'esecutore', 'Questa vista', 'Tentativi', 'Ultimo problema', 'Cosa è cambiato su GitHub'];
+const producerSection = count => ({ id: 'diagnostica', title: 'Diagnostica', count: 2, cards: PRODUCER_TITLES.slice(0, count).map((title, i) => ({ id: 'carta-diagnostica-' + (i + 1), title, paragraphs: ['Dal produttore.'] })) });
+const titlesOf = html => [.../<section id="diagnostica"[\s\S]*?<\/section>/.exec(html)[0].matchAll(/<h3>([^<]+)<\/h3>/g)].map(m => m[1].replace('&#39;', '\''));
+
+test('with the real producer section, each Diagnostica card appears once: Bruvish replaces the producer\'s attempts and last problem', async () => {
+    const input = page();
+    input.sections = [input.sections[0], producerSection(5)];
+    assert.deepEqual(titlesOf(await renderDocument(input)), ['Ultimo problema', 'Tentativi', 'Stato dell\'esecutore', 'Questa vista', 'Cosa è cambiato su GitHub']);
+    // No problem: the producer sends three cards and Bruvish only the attempts.
+    input.sections = [input.sections[0], producerSection(3)];
+    input.diagnostics = { ...diagnostics, problem: null };
+    assert.deepEqual(titlesOf(await renderDocument(input)), ['Tentativi', 'Stato dell\'esecutore', 'Questa vista']);
+    // Without diagnostics the section stays as the producer sent it.
+    const { diagnostics: _, ...plain } = { ...input, sections: [input.sections[0], producerSection(5)] };
+    assert.deepEqual(titlesOf(await renderDocument(plain)), PRODUCER_TITLES);
 });
 
 const pills = [{ text: '**Approvata** da te · testa `abc1234`', tone: 'verde' }, { text: '**1 problema** · scheda Diagnostica', tone: 'rosso', section: 'diagnostica' }];

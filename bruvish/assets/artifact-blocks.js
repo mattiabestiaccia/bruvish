@@ -26,9 +26,9 @@
                 // A fixed operation that asks for a text (a login, a reason) carries its field inside the dropdown.
                 const kind = button.dataset.mbFieldKind;
                 let field = null, status = null;
-                if (kind === 'line' || kind === 'text') {
+                if (kind === 'line') {
                     const attributes = { class: 'mb-op-text mb-confirm-field', 'aria-label': button.dataset.mbConfirmTitle, placeholder: button.dataset.mbPlaceholder || '' };
-                    field = kind === 'text' ? make('textarea', { ...attributes, rows: '3' }) : make('input', { ...attributes, type: 'text', autocomplete: 'off', spellcheck: 'false' });
+                    field = make('input', { ...attributes, type: 'text', autocomplete: 'off', spellcheck: 'false' });
                     status = make('span', { class: 'mb-op-status', role: 'status' });
                     row.append(status);
                 }
@@ -47,8 +47,8 @@
                     const sent = sendOperation(button.dataset.mbOp, value, button);
                     box.replaceChildren(make('p', { class: 'mb-confirm-text' }, sent ? sentText('✓ ' + button.dataset.mbConfirmTitle + ': inviato all\'agente.') : 'Lavish non è collegato: scrivi l\'operazione in chat.'));
                 });
-                // Enter in a single-line field confirms, as the button does.
-                if (kind === 'line')
+                // Enter in the field confirms, as the button does.
+                if (field)
                     field.addEventListener('keydown', event => { if (event && event.key === 'Enter') { event.preventDefault?.(); yes.click(); } });
             };
             bar.querySelectorAll('button[data-mb-op]').forEach(button => button.addEventListener('click', () => {
