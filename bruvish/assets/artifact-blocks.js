@@ -1,6 +1,62 @@
 (() => {
     // Behaviour of the building blocks (tabs, help, free text in answers, line comments). Embedded only in pages that use them.
     const init = () => {
+        // Page operations (S20). Header and «⋯» menu: a click opens a confirmation dropdown that says what happens; «Conferma»
+        // queues the operation and sends it. Card forms: a text, then two taps on the button (choose, then confirm).
+        const view = document.querySelector('main[data-mb-view]')?.dataset.mbView || '';
+        const sendOperation = (operation, text, element) => {
+            if (!window.lavish?.queuePrompt)
+                return false;
+            window.lavish.queuePrompt('Operazione ' + operation + (text ? ':\n' + text : ''), { tag: 'operation', text: 'Operazione: ' + operation, element, queueKey: 'operation:' + operation, data: { view, operation, text: text || '' } });
+            window.lavish.sendQueuedPrompts?.();
+            return true;
+        };
+        document.querySelectorAll('[data-mb-actions]').forEach(bar => {
+            const box = bar.querySelector('.mb-confirm');
+            const ask = button => {
+                bar.querySelectorAll('details.mb-actions-menu[open]').forEach(menu => { menu.open = false; });
+                box.replaceChildren();
+                const title = make('b', { class: 'mb-confirm-title' }, button.dataset.mbConfirmTitle + '?'), text = make('p', { class: 'mb-confirm-text' });
+                text.innerHTML = button.dataset.mbConfirm;
+                const row = make('div', { class: 'mb-confirm-row' }), no = make('button', { type: 'button', class: 'mb-confirm-no' }, 'Annulla'), yes = make('button', { type: 'button', class: 'mb-confirm-yes' }, 'Conferma');
+                row.append(no, yes);
+                box.append(title, text, row);
+                box.hidden = false;
+                no.addEventListener('click', () => { box.hidden = true; button.focus?.(); });
+                yes.addEventListener('click', () => {
+                    const sent = sendOperation(button.dataset.mbOp, '', button);
+                    box.replaceChildren(make('p', { class: 'mb-confirm-text' }, sent ? '✓ ' + button.dataset.mbConfirmTitle + ': inviato all\'agente.' : 'Lavish non è collegato: scrivi l\'operazione in chat.'));
+                });
+            };
+            bar.querySelectorAll('[data-mb-op]').forEach(button => button.addEventListener('click', () => {
+                if (button.classList.contains('mb-action'))
+                    bar.querySelectorAll('.mb-action').forEach(other => other.classList.toggle('mb-action-main', other === button));
+                ask(button);
+            }));
+        });
+        document.querySelectorAll('[data-mb-op-form]').forEach(form => {
+            const field = form.querySelector('.mb-op-text'), status = form.querySelector('.mb-op-status'), submit = form.querySelector('.mb-op-submit');
+            const disarm = () => { delete submit.dataset.mbArmed; status.textContent = ''; };
+            form.addEventListener('input', disarm);
+            form.addEventListener('change', disarm);
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                const choice = [...form.querySelectorAll('input')].find(input => input.getAttribute('type') === 'radio' && input.checked);
+                const operation = choice ? choice.value : form.dataset.mbOp, required = choice ? choice.hasAttribute('data-mb-required') : form.hasAttribute('data-mb-required');
+                const text = field.value.trim();
+                if (required && !text) {
+                    status.textContent = 'Scrivi il testo prima di inviare.';
+                    return;
+                }
+                if (!submit.hasAttribute('data-mb-armed')) {
+                    submit.dataset.mbArmed = '';
+                    status.textContent = 'Tocca ancora per inviare.';
+                    return;
+                }
+                disarm();
+                status.textContent = sendOperation(operation, text, form) ? '✓ Inviato all\'agente.' : 'Lavish non è collegato: scrivi in chat.';
+            });
+        });
         // Comparison matrix (form C): a tapped cell shows its reason in the box under the table; a tapped option highlights
         // its column. The reason is the cell's own rendered markup, already escaped by the renderer.
         document.querySelectorAll('[data-mb-matrix]').forEach(matrix => {
@@ -220,7 +276,7 @@
                     status.textContent = 'Apri la pagina con Lavish per accodare il commento.';
                     return;
                 }
-                window.lavish.queuePrompt('Commento sulla riga ' + line + ' di ' + file + ':\n' + text, { tag: 'line-comment', text: 'Commento su ' + file + ':' + line, element: row, selector: lineSelector(key), queueKey: 'line:' + key, data: { file, line, text } });
+                window.lavish.queuePrompt('Commento sulla riga ' + line + ' di ' + file + ':\n' + text, { tag: 'line-comment', text: 'Commento su ' + file + ':' + line, element: row, selector: lineSelector(key), queueKey: 'line:' + key, data: view ? { file, line, text, view } : { file, line, text } });
                 status.textContent = '';
                 box.hidden = true;
                 button.setAttribute('aria-expanded', 'false');
