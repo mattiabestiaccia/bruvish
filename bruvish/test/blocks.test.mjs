@@ -109,14 +109,14 @@ function layoutBox(css, el, viewport) {
 
 // 🔊 and «?» form one column of absolutely positioned buttons: just right of the card, inside the page, where a
 // gutter exists; inside the card on a phone, with the text ending before the buttons. Measured on the laid-out boxes.
-function assertColumn(css, card, voice, toggle, viewport, label) {
+function assertColumn(css, card, buttons, viewport, label) {
   const c = layoutBox(css, card, viewport), padBox = c.width - c.border[0] - c.border[1], cardEnd = c.left + c.width;
-  const [v, t] = [voice, toggle].map(button => {
+  const [v, ...others] = buttons.map(button => {
     const b = computed(css, button, viewport), size = cssLength(b.width, padBox, viewport);
     const at = b.left !== undefined && b.left !== 'auto' ? cssLength(b.left, padBox, viewport) : padBox - cssLength(b.right, padBox, viewport) - size;
     return { start: c.left + c.border[0] + at, size };
   });
-  assert.equal(t.start, v.start, label + ': one column');
+  for (const t of others) assert.equal(t.start, v.start, label + ': one column');
   if (viewport > 600) {
     assert(v.start >= cardEnd && v.start - cardEnd < v.size, label + ': just right of the card (' + (v.start - cardEnd) + 'px)');
     assert(v.start + v.size <= c.parent, label + ': the column stays inside the page (' + (v.start + v.size) + ' > ' + c.parent + ')');
@@ -207,12 +207,23 @@ test('🔊 and «?» are the same round button, stacked in a column just right o
       assert.equal(voiceLook['border-radius'], '50%');
       assert(px(toggleLook.top) >= px(voiceLook.top) + px(voiceLook.height), theme + ' at ' + width + ': «?» is stacked under 🔊');
       assert.equal(voiceLook.float, undefined, 'the voice no longer floats in the text');
-      assertColumn(css, container, voice, toggle, width, theme + ' at ' + width);
+      assertColumn(css, container, [voice, toggle], width, theme + ' at ' + width);
       assert.equal(look(container.querySelector('.mb-help')).clear, 'both');
     }
     assert.match(container.innerHTML || html, /class="voice"/);
     toggle.click();
     assert.equal(container.querySelector('.mb-help').hidden, false);
+  }
+  // Pages without building blocks load only the base stylesheet: their 🔊 is the same round button in the same column.
+  for (const name of ['dummy', 'carte-complete']) {
+    const html = await render(await example(name)), css = styleOf(html), { document } = boot(html);
+    assert.equal(css, fontsCss + '\n' + baseCss, name + ': base assets only');
+    const first = document.querySelector('article.card'), voice = first.querySelector('.voice');
+    for (const width of [1024, 601, 600, 390]) {
+      const look = computed(css, voice, width);
+      assert.deepEqual([look.position, look.width === look.height, look['border-radius']], ['absolute', true, '50%'], name + ' at ' + width + ': round button');
+      assertColumn(css, first, [voice], width, name + ' at ' + width);
+    }
   }
 });
 
@@ -853,7 +864,7 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
     const px = v => parseFloat(v) || 0, v = look(voice, width), h = look(help, width);
     assert.equal(v.width, h.width, 'files page at ' + width + ': same size');
     assert(px(h.top) >= px(v.top) + px(v.height), 'files page at ' + width + ': stacked');
-    assertColumn(css, files, voice, help, width, 'files page at ' + width);
+    assertColumn(css, files, [voice, help], width, 'files page at ' + width);
   }
   // The file name opens with an arrow that turns when the file opens, then the state and the coloured counts (S5).
   assert.deepEqual(details.map(d => d.querySelector('summary').textContent), ['▸src/cli.tsmodificato · +1 −1', '▸tests/cli.test.tsmodificato · +11']);

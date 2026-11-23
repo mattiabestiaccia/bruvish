@@ -25,17 +25,12 @@
 [data-tone=decidi]{--mb-tone:#e8c35a}
 .mb-label[data-tone],.mb-pill[data-tone]{box-shadow:0 0 0 1px color-mix(in srgb,var(--mb-tone) 40%,transparent)}
 .mb-label[data-tone=decidi],.mb-pill[data-tone=decidi]{box-shadow:0 0 0 1.5px #e8c35acc,0 0 10px #e8c35a66}
-/* Help, as on the approved review page (.carta > .aiuto and .fumetto of revisione.css): a round «?» in the top right
-   corner of the card, half transparent until the card is hovered or focused; a click opens the bubble right under the
+/* Help, as on the approved review page (.carta > .aiuto and .fumetto of revisione.css): a round «?» in the column
+   right of the card, half transparent until the card is hovered or focused; a click opens the bubble right under the
    title row, before the content; another click, a click outside it or Esc closes it. Never on hover. */
-/* 🔊 and «?» are two identical round buttons stacked in a column just right of the card (the card leaves a gutter of
-   48px): 🔊 on top, «?» under it. On a phone the gutter does not exist, so the column moves inside the card, which
-   then keeps a padding on the right: the buttons never cover the text. */
-.card>.voice,.mb-help-toggle{position:absolute;left:calc(100% + 8px);right:auto;width:32px;height:32px;padding:0;display:grid;place-items:center;border:1px solid var(--line);border-radius:50%;font:600 16px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);opacity:.55;transition:opacity .2s}
-.card>.voice{top:0;cursor:pointer}
+/* «?» is the second button of the round column of artifact.css, under 🔊. */
 .mb-help-toggle{top:40px;cursor:help}
-.card:hover>.voice,.card:focus-within>.voice,.card>.voice:hover,.card>.voice:focus-visible{opacity:1;color:var(--title);border-color:var(--title)}
-@media(max-width:600px){.card>.voice,.mb-help-toggle{left:auto;right:10px}.card>.voice{top:10px}.mb-help-toggle{top:50px}}
+@media(max-width:600px){.mb-help-toggle{top:50px}}
 .card:hover .mb-help-toggle,.card:focus-within .mb-help-toggle,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
 .mb-help{clear:both;margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
 .mb-help-title{display:block;margin-bottom:4px;color:var(--title);font-family:STIXLocal,serif;font-variant-caps:small-caps;font-feature-settings:'smcp' 1;font-weight:650}
