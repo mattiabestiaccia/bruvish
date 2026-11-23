@@ -48,6 +48,9 @@
 .mb-icon{flex:none}
 .mb-subtitle{margin:-6px 0 14px;font-size:17px;color:var(--muted)}
 .mb-pills{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:12px}
+/* A pill that leads to a section: same look, a pointer and an underline on hover or focus. */
+a.mb-pill,a.mb-level{text-decoration:none;cursor:pointer}
+a.mb-pill:hover,a.mb-pill:focus-visible,a.mb-level:hover,a.mb-level:focus-visible{text-decoration:underline;text-underline-offset:3px}
 /* Notice above the header (a mockup, a test page): one dashed box, muted, set apart from the PR data. */
 .mb-notice{margin:0 0 18px;padding:8px 12px;font-size:16px;color:var(--muted);border:1px dashed var(--line);border-radius:8px}
 /* Tables of several columns; a level or outcome is a semantic colour halfway between a soft tint and a full fill. */

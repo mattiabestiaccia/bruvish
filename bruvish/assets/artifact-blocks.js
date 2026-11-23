@@ -116,13 +116,21 @@
             }
             catch { } return id ? document.getElementById(id) : null; };
             show(panelOf(target())?.id || panels[0]?.id);
-            links.forEach(link => link.addEventListener('click', event => {
+            // A tab link or a pill that leads to a section (data-mb-goto) opens that tab and keeps the hash in step.
+            const go = (event, id) => {
                 event.preventDefault();
-                show(link.dataset.mbTab);
+                show(id);
                 try {
-                    history.replaceState(null, '', '#' + link.dataset.mbTab);
+                    history.replaceState(null, '', '#' + id);
                 }
                 catch { }
+            };
+            links.forEach(link => link.addEventListener('click', event => go(event, link.dataset.mbTab)));
+            document.querySelectorAll('a[data-mb-goto]').forEach(link => link.addEventListener('click', event => {
+                if (!panels.some(panel => panel.id === link.dataset.mbGoto))
+                    return;
+                go(event, link.dataset.mbGoto);
+                link.ownerDocument.getElementById(link.dataset.mbGoto)?.scrollIntoView({ block: 'start' });
             }));
             window.addEventListener('hashchange', () => { const el = target(), panel = el && panelOf(el); if (!panel)
                 return; show(panel.id); if (el !== panel)

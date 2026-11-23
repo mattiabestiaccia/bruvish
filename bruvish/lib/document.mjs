@@ -272,13 +272,21 @@ function headerParts(header) {
     };
 }
 // A pill with "level": true is a level (risk, outcome): full semantic colour, like a level cell of a table.
-function pillsOf(pills) {
+// A pill with "section": "<id>" leads to that section (its tab, on a page with tabs), like «1 problema» to the diagnostics.
+function pillsOf(pills, sectionIds = []) {
     if (pills === undefined)
         return '';
     taggedList(pills, 'pills');
     if (pills.some(p => p.level !== undefined && typeof p.level !== 'boolean'))
         throw new Error('pills: level must be true or false, like { "text": "Rischio basso", "tone": "verde", "level": true }');
-    return '<div class="mb-pills">' + pills.map(p => '<span class="' + (p.level ? 'mb-level' : 'mb-pill') + '" data-tone="' + p.tone + '">' + inline(p.text) + '</span>').join('') + '</div>';
+    const wrong = pills.find(p => p.section !== undefined && !sectionIds.includes(p.section));
+    if (wrong)
+        throw new Error('pills: section must be the id of a section of this page, like { "text": "1 problema", "tone": "rosso", "section": "' + (sectionIds.at(-1) || 'diagnostica') + '" } (got ' + JSON.stringify(wrong.section) + ')');
+    return '<div class="mb-pills">' + pills.map(p => {
+        const kind = p.level ? 'mb-level' : 'mb-pill';
+        return p.section === undefined ? '<span class="' + kind + '" data-tone="' + p.tone + '">' + inline(p.text) + '</span>'
+            : '<a class="' + kind + '" data-tone="' + p.tone + '" href="#' + p.section + '" data-mb-goto="' + p.section + '" data-lavish-action>' + inline(p.text) + '</a>';
+    }).join('') + '</div>';
 }
 // A table of several columns. A cell is a string with inline marks, where « · » separates two items that go on two
 // lines (never two items on one line), or { text, tone } for a level or an outcome in its semantic colour.
@@ -643,5 +651,5 @@ export async function renderDocument(input, options = {}) {
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + '>' + head.notice + (actions ? '<header class="mb-header-actions"><div class="mb-header-main">' : '<header>') + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + (actions ? '</div>' + actions : '') + '</header>' + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + '>' + head.notice + (actions ? '<header class="mb-header-actions"><div class="mb-header-main">' : '<header>') + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills, (input.sections || []).map(section => section.id)) + (actions ? '</div>' + actions : '') + '</header>' + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }

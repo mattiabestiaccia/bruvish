@@ -2,7 +2,9 @@
 // «diagnostica», from the structured diagnostics of the page. Pages without diagnostics are unchanged.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import { renderDocument } from '../lib/document.mjs';
+import { createDocument, createWindow } from '../test-helpers/mini-dom.mjs';
 
 process.env.TZ = 'Europe/Rome';
 // 23 November 2026, 14:05 and 14:20 in Rome.
@@ -81,4 +83,30 @@ test('texts from the executor are escaped; an odd operation name is shown as tex
     assert.match(attempts, /<tr><td>adesso<\/td><td>x`&lt;b&gt;<\/td>/);
     assert.match(attempts, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
     assert.doesNotMatch(attempts, /<script>|<b>/);
+});
+
+const pills = [{ text: '**Approvata** da te · testa `abc1234`', tone: 'verde' }, { text: '**1 problema** · scheda Diagnostica', tone: 'rosso', section: 'diagnostica' }];
+
+test('the review pills render in the header; a pill with a section leads to that tab', async () => {
+    const html = await renderDocument(page({ pills }));
+    assert.match(html, /<div class="mb-pills"><span class="mb-pill" data-tone="verde"><strong>Approvata<\/strong> da te · testa <code>abc1234<\/code><\/span><a class="mb-pill" data-tone="rosso" href="#diagnostica" data-mb-goto="diagnostica" data-lavish-action><strong>1 problema<\/strong> · scheda Diagnostica<\/a><\/div>/);
+    const document = createDocument(html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''));
+    const window = createWindow(document);
+    vm.runInNewContext(/<\/style><script>([\s\S]*?)<\/script>/.exec(html)[1], window);
+    const files = document.getElementById('file'), diag = document.getElementById('diagnostica');
+    assert.equal(files.hidden, false);
+    assert.equal(diag.hidden, true);
+    document.querySelector('a[data-mb-goto]').click();
+    assert.equal(diag.hidden, false, 'the pill opens the Diagnostica tab');
+    assert.equal(files.hidden, true);
+    assert.equal(window.location.hash, '#diagnostica');
+    assert.equal(document.querySelector('a[data-mb-tab="diagnostica"]').getAttribute('aria-current'), 'page');
+});
+
+test('a level pill can lead to a section too; a section that is not on the page stops the render', async () => {
+    const html = await renderDocument(page({ pills: [{ text: 'Rischio alto', tone: 'rosso', level: true, section: 'file' }] }));
+    assert.match(html, /<a class="mb-level" data-tone="rosso" href="#file" data-mb-goto="file" data-lavish-action>Rischio alto<\/a>/);
+    await assert.rejects(renderDocument(page({ pills: [{ text: 'x', tone: 'rosso', section: 'altrove' }] })), /pills: section must be the id of a section of this page[\s\S]*\(got "altrove"\)/);
+    // Without a section, a pill keeps its markup.
+    assert.match(await renderDocument(page({ pills: [pills[0]] })), /<div class="mb-pills"><span class="mb-pill" data-tone="verde">/);
 });
