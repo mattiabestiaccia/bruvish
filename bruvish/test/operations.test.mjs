@@ -83,6 +83,23 @@ test('a card form needs its text when required, then two taps: the second queues
     assert.equal(status.textContent, '✓ Inviato all\'agente.');
 });
 
+test('two operations with the same name from different cards stay two prompts in the Lavish queue', async () => {
+    const { document, window } = boot(await renderDocument(page()));
+    const comment = document.getElementById('commento').querySelector('form'), review = document.getElementById('rev').querySelector('form');
+    comment.querySelector('.mb-op-text').value = 'Testo A';
+    comment.requestSubmit(); comment.requestSubmit();
+    review.querySelectorAll('input[type="radio"]').forEach(radio => { radio.checked = radio.value === 'commento'; });
+    review.querySelector('.mb-op-text').value = 'Testo B';
+    review.requestSubmit(); review.requestSubmit();
+    // Lavish chrome rule (src/chrome-client.js enqueuePrompt): a prompt with a non-empty queueKey replaces the queued one with the same key.
+    const queue = [];
+    for (const q of window.queued) {
+        const at = q.queueKey ? queue.findIndex(other => other.queueKey === q.queueKey) : -1;
+        if (at === -1) queue.push(q); else queue[at] = q;
+    }
+    assert.deepEqual(plainOf(queue.map(q => [q.data.operation, q.data.text])), [['commento', 'Testo A'], ['commento', 'Testo B']]);
+});
+
 test('the review form starts on the first enabled choice; a disabled choice stays off', async () => {
     const html = await renderDocument(page());
     assert.match(html, /<label class="mb-op-off"><input type="radio" name="mb-op-rev" value="approva" disabled>/);
@@ -100,7 +117,7 @@ test('a page without actions keeps its header; malformed actions stop the render
     plain.sections = [{ id: 's', title: 'S', cards: [{ id: 'a', title: 'A' }] }];
     const html = await renderDocument(plain);
     assert.match(html, /<main><header>/);
-    for (const bad of [{ ...actions, view: '' }, { ...actions, primary: [{ operation: 'Unisci!', label: 'x', confirm: 'y' }] }, { ...actions, menu: [{ operation: 'chiudi', label: 'x' }] }, 'x'])
+    for (const bad of [{ ...actions, view: '' }, { ...actions, primary: [{ operation: 'Unisci!', label: 'x', confirm: 'y' }] }, { ...actions, menu: [{ operation: 'chiudi', label: 'x' }] }, 'x', null, false, 0, ''])
         await assert.rejects(renderDocument(page({ actions: bad })), /actions must be/);
     const card = action => ({ ...page(), sections: [{ id: 's', title: 'S', cards: [{ id: 'a', title: 'A', action }] }] });
     for (const bad of [{ operation: 'commento', field: 'text' }, { operation: 'commento', submit: 'x', field: 'area' }, { submit: 'x', choices: [] }, { submit: 'x', choices: [{ operation: 'approva', label: 'A', disabled: true }] }])

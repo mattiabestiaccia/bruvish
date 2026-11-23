@@ -7,7 +7,7 @@
         const sendOperation = (operation, text, element) => {
             if (!window.lavish?.queuePrompt)
                 return false;
-            window.lavish.queuePrompt('Operazione ' + operation + (text ? ':\n' + text : ''), { tag: 'operation', text: 'Operazione: ' + operation, element, queueKey: 'operation:' + operation, data: { view, operation, text: text || '' } });
+            window.lavish.queuePrompt('Operazione ' + operation + (text ? ':\n' + text : ''), { tag: 'operation', text: 'Operazione: ' + operation, element, queueKey: '', data: { view, operation, text: text || '' } });
             window.lavish.sendQueuedPrompts?.();
             return true;
         };
