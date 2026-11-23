@@ -25,12 +25,12 @@
 [data-tone=decidi]{--mb-tone:#e8c35a}
 .mb-label[data-tone],.mb-pill[data-tone]{box-shadow:0 0 0 1px color-mix(in srgb,var(--mb-tone) 40%,transparent)}
 .mb-label[data-tone=decidi],.mb-pill[data-tone=decidi]{box-shadow:0 0 0 1.5px #e8c35acc,0 0 10px #e8c35a66}
-/* Help, as on the approved review page (.carta > .aiuto and .fumetto of revisione.css): a round «?» in the top right
-   corner of the card, half transparent until the card is hovered or focused; a click opens the bubble right under the
+/* Help, as on the approved review page (.carta > .aiuto and .fumetto of revisione.css): a round «?» in the column
+   right of the card, half transparent until the card is hovered or focused; a click opens the bubble right under the
    title row, before the content; another click, a click outside it or Esc closes it. Never on hover. */
-.card:has(.mb-help-toggle) .mb-card-head{padding-right:34px}
-.card:has(.mb-help-toggle)>.voice{margin-right:24px}
-.mb-help-toggle{position:absolute;top:10px;right:10px;width:24px;height:24px;padding:0;border:1px solid var(--line);border-radius:50%;font:600 14px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);cursor:help;opacity:.55;transition:opacity .2s}
+/* «?» is the second button of the round column of artifact.css, under 🔊. */
+.mb-help-toggle{top:40px;cursor:help}
+@media(max-width:600px){.mb-help-toggle{top:50px}}
 .card:hover .mb-help-toggle,.card:focus-within .mb-help-toggle,.mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
 .mb-help{clear:both;margin:0 0 14px;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.35)}
 .mb-help-title{display:block;margin-bottom:4px;color:var(--title);font-family:STIXLocal,serif;font-variant-caps:small-caps;font-feature-settings:'smcp' 1;font-weight:650}
@@ -176,7 +176,7 @@ nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-
 :where([data-mb-family=revisione]) mark{border-radius:3px;padding:0 .15em}
 /* cards: 20% narrower, in a central column; still glows, no pulse; very light tint of the category */
 [data-mb-family=revisione] .card{width:calc((100% - 18px) * .8);margin:0 auto 18px;padding:20px;border-radius:10px;scroll-margin-top:calc(var(--mb-tabs-height,0px) + 24px)}
-@media(max-width:600px){[data-mb-family=revisione] .card{width:100%}}
+@media(max-width:600px){[data-mb-family=revisione] .card{width:100%;padding-right:56px}}
 [data-mb-family=revisione] .card[data-mb-new]::after{animation:none}
 [data-mb-family=revisione] .card[data-mb-tone=verde]:not([data-mb-state=answered]),[data-mb-family=revisione] .card[data-mb-state=answered]{box-shadow:0 0 0 1px #63ca84aa,0 0 18px #63ca8466,inset 0 0 20px #63ca841f;background:linear-gradient(rgba(99,202,132,.07),rgba(99,202,132,.07)),var(--card)}
 [data-mb-family=revisione] .card[data-mb-state=info]:not([data-mb-tone]),[data-mb-family=revisione] .card[data-mb-tone=blu]:not([data-mb-state=answered]){box-shadow:0 0 0 1px #6bb5ffaa,0 0 18px #6bb5ff66,inset 0 0 20px #6bb5ff1f;background:linear-gradient(rgba(107,181,255,.07),rgba(107,181,255,.07)),var(--card)}
@@ -206,12 +206,11 @@ nav.mb-tabs a[aria-current=page]{color:var(--ink);background:var(--card);border-
 [data-mb-family=revisione] nav.mb-tabs a{font-size:17px;padding:6px 12px;border-radius:7px}
 [data-mb-family=revisione] .mb-count{background:none;border:0;padding:0;font-size:14px}
 /* diffs: each file a card-like block; the card that holds them loses its frame, so the files span the column (.pagina-file),
-   under one button (button.piccolo); «?» and 🔊 keep their corner and their gap */
+   under one button (button.piccolo); the round column of 🔊 and «?» stays right of it */
 [data-mb-family=revisione] .mb-diff-file{background:var(--card);border-radius:10px;margin:0 0 14px}
 [data-mb-family=revisione] .mb-diff-file>summary{padding:12px 16px}
-:root[data-mb-family=revisione] .card[data-mb-files][data-mb-state]{width:100%;padding:0;border:0;background:none;box-shadow:none}
-[data-mb-family=revisione] .card[data-mb-files] .mb-help-toggle{top:0;right:0}
-[data-mb-family=revisione] .card[data-mb-files]:has(.mb-help-toggle)>.voice{margin-right:34px}
+:root[data-mb-family=revisione] .card[data-mb-files][data-mb-state]{width:calc(100% - 48px);margin-left:0;margin-right:0;padding:0;border:0;background:none;box-shadow:none}
+@media(max-width:600px){:root[data-mb-family=revisione] .card[data-mb-files][data-mb-state]{width:100%;padding-right:44px}[data-mb-family=revisione] .card[data-mb-files]>.voice,[data-mb-family=revisione] .card[data-mb-files] .mb-help-toggle{right:0}[data-mb-family=revisione] .card[data-mb-files]>.voice{top:0}[data-mb-family=revisione] .card[data-mb-files] .mb-help-toggle{top:40px}}
 .mb-diff-tools{margin:0 0 12px}
 .mb-diff-all{font-size:15px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 10px}
 .mb-diff-all:hover{color:var(--ink);border-color:var(--title)}

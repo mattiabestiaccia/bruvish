@@ -77,6 +77,55 @@ function computed(css, el, width = 1024) {
   return Object.fromEntries(found.map(d => [d.name, d.value]));
 }
 
+// A CSS length in px: px, %, vw, var() and calc/min/max/clamp; % against `base`, vw against the viewport.
+function cssLength(value, base, viewport, lookup = () => undefined) {
+  if (value === undefined || value === 'auto' || value === 'none') return NaN;
+  for (let v; (v = /var\((--[\w-]+)\)/.exec(value));) value = value.replace(v[0], lookup(v[1]) ?? 'NaN');
+  const expr = value.replace(/calc\(/g, '(').replace(/(\d*\.?\d+)(px|%|vw)?/g, (_, n, unit) => unit === '%' ? `(${n}*${base}/100)` : unit === 'vw' ? `(${n}*${viewport}/100)` : n);
+  assert.match(expr, /^(?:[\d.+\-*/(), ]|min|max|clamp|NaN)*$/, 'length not supported by the test layout: ' + value);
+  return Function('min', 'max', 'clamp', 'return ' + expr)(Math.min, Math.max, (lo, v, hi) => Math.max(lo, Math.min(v, hi)));
+}
+
+// The horizontal box of an element laid out by the cascade, in px from the left of its parent's content box: block
+// width auto fills the parent, max-width caps it, auto margins share the free space; border-box sizing, as
+// `*{box-sizing:border-box}` sets. Longhands (margin-left, margin-inline) win over the shorthand.
+function layoutBox(css, el, viewport) {
+  if (!el.parent?.tagName || el.parent.tagName === '#root') return { left: 0, width: viewport, border: [0, 0], inner: viewport, innerLeft: 0, parent: viewport };
+  const look = computed(css, el, viewport), base = layoutBox(css, el.parent, viewport).inner;
+  const lookup = name => { for (let n = el; n?.tagName; n = n.parent) { const v = computed(css, n, viewport)[name]; if (v !== undefined) return v; } };
+  const words = value => { const out = []; let depth = 0, cur = ''; for (const c of value + ' ') { depth += c === '(' ? 1 : c === ')' ? -1 : 0; if (c === ' ' && !depth) { if (cur) out.push(cur); cur = ''; } else cur += c; } return out; };
+  const length = value => cssLength(value, base, viewport, lookup);
+  const sides = prop => {
+    const all = words(look[prop] ?? '0'), inline = look[prop + '-inline'] && words(look[prop + '-inline']);
+    return [look[prop + '-left'] ?? inline?.[0] ?? all[3] ?? all[1] ?? all[0], look[prop + '-right'] ?? inline?.[1] ?? inline?.[0] ?? all[1] ?? all[0]].map(length);
+  };
+  const [ml, mr] = sides('margin'), padding = sides('padding'), edge = words(look.border ?? '0')[0], border = [0, 0].map(() => /^\d/.test(edge) ? length(edge) : 0);
+  let width = length(look.width);
+  if (Number.isNaN(width)) width = base - (ml || 0) - (mr || 0);
+  if (!Number.isNaN(length(look['max-width']))) width = Math.min(width, length(look['max-width']));
+  const free = base - width - (ml || 0) - (mr || 0), left = Number.isNaN(ml) ? (Number.isNaN(mr) ? free / 2 : free) : ml;
+  return { left, width, border, inner: width - padding[0] - padding[1] - border[0] - border[1], innerLeft: left + border[0] + padding[0], parent: base };
+}
+
+// 🔊 and «?» form one column of absolutely positioned buttons: just right of the card, inside the page, where a
+// gutter exists; inside the card on a phone, with the text ending before the buttons. Measured on the laid-out boxes.
+function assertColumn(css, card, buttons, viewport, label) {
+  const c = layoutBox(css, card, viewport), padBox = c.width - c.border[0] - c.border[1], cardEnd = c.left + c.width;
+  const [v, ...others] = buttons.map(button => {
+    const b = computed(css, button, viewport), size = cssLength(b.width, padBox, viewport);
+    const at = b.left !== undefined && b.left !== 'auto' ? cssLength(b.left, padBox, viewport) : padBox - cssLength(b.right, padBox, viewport) - size;
+    return { start: c.left + c.border[0] + at, size };
+  });
+  for (const t of others) assert.equal(t.start, v.start, label + ': one column');
+  if (viewport > 600) {
+    assert(v.start >= cardEnd && v.start - cardEnd < v.size, label + ': just right of the card (' + (v.start - cardEnd) + 'px)');
+    assert(v.start + v.size <= c.parent, label + ': the column stays inside the page (' + (v.start + v.size) + ' > ' + c.parent + ')');
+  } else {
+    assert(v.start + v.size <= cardEnd, label + ': inside the card on a phone');
+    assert(c.innerLeft + c.inner <= v.start, label + ': the text never runs under the buttons');
+  }
+}
+
 test('pages without the new fields render byte for byte as before, with the base assets only', async () => {
   // Hashes of the page skeleton computed on carry before the building blocks existed (5f9757a).
   const before = { dummy: '8c899f6300efd2e1b560bc1e4d5270fae7bb2d95cefb32caa353a58c06698f99', 'carte-complete': '14a5287082fb19399da30e8d483253b8b64ae47afb77eee5cdf649181ae6258e' };
@@ -144,26 +193,37 @@ test('the bubble joins the fixed meaning and a summary of this card; the voice r
     await assert.rejects(render(doc([card(bad)])), /Card a: (voice|summary)/);
 });
 
-test('voice sits left of the corner help with a gap at every card breakpoint, and the bubble stays below both', async () => {
+test('🔊 and «?» are the same round button, stacked in a column just right of the card, in every theme and at every breakpoint', async () => {
   for (const theme of ['B', 'F', 'E2', 'G2', 'D3', 'revisione']) {
     const html = await render(doc([card({ help: 'Serve.' }), card({ id: 'plain' })], { theme }));
     const { document } = boot(html), css = styleOf(html), container = document.getElementById('a');
     const voice = container.querySelector('.voice'), toggle = container.querySelector('[data-mb-help]');
     for (const width of [1024, 601, 600, 390, 240]) {
       const look = el => computed(css, el, width), px = value => parseFloat(value) || 0;
-      const cardLook = look(container), voiceLook = look(voice), toggleLook = look(toggle);
-      assert.equal(voiceLook.float, 'right');
-      assert.equal(toggleLook.position, 'absolute');
-      assert.equal(toggleLook.right, '10px');
-      assert.equal(toggleLook.top, '10px');
-      const voiceRight = px(cardLook['padding-right'] || cardLook.padding) + px(voiceLook['margin-right']);
-      const helpLeft = px(toggleLook.right) + px(toggleLook.width);
-      assert(voiceRight > helpLeft, theme + ' at ' + width + ': voice and help have separate hit areas');
-      assert.equal(look(document.getElementById('plain').querySelector('.voice'))['margin-right'], undefined);
-      assert.equal(look(container.querySelector('.mb-help')).clear, 'both', 'the bubble cannot paint under the floated voice');
+      const voiceLook = look(voice), toggleLook = look(toggle);
+      for (const key of ['position', 'width', 'height', 'border-radius', 'font']) assert.equal(voiceLook[key], toggleLook[key], theme + ' at ' + width + ': both buttons share ' + key);
+      assert.equal(voiceLook.position, 'absolute');
+      assert.equal(voiceLook.width, voiceLook.height, 'square box, so round with a 50% radius');
+      assert.equal(voiceLook['border-radius'], '50%');
+      assert(px(toggleLook.top) >= px(voiceLook.top) + px(voiceLook.height), theme + ' at ' + width + ': «?» is stacked under 🔊');
+      assert.equal(voiceLook.float, undefined, 'the voice no longer floats in the text');
+      assertColumn(css, container, [voice, toggle], width, theme + ' at ' + width);
+      assert.equal(look(container.querySelector('.mb-help')).clear, 'both');
     }
+    assert.match(container.innerHTML || html, /class="voice"/);
     toggle.click();
     assert.equal(container.querySelector('.mb-help').hidden, false);
+  }
+  // Pages without building blocks load only the base stylesheet: their 🔊 is the same round button in the same column.
+  for (const name of ['dummy', 'carte-complete']) {
+    const html = await render(await example(name)), css = styleOf(html), { document } = boot(html);
+    assert.equal(css, fontsCss + '\n' + baseCss, name + ': base assets only');
+    const first = document.querySelector('article.card'), voice = first.querySelector('.voice');
+    for (const width of [1024, 601, 600, 390]) {
+      const look = computed(css, voice, width);
+      assert.deepEqual([look.position, look.width === look.height, look['border-radius']], ['absolute', true, '50%'], name + ' at ' + width + ': round button');
+      assertColumn(css, first, [voice], width, name + ' at ' + width);
+    }
   }
 });
 
@@ -775,7 +835,7 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
   // (3) The files sit in the column without a card around them, under one button; the reviewer note glows under its line.
   const files = document.getElementById('carta-diff');
   const frame = look(files);
-  assert.deepEqual([frame.width, frame.padding, frame.border, frame.background, frame['box-shadow']], ['100%', '0', '0', 'none', 'none']);
+  assert.deepEqual([frame.width, frame.padding, frame.border, frame.background, frame['box-shadow']], ['calc(100% - 48px)', '0', '0', 'none', 'none']);
   const [toggleAll] = document.querySelectorAll('[data-mb-diff-all]'), details = files.querySelectorAll('details.mb-diff-file');
   assert.equal(document.querySelectorAll('[data-mb-diff-all]').length, 1);
   assert.equal(details.length, 2);
@@ -798,11 +858,13 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
   details[1].removeAttribute('open');
   document.dispatch(details[1], 'toggle');
   assert.equal(toggleAll.textContent, 'Apri tutti', 'the button follows a file closed by its own name');
-  // 🔊 stays beside «?» on the files page too, with separate hit areas.
+  // On the files page too, 🔊 and «?» form the same round column right of the card, never over the diffs.
   const voice = files.querySelector('.voice'), help = files.querySelector('[data-mb-help]');
   for (const width of [1024, 600, 390]) {
-    const px = v => parseFloat(v) || 0, v = look(voice, width), h = look(help, width), c = look(files, width);
-    assert(px(c['padding-right'] || c.padding) + px(v['margin-right']) > px(h.right) + px(h.width), 'files page at ' + width + ': voice and help do not overlap');
+    const px = v => parseFloat(v) || 0, v = look(voice, width), h = look(help, width);
+    assert.equal(v.width, h.width, 'files page at ' + width + ': same size');
+    assert(px(h.top) >= px(v.top) + px(v.height), 'files page at ' + width + ': stacked');
+    assertColumn(css, files, [voice, help], width, 'files page at ' + width);
   }
   // The file name opens with an arrow that turns when the file opens, then the state and the coloured counts (S5).
   assert.deepEqual(details.map(d => d.querySelector('summary').textContent), ['▸src/cli.tsmodificato · +1 −1', '▸tests/cli.test.tsmodificato · +11']);
