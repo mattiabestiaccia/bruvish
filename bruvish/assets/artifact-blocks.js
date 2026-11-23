@@ -4,7 +4,10 @@
         // Page operations (S20). Header and «⋯» menu: a click opens a confirmation dropdown that says what happens; «Conferma»
         // queues the operation and sends it. Card forms: a text, then two taps on the button (choose, then confirm).
         const view = document.querySelector('main[data-mb-view]')?.dataset.mbView || '';
-        const sentText = fallback => fallback;
+        // On a page operated by an executor the outcome comes from the executor, in the Lavish panel and in the
+        // diagnostics; elsewhere the operation goes to the agent.
+        const executor = !!document.querySelector('main[data-mb-executor]');
+        const sentText = fallback => executor ? '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.' : fallback;
         const sendOperation = (operation, text, element) => {
             if (!window.lavish?.queuePrompt)
                 return false;
@@ -74,7 +77,7 @@
                     return;
                 }
                 disarm();
-                status.textContent = sendOperation(operation, text, form) ? '✓ Inviato all\'agente.' : 'Lavish non è collegato: scrivi in chat.';
+                status.textContent = sendOperation(operation, text, form) ? sentText('✓ Inviato all\'agente.') : 'Lavish non è collegato: scrivi in chat.';
             });
         });
         // Comparison matrix (form C): a tapped cell shows its reason in the box under the table; a tapped option highlights

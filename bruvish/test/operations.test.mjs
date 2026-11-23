@@ -210,3 +210,29 @@ test('without variant the review card renders as before; a wrong variant or a va
     await assert.rejects(renderDocument(one({ ...flow, action: { operation: 'commento', field: 'text', submit: 'Invia' } })), /variant "flusso" needs an action with choices/);
     await assert.rejects(renderDocument(one({ id: 'x', title: 'X', variant: 'flusso' })), /variant "flusso" needs an action with choices/);
 });
+
+test('on a page operated by an executor the post-send text says where the outcome arrives; the notice sits above the header', async () => {
+    const executorPage = page({ actions: { ...actions, fixed: [reviewer] }, diagnostics: { attempts: [], problem: null }, header: { subtitle: 'Unisce `a` in `b`', notice: 'Pagina rifatta dall\'esecutore dopo «Unisci».' } });
+    const html = await renderDocument(executorPage);
+    assert.match(html, /<main data-mb-view="v1234" data-mb-executor><p class="mb-notice">Pagina rifatta dall&#39;esecutore dopo «Unisci»\.<\/p><header class="mb-header-actions">/);
+    const { document } = boot(html);
+    const box = document.querySelector('.mb-confirm');
+    document.querySelector('.mb-action-main').click();
+    box.querySelector('.mb-confirm-yes').click();
+    assert.equal(box.textContent, '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.');
+    document.querySelector('.mb-action-fixed').click();
+    box.querySelector('.mb-confirm-field').value = 'octocat';
+    box.querySelector('.mb-confirm-yes').click();
+    assert.equal(box.textContent, '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.');
+    const form = document.getElementById('commento').querySelector('form');
+    form.querySelector('.mb-op-text').value = 'Bene.';
+    form.requestSubmit(); form.requestSubmit();
+    assert.equal(form.querySelector('.mb-op-status').textContent, '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.');
+    // Without diagnostics the page keeps the agent wording, and main has no executor mark.
+    const plain = await renderDocument(page());
+    assert.match(plain, /<main data-mb-view="v1234">/);
+    const other = boot(plain).document;
+    other.querySelector('.mb-action-main').click();
+    other.querySelector('.mb-confirm-yes').click();
+    assert.equal(other.querySelector('.mb-confirm').textContent, '✓ Segna come pronta: inviato all\'agente.');
+});
