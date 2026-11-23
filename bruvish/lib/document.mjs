@@ -476,6 +476,51 @@ function questionText(card, q, answer) {
     const shown = t.for === undefined || t.for.includes(answer?.choice);
     return '<div class="mb-answer-text"' + (t.for === undefined ? '' : ' data-mb-for="' + escape(JSON.stringify(t.for.map(String))) + '"') + (shown ? '' : ' hidden') + '><label><span class="mb-answer-label">' + inline(t.label ?? 'Il tuo testo') + '</span><textarea data-mb-field="' + card.id + ':text" name="text" rows="3"' + (t.placeholder ? ' placeholder="' + escape(t.placeholder) + '"' : '') + '>' + escape(typeof answer?.text === 'string' ? answer.text : '') + '</textarea></label></div>';
 }
+// Diagnostics of an operation executor (diagnostics in the page JSON): what the executor did with each operation the page
+// or the chat sent. Bruvish renders two cards at the top of the section «diagnostica» (added at the end when the page
+// has none): the last problem, framed in its colour, and the table of the attempts, most recent first. The executor
+// writes these facts, never the agent; times are Unix seconds, shown in the local time of the renderer.
+const OUTCOMES = { fatto: ['Fatto', 'verde'], parziale: ['Fatto a metà', 'giallo'], rimandato: ['Rimandato', 'giallo'], rifiutato: ['Rifiutato', 'rosso'], incerto: ['Incerto', 'rosso'], scartato: ['Scartato', 'blu'] };
+const outcomeOf = value => value === undefined || value === null || value === '' ? ['In corso', 'giallo'] : OUTCOMES[value] || [String(value), 'blu'];
+const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+const two = n => String(n).padStart(2, '0');
+const localTime = t => { if (typeof t === 'string' && t.trim()) return t; if (typeof t !== 'number' || !Number.isFinite(t)) return '—'; const d = new Date(t * 1000); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ', ' + two(d.getHours()) + ':' + two(d.getMinutes()); };
+const ATTEMPT_TEXTS = ['id', 'operazione', 'fonte', 'esito', 'motivo', 'passo', 'dettaglio', 'frase'];
+// An operation name shows as code when it is a plain identifier; anything else stays text, escaped like every other.
+const operationText = op => typeof op === 'string' && OP_ID.test(op) ? '`' + op + '`' : (op ? String(op) : '?');
+function withDiagnostics(input) {
+    const d = input.diagnostics;
+    if (d === undefined)
+        return input;
+    const shape = 'diagnostics must be { "attempts": [{ "ora": 1795435566, "operazione": "unisci", "fonte": "pagina", "esito": "rifiutato", "motivo": "...", "passo": "...", "dettaglio": "...", "frase": "..." }], "total": 1, "problem": { ...the last attempt that did not succeed } | null }';
+    const attemptOk = a => a && typeof a === 'object' && !Array.isArray(a) && ATTEMPT_TEXTS.every(k => a[k] === undefined || a[k] === null || typeof a[k] === 'string')
+        && (a.ora === undefined || a.ora === null || typeof a.ora === 'string' || (typeof a.ora === 'number' && Number.isFinite(a.ora)));
+    if (!d || typeof d !== 'object' || Array.isArray(d) || (d.attempts !== undefined && (!Array.isArray(d.attempts) || !d.attempts.every(attemptOk)))
+        || (d.total !== undefined && !(Number.isInteger(d.total) && d.total >= 0)) || (d.problem !== undefined && d.problem !== null && !attemptOk(d.problem)))
+        throw new Error(shape);
+    const attempts = d.attempts || [], total = Math.max(d.total ?? attempts.length, attempts.length), cards = [];
+    if (d.problem) {
+        const p = d.problem, [label, tone] = outcomeOf(p.esito), serious = tone === 'rosso';
+        const fields = [{ label: 'Operazione', paragraphs: [[operationText(p.operazione), localTime(p.ora), p.fonte].filter(Boolean).join(' · ')] },
+            { label: 'Causa', paragraphs: [p.motivo || '—'] }, { label: 'Cosa fare', paragraphs: [p.passo || '—'] }, ...(p.frase ? [{ label: 'Frase', paragraphs: ['«' + p.frase + '»'] }] : [])];
+        cards.push({ id: 'mb-diag-problem', title: 'Ultimo problema', tone, ...(serious ? { status: 'blocked' } : {}), labels: [{ text: label, tone }], fields,
+            ...(p.dettaglio ? { transcript: { summary: 'Dettaglio tecnico', text: p.dettaglio } } : {}) });
+    }
+    const help = 'Il registro dell\'esecutore delle operazioni, scritto dall\'esecutore e non dall\'agente. **Rifiutato** vuol dire che l\'operazione non è partita; **Incerto** vuol dire: controlla a mano prima di riprovare.';
+    cards.push(attempts.length ? {
+        id: 'mb-diag-attempts', title: 'Tentativi', help,
+        table: { headers: ['Ora', 'Operazione', 'Fonte', 'Esito', 'Motivo', 'Cosa fare'], rows: attempts.map(a => {
+            const [label, tone] = outcomeOf(a.esito);
+            return [localTime(a.ora), operationText(a.operazione), a.fonte || '—', { text: label, tone }, (a.motivo || '—') + (a.frase ? ' · Frase: «' + a.frase + '»' : ''), a.passo || '—'];
+        }) },
+        notes: [attempts.length + ' di ' + total + ', dal più recente.'],
+    } : { id: 'mb-diag-attempts', title: 'Tentativi', help, paragraphs: ['Nessun tentativo.'] });
+    const sections = input.sections || [];
+    const at = sections.findIndex(s => s && s.id === 'diagnostica');
+    return { ...input, sections: at < 0
+            ? [...sections, { id: 'diagnostica', title: 'Diagnostica', ...(total ? { count: total } : {}), cards }]
+            : sections.map((s, i) => i === at ? { ...s, cards: [...cards, ...(s.cards || [])] } : s) };
+}
 // The index of the sections. With tabs: true it is the tab bar: artifact-blocks.js shows one
 // section at a time; without JS every section stays visible, one under the other. A section count shows beside its title.
 function sectionIndex(input) {
@@ -491,7 +536,7 @@ function sectionIndex(input) {
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action', 'variant'];
-const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions'];
+const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions', 'diagnostics'];
 const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
@@ -527,6 +572,7 @@ const sameCards = (a, b) => { const ka = Object.keys(a || {}), kb = Object.keys(
 export async function renderDocument(input, options = {}) {
     if (!input.title)
         throw new Error('title and a collapsible usage guide are required');
+    input = withDiagnostics(input);
     const state = input.state || { revision: 0, answers: {}, comments: [] };
     const previous = typeof options.previous === 'string' ? renderRecord(options.previous) : (options.previous || null);
     if (input.theme !== undefined && !FAMILIES.includes(input.theme) && !NAMED_THEMES.includes(input.theme))
