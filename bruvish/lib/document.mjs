@@ -166,7 +166,7 @@ function headerActions(actions) {
     const shape = 'actions must be { "view": "<id of this page>", "primary": [{ "operation": "unisci", "label": "Unisci", "confirm": "What happens." }], "menu": [{ "operation": "chiudi", "label": "Chiudi", "hint": "...", "confirm": "...", "danger": true }], "fixed": [{ "operation": "revisore", "label": "Assegna un revisore", "confirm": "...", "field": "line", "placeholder": "...", "required": true }] }';
     const item = o => o && typeof o === 'object' && !Array.isArray(o) && OP_ID.test(o.operation || '') && typeof o.label === 'string' && o.label.trim()
         && typeof o.confirm === 'string' && o.confirm.trim() && (o.hint === undefined || typeof o.hint === 'string') && (o.danger === undefined || typeof o.danger === 'boolean');
-    // A fixed operation may ask for a text in its confirmation dropdown: a single line (a login) or a longer text.
+    // A fixed operation may ask for a text in its confirmation dropdown: a single line (a login).
     const fixedItem = o => item(o) && (o.field === undefined || o.field === 'line') && (o.placeholder === undefined || typeof o.placeholder === 'string')
         && (o.required === undefined || typeof o.required === 'boolean') && !(o.required && o.field === undefined);
     if (!actions || typeof actions !== 'object' || Array.isArray(actions) || typeof actions.view !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(actions.view)
