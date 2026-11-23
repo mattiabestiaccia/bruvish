@@ -204,6 +204,18 @@ function cardAction(card) {
     return '<form class="mb-op-form" data-mb-op-form' + (choices ? '' : ' data-mb-op="' + a.operation + '"' + (a.required ? ' data-mb-required' : '')) + '>' + radios + field +
         '<div class="mb-op-row"><span class="mb-op-status" role="status"></span><button type="submit" class="mb-op-submit">' + inline(a.submit) + '</button></div></form>';
 }
+// Card variant. "flusso": a review that goes through a flow of its own (each choice starts a sequence of steps, said in
+// its hint and in the card paragraphs). The choices become tiles, label and what happens, with the chosen one framed.
+const VARIANTS = ['flusso'];
+function cardVariant(card) {
+    if (card.variant === undefined)
+        return '';
+    if (!VARIANTS.includes(card.variant))
+        throw new Error('Card ' + card.id + ': variant must be one of ' + VARIANTS.join(', ') + ' or absent (got ' + JSON.stringify(card.variant) + ')');
+    if (!card.action || !Array.isArray(card.action.choices))
+        throw new Error('Card ' + card.id + ': variant "flusso" needs an action with choices, like { "submit": "Invia", "choices": [{ "operation": "approva", "label": "Approva", "hint": "What happens." }] }');
+    return ' data-mb-variant="' + card.variant + '"';
+}
 // The text the 🔊 reads: written for this card (its main facts, for listening); without it the button reads the card.
 function voiceText(card) {
     if (card.voice === undefined)
@@ -478,7 +490,7 @@ function sectionIndex(input) {
 }
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
-const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action'];
+const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action', 'variant'];
 const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions'];
 const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
@@ -574,7 +586,7 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));

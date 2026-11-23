@@ -252,4 +252,13 @@ textarea.mb-op-text{min-height:90px}
 .mb-op-choices label small{display:block;color:var(--muted)}
 .mb-op-choices label.mb-op-off{opacity:.5;cursor:not-allowed}
 .mb-op-status{font-size:14px;color:var(--muted);margin-right:auto}
+/* Card variant «flusso»: the review choices are tiles, the label on top and what happens under it; the chosen tile is
+   framed in the accent, an off choice stays dimmed. */
+.card[data-mb-variant=flusso] .mb-op-choices{gap:10px}
+.card[data-mb-variant=flusso] .mb-op-choices label{position:relative;flex-direction:column;gap:6px;padding:12px 14px;border-radius:10px;background:var(--field);font-size:17px;font-weight:650;transition:border-color .15s,box-shadow .15s}
+.card[data-mb-variant=flusso] .mb-op-choices label input{position:absolute;opacity:0;pointer-events:none}
+.card[data-mb-variant=flusso] .mb-op-choices label small{font-size:15px;font-weight:400;line-height:1.35}
+.card[data-mb-variant=flusso] .mb-op-choices label:has(input:checked){border-color:var(--title);box-shadow:0 0 0 1px var(--title),0 0 14px color-mix(in srgb,var(--title) 35%,transparent)}
+.card[data-mb-variant=flusso] .mb-op-choices label:has(input:focus-visible){outline:2px solid var(--title);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.card[data-mb-variant=flusso] .mb-op-choices label{transition:none}}
 @media(max-width:760px){header.mb-header-actions{grid-template-columns:minmax(0,1fr)}.mb-actions{align-items:stretch}.mb-op-choices{grid-template-columns:minmax(0,1fr)}}

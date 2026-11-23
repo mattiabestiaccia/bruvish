@@ -176,3 +176,37 @@ test('the fixed operation asks for its text in the confirmation: empty refuses, 
     assert.equal(box.querySelector('.mb-confirm-field'), null);
     assert.equal(box.querySelector('.mb-op-status'), null);
 });
+
+const flow = {
+    id: 'operazione-revisione', title: 'La tua revisione', variant: 'flusso',
+    paragraphs: ['La PR l\'ha aperta il tuo account: la revisione passa dal flusso.', '**Chiedi modifiche** rimette la PR in bozza. **Approva** la segna pronta.'],
+    action: { submit: 'Invia la revisione', placeholder: 'Il motivo, o il commento', choices: [
+        { operation: 'correzione', label: 'Chiedi modifiche', required: true, hint: 'serve il motivo: revisione, bozza, correzione' },
+        { operation: 'approva-pronta', label: 'Approva', hint: 'approvazione e PR pronta; unire resta un clic' },
+        { operation: 'commento', label: 'Solo commento', hint: 'senza esito', required: true }] },
+};
+
+test('a card with variant "flusso" renders its choices as tiles and sends the chosen flow operation with its text', async () => {
+    const html = await renderDocument(page({ sections: [{ id: 'revisione', title: 'Revisione', cards: [flow] }] }));
+    assert.match(html, /<article class="card" id="operazione-revisione" data-mb-state="info" data-mb-variant="flusso">/);
+    assert.match(html, /<span class="sentence"><strong>Chiedi modifiche<\/strong> rimette la PR in bozza\.<\/span>/);
+    assert.match(html, /<input type="radio" name="mb-op-operazione-revisione" value="correzione" data-mb-required checked><span>Chiedi modifiche<small>serve il motivo: revisione, bozza, correzione<\/small><\/span>/);
+    const { document, window } = boot(html);
+    const form = document.getElementById('operazione-revisione').querySelector('form');
+    form.requestSubmit();
+    assert.equal(form.querySelector('.mb-op-status').textContent, 'Scrivi il testo prima di inviare.', 'Chiedi modifiche needs the reason');
+    form.querySelectorAll('input[type="radio"]').forEach(radio => { radio.checked = radio.value === 'approva-pronta'; });
+    form.requestSubmit(); form.requestSubmit();
+    assert.deepEqual(plainOf(window.queued.map(q => q.data)), [{ view: 'v1234', operation: 'approva-pronta', text: '' }], 'Approva goes without a text');
+});
+
+test('without variant the review card renders as before; a wrong variant or a variant without choices stops the render', async () => {
+    const { variant: _, ...plain } = flow;
+    const html = await renderDocument(page({ sections: [{ id: 'revisione', title: 'Revisione', cards: [plain] }] }));
+    assert.match(html, /<article class="card" id="operazione-revisione" data-mb-state="info"><button class="voice"/);
+    assert.doesNotMatch(html.slice(html.indexOf('<body>')), /data-mb-variant/);
+    const one = card => page({ sections: [{ id: 'revisione', title: 'Revisione', cards: [card] }] });
+    await assert.rejects(renderDocument(one({ ...flow, variant: 'percorso' })), /Card operazione-revisione: variant must be one of flusso or absent/);
+    await assert.rejects(renderDocument(one({ ...flow, action: { operation: 'commento', field: 'text', submit: 'Invia' } })), /variant "flusso" needs an action with choices/);
+    await assert.rejects(renderDocument(one({ id: 'x', title: 'X', variant: 'flusso' })), /variant "flusso" needs an action with choices/);
+});
