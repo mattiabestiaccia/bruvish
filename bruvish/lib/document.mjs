@@ -163,18 +163,25 @@ const OP_ID = /^[a-z][a-z0-9-]{0,39}$/;
 function headerActions(actions) {
     if (actions === undefined)
         return '';
-    const shape = 'actions must be { "view": "<id of this page>", "primary": [{ "operation": "unisci", "label": "Unisci", "confirm": "What happens." }], "menu": [{ "operation": "chiudi", "label": "Chiudi", "hint": "...", "confirm": "...", "danger": true }] }';
+    const shape = 'actions must be { "view": "<id of this page>", "primary": [{ "operation": "unisci", "label": "Unisci", "confirm": "What happens." }], "menu": [{ "operation": "chiudi", "label": "Chiudi", "hint": "...", "confirm": "...", "danger": true }], "fixed": [{ "operation": "revisore", "label": "Assegna un revisore", "confirm": "...", "field": "line", "placeholder": "...", "required": true }] }';
     const item = o => o && typeof o === 'object' && !Array.isArray(o) && OP_ID.test(o.operation || '') && typeof o.label === 'string' && o.label.trim()
         && typeof o.confirm === 'string' && o.confirm.trim() && (o.hint === undefined || typeof o.hint === 'string') && (o.danger === undefined || typeof o.danger === 'boolean');
+    // A fixed operation may ask for a text in its confirmation dropdown: a single line (a login).
+    const fixedItem = o => item(o) && (o.field === undefined || o.field === 'line') && (o.placeholder === undefined || typeof o.placeholder === 'string')
+        && (o.required === undefined || typeof o.required === 'boolean') && !(o.required && o.field === undefined) && o.danger === undefined;
     if (!actions || typeof actions !== 'object' || Array.isArray(actions) || typeof actions.view !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(actions.view)
-        || (actions.primary !== undefined && !Array.isArray(actions.primary)) || (actions.menu !== undefined && !Array.isArray(actions.menu))
-        || ![...(actions.primary || []), ...(actions.menu || [])].every(item))
+        || (actions.primary !== undefined && !Array.isArray(actions.primary)) || (actions.menu !== undefined && !Array.isArray(actions.menu)) || (actions.fixed !== undefined && !Array.isArray(actions.fixed))
+        || ![...(actions.primary || []), ...(actions.menu || [])].every(item) || !(actions.fixed || []).every(fixedItem))
         throw new Error(shape);
     const attrs = o => ' data-mb-op="' + o.operation + '" data-mb-confirm-title="' + escape(o.label) + '" data-mb-confirm="' + escape(inline(o.confirm)) + '"';
     const primary = (actions.primary || []).length ? '<div class="mb-actions-primary">' + actions.primary.map((o, i) => '<button type="button" class="mb-action' + (i === 0 ? ' mb-action-main' : '') + '"' + attrs(o) + '>' + inline(o.label) + '</button>').join('') + '</div>' : '';
+    // Fixed operations are always visible beside the main ones, whatever the state of the page; they never become the
+    // main alternative. Without them the header keeps the markup it had before.
+    const fieldAttrs = o => o.field === undefined ? '' : ' data-mb-field-kind="' + o.field + '"' + (o.placeholder ? ' data-mb-placeholder="' + escape(o.placeholder) + '"' : '') + (o.required ? ' data-mb-required' : '');
+    const fixed = (actions.fixed || []).length ? '<div class="mb-actions-fixed">' + actions.fixed.map(o => '<button type="button" class="mb-action-fixed"' + attrs(o) + fieldAttrs(o) + '>' + inline(o.label) + '</button>').join('') + '</div>' : '';
     const menu = (actions.menu || []).length ? '<details class="mb-actions-menu"><summary>Altre operazioni ⋯</summary><div class="mb-actions-items">' +
         actions.menu.map(o => '<button type="button" class="mb-action-item' + (o.danger ? ' mb-danger' : '') + '"' + attrs(o) + '>' + inline(o.label) + (o.hint ? '<small>' + inline(o.hint) + '</small>' : '') + '</button>').join('') + '</div></details>' : '';
-    return '<div class="mb-actions" data-mb-actions>' + primary + menu + '<div class="mb-confirm" role="dialog" aria-label="Conferma" hidden></div></div>';
+    return '<div class="mb-actions" data-mb-actions>' + (fixed ? '<div class="mb-actions-row">' + primary + fixed + '</div>' : primary) + menu + '<div class="mb-confirm" role="dialog" aria-label="Conferma" hidden></div></div>';
 }
 // A card operation: a text field (comment), a single-line field (login), or a choice among review outcomes with a text.
 function cardAction(card) {
@@ -196,6 +203,18 @@ function cardAction(card) {
     const field = choices || a.field === 'text' ? '<textarea class="mb-op-text" placeholder="' + ph + '"></textarea>' : '<input type="text" class="mb-op-text" placeholder="' + ph + '">';
     return '<form class="mb-op-form" data-mb-op-form' + (choices ? '' : ' data-mb-op="' + a.operation + '"' + (a.required ? ' data-mb-required' : '')) + '>' + radios + field +
         '<div class="mb-op-row"><span class="mb-op-status" role="status"></span><button type="submit" class="mb-op-submit">' + inline(a.submit) + '</button></div></form>';
+}
+// Card variant. "flusso": a review that goes through a flow of its own (each choice starts a sequence of steps, said in
+// its hint and in the card paragraphs). The choices become tiles, label and what happens, with the chosen one framed.
+const VARIANTS = ['flusso'];
+function cardVariant(card) {
+    if (card.variant === undefined)
+        return '';
+    if (!VARIANTS.includes(card.variant))
+        throw new Error('Card ' + card.id + ': variant must be one of ' + VARIANTS.join(', ') + ' or absent (got ' + JSON.stringify(card.variant) + ')');
+    if (!card.action || !Array.isArray(card.action.choices))
+        throw new Error('Card ' + card.id + ': variant "flusso" needs an action with choices, like { "submit": "Invia", "choices": [{ "operation": "approva", "label": "Approva", "hint": "What happens." }] }');
+    return ' data-mb-variant="' + card.variant + '"';
 }
 // The text the 🔊 reads: written for this card (its main facts, for listening); without it the button reads the card.
 function voiceText(card) {
@@ -253,13 +272,21 @@ function headerParts(header) {
     };
 }
 // A pill with "level": true is a level (risk, outcome): full semantic colour, like a level cell of a table.
-function pillsOf(pills) {
+// A pill with "section": "<id>" leads to that section (its tab, on a page with tabs), like «1 problema» to the diagnostics.
+function pillsOf(pills, sectionIds = []) {
     if (pills === undefined)
         return '';
     taggedList(pills, 'pills');
     if (pills.some(p => p.level !== undefined && typeof p.level !== 'boolean'))
         throw new Error('pills: level must be true or false, like { "text": "Rischio basso", "tone": "verde", "level": true }');
-    return '<div class="mb-pills">' + pills.map(p => '<span class="' + (p.level ? 'mb-level' : 'mb-pill') + '" data-tone="' + p.tone + '">' + inline(p.text) + '</span>').join('') + '</div>';
+    const wrong = pills.find(p => p.section !== undefined && !sectionIds.includes(p.section));
+    if (wrong)
+        throw new Error('pills: section must be the id of a section of this page, like { "text": "1 problema", "tone": "rosso", "section": "' + (sectionIds.at(-1) || 'diagnostica') + '" } (got ' + JSON.stringify(wrong.section) + ')');
+    return '<div class="mb-pills">' + pills.map(p => {
+        const kind = p.level ? 'mb-level' : 'mb-pill';
+        return p.section === undefined ? '<span class="' + kind + '" data-tone="' + p.tone + '">' + inline(p.text) + '</span>'
+            : '<a class="' + kind + '" data-tone="' + p.tone + '" href="#' + p.section + '" data-mb-goto="' + p.section + '" data-lavish-action>' + inline(p.text) + '</a>';
+    }).join('') + '</div>';
 }
 // A table of several columns. A cell is a string with inline marks, where « · » separates two items that go on two
 // lines (never two items on one line), or { text, tone } for a level or an outcome in its semantic colour.
@@ -457,6 +484,51 @@ function questionText(card, q, answer) {
     const shown = t.for === undefined || t.for.includes(answer?.choice);
     return '<div class="mb-answer-text"' + (t.for === undefined ? '' : ' data-mb-for="' + escape(JSON.stringify(t.for.map(String))) + '"') + (shown ? '' : ' hidden') + '><label><span class="mb-answer-label">' + inline(t.label ?? 'Il tuo testo') + '</span><textarea data-mb-field="' + card.id + ':text" name="text" rows="3"' + (t.placeholder ? ' placeholder="' + escape(t.placeholder) + '"' : '') + '>' + escape(typeof answer?.text === 'string' ? answer.text : '') + '</textarea></label></div>';
 }
+// Diagnostics of an operation executor (diagnostics in the page JSON): what the executor did with each operation the page
+// or the chat sent. In the section «diagnostica» Bruvish renders two cards in place of the producer's cards with the same
+// roles, in the producer's card order: the table of the attempts, most recent first, in place of carta-diagnostica-3, and
+// the last problem, framed in its colour, in place of carta-diagnostica-4. A page without that section keeps its sections.
+// The executor writes these facts, never the agent; times are Unix seconds, shown in the local time of the renderer.
+const OUTCOMES = { fatto: ['Fatto', 'verde'], parziale: ['Fatto a metà', 'giallo'], rimandato: ['Rimandato', 'giallo'], rifiutato: ['Rifiutato', 'rosso'], incerto: ['Incerto', 'rosso'], scartato: ['Scartato', 'blu'] };
+const outcomeOf = value => value === undefined || value === null || value === '' ? ['In corso', 'giallo'] : OUTCOMES[value] || [String(value), 'blu'];
+const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+const two = n => String(n).padStart(2, '0');
+const localTime = t => { if (typeof t !== 'number' || !Number.isFinite(t)) return '—'; const d = new Date(t * 1000); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ', ' + two(d.getHours()) + ':' + two(d.getMinutes()); };
+const ATTEMPT_TEXTS = ['id', 'operazione', 'fonte', 'esito', 'motivo', 'passo', 'dettaglio', 'frase'];
+// An operation name shows as code when it is a plain identifier; anything else stays text, escaped like every other.
+const operationText = op => typeof op === 'string' && OP_ID.test(op) ? '`' + op + '`' : (op ? String(op) : '?');
+function withDiagnostics(input) {
+    const d = input.diagnostics;
+    if (d === undefined)
+        return input;
+    const shape = 'diagnostics must be { "attempts": [{ "ora": 1795435566, "operazione": "unisci", "fonte": "pagina", "esito": "rifiutato", "motivo": "...", "passo": "...", "dettaglio": "...", "frase": "..." }], "total": 1, "problem": { ...the last attempt that did not succeed } | null }';
+    const attemptOk = a => a && typeof a === 'object' && !Array.isArray(a) && ATTEMPT_TEXTS.every(k => a[k] === undefined || a[k] === null || typeof a[k] === 'string')
+        && (a.ora === undefined || a.ora === null || (typeof a.ora === 'number' && Number.isFinite(a.ora)));
+    if (!d || typeof d !== 'object' || Array.isArray(d) || (d.attempts !== undefined && (!Array.isArray(d.attempts) || !d.attempts.every(attemptOk)))
+        || (d.total !== undefined && !(Number.isInteger(d.total) && d.total >= 0)) || (d.problem !== undefined && d.problem !== null && !attemptOk(d.problem)))
+        throw new Error(shape);
+    const attempts = d.attempts || [], total = Math.max(d.total ?? attempts.length, attempts.length);
+    let problem = null;
+    if (d.problem) {
+        const p = d.problem, [label, tone] = outcomeOf(p.esito), serious = tone === 'rosso';
+        const fields = [{ label: 'Operazione', paragraphs: [[operationText(p.operazione), localTime(p.ora), p.fonte].filter(Boolean).join(' · ')] },
+            { label: 'Causa', paragraphs: [p.motivo || '—'] }, { label: 'Cosa fare', paragraphs: [p.passo || '—'] }, ...(p.frase ? [{ label: 'Frase', paragraphs: ['«' + p.frase + '»'] }] : [])];
+        problem = { id: 'mb-diag-problem', title: 'Ultimo problema', tone, ...(serious ? { status: 'blocked' } : {}), labels: [{ text: label, tone }], fields,
+            ...(p.dettaglio ? { transcript: { summary: 'Dettaglio tecnico', text: p.dettaglio } } : {}) };
+    }
+    const help = 'Il registro dell\'esecutore delle operazioni, scritto dall\'esecutore e non dall\'agente. **Rifiutato** vuol dire che l\'operazione non è partita; **Incerto** vuol dire: controlla a mano prima di riprovare.';
+    const tried = attempts.length ? {
+        id: 'mb-diag-attempts', title: 'Tentativi', help,
+        table: { headers: ['Ora', 'Operazione', 'Fonte', 'Esito', 'Motivo', 'Cosa fare'], rows: attempts.map(a => {
+            const [label, tone] = outcomeOf(a.esito);
+            return [localTime(a.ora), operationText(a.operazione), a.fonte || '—', { text: label, tone }, (a.motivo || '—') + (a.frase ? ' · Frase: «' + a.frase + '»' : ''), a.passo || '—'];
+        }) },
+        notes: [attempts.length + ' di ' + total + ', dal più recente.'],
+    } : { id: 'mb-diag-attempts', title: 'Tentativi', help, paragraphs: ['Nessun tentativo.'] };
+    const replaced = { 'carta-diagnostica-3': tried, 'carta-diagnostica-4': problem };
+    return { ...input, sections: (input.sections || []).map(s => s && s.id === 'diagnostica'
+            ? { ...s, cards: (s.cards || []).flatMap(c => c && Object.hasOwn(replaced, c.id) ? (replaced[c.id] ? [replaced[c.id]] : []) : [c]) } : s) };
+}
 // The index of the sections. With tabs: true it is the tab bar: artifact-blocks.js shows one
 // section at a time; without JS every section stays visible, one under the other. A section count shows beside its title.
 function sectionIndex(input) {
@@ -471,8 +543,8 @@ function sectionIndex(input) {
 }
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
-const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action'];
-const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions'];
+const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action', 'variant'];
+const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions', 'diagnostics'];
 const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
@@ -508,6 +580,7 @@ const sameCards = (a, b) => { const ka = Object.keys(a || {}), kb = Object.keys(
 export async function renderDocument(input, options = {}) {
     if (!input.title)
         throw new Error('title and a collapsible usage guide are required');
+    input = withDiagnostics(input);
     const state = input.state || { revision: 0, answers: {}, comments: [] };
     const previous = typeof options.previous === 'string' ? renderRecord(options.previous) : (options.previous || null);
     if (input.theme !== undefined && !FAMILIES.includes(input.theme) && !NAMED_THEMES.includes(input.theme))
@@ -567,16 +640,19 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
     const blocks = usesBlocks(input, family), head = headerParts(input.header), actions = headerActions(input.actions);
+    // A page with diagnostics is operated by an executor: after sending, the page says where the outcome will appear
+    // instead of claiming the agent received it.
+    const executor = input.diagnostics !== undefined ? ' data-mb-executor' : '';
     // In the theme «revisione» a title ending in « #<number> » (the PR) shows the number muted, as on the review page.
     const number = review ? / #\d+$/.exec(input.title) : null;
     const title = number ? escape(input.title.slice(0, number.index)) + ' <span class="mb-number">' + escape(number[0].slice(1)) + '</span>' : escape(input.title);
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + '>' + head.notice + (actions ? '<header class="mb-header-actions"><div class="mb-header-main">' : '<header>') + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills) + (actions ? '</div>' + actions : '') + '</header>' + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + executor + '>' + head.notice + (actions ? '<header class="mb-header-actions"><div class="mb-header-main">' : '<header>') + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills, (input.sections || []).map(section => section.id)) + (actions ? '</div>' + actions : '') + '</header>' + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }

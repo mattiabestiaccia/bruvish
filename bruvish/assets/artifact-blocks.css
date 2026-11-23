@@ -48,6 +48,9 @@
 .mb-icon{flex:none}
 .mb-subtitle{margin:-6px 0 14px;font-size:17px;color:var(--muted)}
 .mb-pills{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:12px}
+/* A pill that leads to a section: same look, a pointer and an underline on hover or focus. */
+a.mb-pill,a.mb-level{text-decoration:none;cursor:pointer}
+a.mb-pill:hover,a.mb-pill:focus-visible,a.mb-level:hover,a.mb-level:focus-visible{text-decoration:underline;text-underline-offset:3px}
 /* Notice above the header (a mockup, a test page): one dashed box, muted, set apart from the PR data. */
 .mb-notice{margin:0 0 18px;padding:8px 12px;font-size:16px;color:var(--muted);border:1px dashed var(--line);border-radius:8px}
 /* Tables of several columns; a level or outcome is a semantic colour halfway between a soft tint and a full fill. */
@@ -221,6 +224,12 @@ header.mb-header-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;g
 .mb-action{font:inherit;font-size:17px;font-weight:650;border:0;padding:10px 16px;cursor:pointer;color:var(--ink);background:transparent}
 .mb-action+.mb-action{border-left:1px solid var(--mb-green)}
 .mb-action.mb-action-main{background:#1f7a45;color:#f0fff5}
+/* Fixed operations: always visible beside the main ones, outlined in the accent so they never read as the main one. */
+.mb-actions-row{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.mb-actions-fixed{display:flex;flex-wrap:wrap;gap:8px}
+.mb-action-fixed{font:inherit;font-size:17px;font-weight:650;padding:9px 16px;border:1px solid var(--title);border-radius:10px;cursor:pointer;color:var(--title);background:transparent}
+.mb-action-fixed:hover,.mb-action-fixed:focus-visible{background:var(--field)}
+.mb-confirm-field{margin:0 0 10px}
 .mb-actions-menu{position:relative}
 .mb-actions-menu>summary{list-style:none;cursor:pointer;font-size:15px;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:5px 10px}
 .mb-actions-menu>summary::-webkit-details-marker{display:none}
@@ -245,4 +254,13 @@ textarea.mb-op-text{min-height:90px}
 .mb-op-choices label small{display:block;color:var(--muted)}
 .mb-op-choices label.mb-op-off{opacity:.5;cursor:not-allowed}
 .mb-op-status{font-size:14px;color:var(--muted);margin-right:auto}
+/* Card variant «flusso»: the review choices are tiles, the label on top and what happens under it; the chosen tile is
+   framed in the accent, an off choice stays dimmed. */
+.card[data-mb-variant=flusso] .mb-op-choices{gap:10px}
+.card[data-mb-variant=flusso] .mb-op-choices label{position:relative;flex-direction:column;gap:6px;padding:12px 14px;border-radius:10px;background:var(--field);font-size:17px;font-weight:650;transition:border-color .15s,box-shadow .15s}
+.card[data-mb-variant=flusso] .mb-op-choices label input{position:absolute;opacity:0;pointer-events:none}
+.card[data-mb-variant=flusso] .mb-op-choices label small{font-size:15px;font-weight:400;line-height:1.35}
+.card[data-mb-variant=flusso] .mb-op-choices label:has(input:checked){border-color:var(--title);box-shadow:0 0 0 1px var(--title),0 0 14px color-mix(in srgb,var(--title) 35%,transparent)}
+.card[data-mb-variant=flusso] .mb-op-choices label:has(input:focus-visible){outline:2px solid var(--title);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.card[data-mb-variant=flusso] .mb-op-choices label{transition:none}}
 @media(max-width:760px){header.mb-header-actions{grid-template-columns:minmax(0,1fr)}.mb-actions{align-items:stretch}.mb-op-choices{grid-template-columns:minmax(0,1fr)}}

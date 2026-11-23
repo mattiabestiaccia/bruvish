@@ -135,3 +135,104 @@ test('a line comment on a page with operations carries the view id, so the agent
     box.querySelectorAll('button')[0].click();
     assert.deepEqual(plainOf(window.queued.map(q => [q.tag, q.data])), [['line-comment', { file: 'src/a.js', line: 2, text: 'Meglio una costante.', view: 'v1234' }]]);
 });
+
+const reviewer = { operation: 'revisore', label: 'Assegna un revisore', field: 'line', required: true, placeholder: 'Login GitHub, per esempio octocat', confirm: 'Chiede la revisione a una persona. Scrivi il suo login, poi Conferma.' };
+
+test('a fixed operation is an always-visible header button beside the main ones; without it the header markup is unchanged', async () => {
+    const html = await renderDocument(page({ actions: { ...actions, fixed: [reviewer] } }));
+    assert.match(html, /<div class="mb-actions" data-mb-actions><div class="mb-actions-row"><div class="mb-actions-primary">[\s\S]*?<\/div><div class="mb-actions-fixed"><button type="button" class="mb-action-fixed" data-mb-op="revisore" data-mb-confirm-title="Assegna un revisore" data-mb-confirm="Chiede la revisione a una persona\.[^"]*" data-mb-field-kind="line" data-mb-placeholder="Login GitHub, per esempio octocat" data-mb-required>Assegna un revisore<\/button><\/div><\/div><details class="mb-actions-menu">/);
+    // Only the fixed operation: no main alternative, no menu, the button is still there.
+    const alone = await renderDocument(page({ actions: { view: 'v1234', fixed: [reviewer] } }));
+    assert.match(alone, /<div class="mb-actions" data-mb-actions><div class="mb-actions-row"><div class="mb-actions-fixed"><button type="button" class="mb-action-fixed" data-mb-op="revisore"/);
+    assert.doesNotMatch(alone.slice(alone.indexOf('<body>')), /mb-actions-primary|mb-actions-menu/);
+    for (const input of [page(), page({ actions: { ...actions, fixed: [] } })])
+        assert.match(await renderDocument(input), /<div class="mb-actions" data-mb-actions><div class="mb-actions-primary">/, 'no fixed operation: no row wrapper');
+    for (const bad of [{ ...actions, fixed: reviewer }, { ...actions, fixed: [{ ...reviewer, field: 'area' }] }, { ...actions, fixed: [{ ...reviewer, field: 'text' }] }, { ...actions, fixed: [{ ...reviewer, danger: true }] }, { ...actions, fixed: [{ ...reviewer, danger: false }] }, { ...actions, fixed: [{ ...reviewer, required: 'yes' }] },
+        { ...actions, fixed: [{ ...reviewer, field: undefined }] }, { ...actions, fixed: [{ ...reviewer, placeholder: 3 }] }, { ...actions, fixed: [{ ...reviewer, confirm: '' }] }])
+        await assert.rejects(renderDocument(page({ actions: bad })), /actions must be/);
+});
+
+test('the fixed operation asks for its text in the confirmation: empty refuses, Enter or Conferma sends the text', async () => {
+    const { document, window, sent } = boot(await renderDocument(page({ actions: { ...actions, fixed: [reviewer] } })));
+    const box = document.querySelector('.mb-confirm'), button = document.querySelector('.mb-action-fixed'), main = document.querySelector('.mb-action-main');
+    button.click();
+    assert.equal(box.hidden, false);
+    assert.equal(box.querySelector('.mb-confirm-title').textContent, 'Assegna un revisore?');
+    const field = box.querySelector('input.mb-confirm-field');
+    assert.equal(field.getAttribute('placeholder'), 'Login GitHub, per esempio octocat');
+    assert.equal(field.getAttribute('aria-label'), 'Assegna un revisore');
+    assert.equal(document.activeElement, field, 'the field takes the focus');
+    assert.ok(main.classList.contains('mb-action-main') && !button.classList.contains('mb-action-main'), 'a fixed operation never becomes the main alternative');
+    box.querySelector('.mb-confirm-yes').click();
+    assert.equal(box.querySelector('.mb-op-status').textContent, 'Compila il campo prima di confermare.');
+    assert.equal(window.queued.length, 0);
+    field.value = '  octocat ';
+    document.dispatch(field, 'keydown', { key: 'Enter' });
+    assert.deepEqual(plainOf(window.queued.map(q => [q.tag, q.data])), [['operation', { view: 'v1234', operation: 'revisore', text: 'octocat' }]]);
+    assert.equal(sent.count, 1);
+    assert.equal(box.querySelector('.mb-confirm-field'), null, 'after sending the dropdown shows only the outcome text');
+    // A header operation without a field keeps the plain confirmation.
+    main.click();
+    assert.equal(box.querySelector('.mb-confirm-field'), null);
+    assert.equal(box.querySelector('.mb-op-status'), null);
+});
+
+const flow = {
+    id: 'operazione-revisione', title: 'La tua revisione', variant: 'flusso',
+    paragraphs: ['La PR l\'ha aperta il tuo account: la revisione passa dal flusso.', '**Chiedi modifiche** rimette la PR in bozza. **Approva** la segna pronta.'],
+    action: { submit: 'Invia la revisione', placeholder: 'Il motivo, o il commento', choices: [
+        { operation: 'correzione', label: 'Chiedi modifiche', required: true, hint: 'serve il motivo: revisione, bozza, correzione' },
+        { operation: 'approva-pronta', label: 'Approva', hint: 'approvazione e PR pronta; unire resta un clic' },
+        { operation: 'commento', label: 'Solo commento', hint: 'senza esito', required: true }] },
+};
+
+test('a card with variant "flusso" renders its choices as tiles and sends the chosen flow operation with its text', async () => {
+    const html = await renderDocument(page({ sections: [{ id: 'revisione', title: 'Revisione', cards: [flow] }] }));
+    assert.match(html, /<article class="card" id="operazione-revisione" data-mb-state="info" data-mb-variant="flusso">/);
+    assert.match(html, /<span class="sentence"><strong>Chiedi modifiche<\/strong> rimette la PR in bozza\.<\/span>/);
+    assert.match(html, /<input type="radio" name="mb-op-operazione-revisione" value="correzione" data-mb-required checked><span>Chiedi modifiche<small>serve il motivo: revisione, bozza, correzione<\/small><\/span>/);
+    const { document, window } = boot(html);
+    const form = document.getElementById('operazione-revisione').querySelector('form');
+    form.requestSubmit();
+    assert.equal(form.querySelector('.mb-op-status').textContent, 'Scrivi il testo prima di inviare.', 'Chiedi modifiche needs the reason');
+    form.querySelectorAll('input[type="radio"]').forEach(radio => { radio.checked = radio.value === 'approva-pronta'; });
+    form.requestSubmit(); form.requestSubmit();
+    assert.deepEqual(plainOf(window.queued.map(q => q.data)), [{ view: 'v1234', operation: 'approva-pronta', text: '' }], 'Approva goes without a text');
+});
+
+test('without variant the review card renders as before; a wrong variant or a variant without choices stops the render', async () => {
+    const { variant: _, ...plain } = flow;
+    const html = await renderDocument(page({ sections: [{ id: 'revisione', title: 'Revisione', cards: [plain] }] }));
+    assert.match(html, /<article class="card" id="operazione-revisione" data-mb-state="info"><button class="voice"/);
+    assert.doesNotMatch(html.slice(html.indexOf('<body>')), /data-mb-variant/);
+    const one = card => page({ sections: [{ id: 'revisione', title: 'Revisione', cards: [card] }] });
+    await assert.rejects(renderDocument(one({ ...flow, variant: 'percorso' })), /Card operazione-revisione: variant must be one of flusso or absent/);
+    await assert.rejects(renderDocument(one({ ...flow, action: { operation: 'commento', field: 'text', submit: 'Invia' } })), /variant "flusso" needs an action with choices/);
+    await assert.rejects(renderDocument(one({ id: 'x', title: 'X', variant: 'flusso' })), /variant "flusso" needs an action with choices/);
+});
+
+test('on a page operated by an executor the post-send text says where the outcome arrives; the notice sits above the header', async () => {
+    const executorPage = page({ actions: { ...actions, fixed: [reviewer] }, diagnostics: { attempts: [], problem: null }, header: { subtitle: 'Unisce `a` in `b`', notice: 'Pagina rifatta dall\'esecutore dopo «Unisci».' } });
+    const html = await renderDocument(executorPage);
+    assert.match(html, /<main data-mb-view="v1234" data-mb-executor><p class="mb-notice">Pagina rifatta dall&#39;esecutore dopo «Unisci»\.<\/p><header class="mb-header-actions">/);
+    const { document } = boot(html);
+    const box = document.querySelector('.mb-confirm');
+    document.querySelector('.mb-action-main').click();
+    box.querySelector('.mb-confirm-yes').click();
+    assert.equal(box.textContent, '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.');
+    document.querySelector('.mb-action-fixed').click();
+    box.querySelector('.mb-confirm-field').value = 'octocat';
+    box.querySelector('.mb-confirm-yes').click();
+    assert.equal(box.textContent, '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.');
+    const form = document.getElementById('commento').querySelector('form');
+    form.querySelector('.mb-op-text').value = 'Bene.';
+    form.requestSubmit(); form.requestSubmit();
+    assert.equal(form.querySelector('.mb-op-status').textContent, '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.');
+    // Without diagnostics the page keeps the agent wording, and main has no executor mark.
+    const plain = await renderDocument(page());
+    assert.match(plain, /<main data-mb-view="v1234">/);
+    const other = boot(plain).document;
+    other.querySelector('.mb-action-main').click();
+    other.querySelector('.mb-confirm-yes').click();
+    assert.equal(other.querySelector('.mb-confirm').textContent, '✓ Segna come pronta: inviato all\'agente.');
+});

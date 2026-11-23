@@ -4,6 +4,10 @@
         // Page operations (S20). Header and «⋯» menu: a click opens a confirmation dropdown that says what happens; «Conferma»
         // queues the operation and sends it. Card forms: a text, then two taps on the button (choose, then confirm).
         const view = document.querySelector('main[data-mb-view]')?.dataset.mbView || '';
+        // On a page operated by an executor the outcome comes from the executor, in the Lavish panel and in the
+        // diagnostics; elsewhere the operation goes to the agent.
+        const executor = !!document.querySelector('main[data-mb-executor]');
+        const sentText = fallback => executor ? '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.' : fallback;
         const sendOperation = (operation, text, element) => {
             if (!window.lavish?.queuePrompt)
                 return false;
@@ -19,16 +23,35 @@
                 const title = make('b', { class: 'mb-confirm-title' }, button.dataset.mbConfirmTitle + '?'), text = make('p', { class: 'mb-confirm-text' });
                 text.innerHTML = button.dataset.mbConfirm;
                 const row = make('div', { class: 'mb-confirm-row' }), no = make('button', { type: 'button', class: 'mb-confirm-no' }, 'Annulla'), yes = make('button', { type: 'button', class: 'mb-confirm-yes' }, 'Conferma');
+                // A fixed operation that asks for a text (a login, a reason) carries its field inside the dropdown.
+                const kind = button.dataset.mbFieldKind;
+                let field = null, status = null;
+                if (kind === 'line') {
+                    const attributes = { class: 'mb-op-text mb-confirm-field', 'aria-label': button.dataset.mbConfirmTitle, placeholder: button.dataset.mbPlaceholder || '' };
+                    field = make('input', { ...attributes, type: 'text', autocomplete: 'off', spellcheck: 'false' });
+                    status = make('span', { class: 'mb-op-status', role: 'status' });
+                    row.append(status);
+                }
                 row.append(no, yes);
-                box.append(title, text, row);
+                box.append(...[title, text, field, row].filter(Boolean));
                 box.hidden = false;
+                field?.focus?.();
                 no.addEventListener('click', () => { box.hidden = true; button.focus?.(); });
                 yes.addEventListener('click', () => {
-                    const sent = sendOperation(button.dataset.mbOp, '', button);
-                    box.replaceChildren(make('p', { class: 'mb-confirm-text' }, sent ? '✓ ' + button.dataset.mbConfirmTitle + ': inviato all\'agente.' : 'Lavish non è collegato: scrivi l\'operazione in chat.'));
+                    const value = field ? String(field.value || '').trim() : '';
+                    if (field && button.hasAttribute('data-mb-required') && !value) {
+                        status.textContent = 'Compila il campo prima di confermare.';
+                        field.focus?.();
+                        return;
+                    }
+                    const sent = sendOperation(button.dataset.mbOp, value, button);
+                    box.replaceChildren(make('p', { class: 'mb-confirm-text' }, sent ? sentText('✓ ' + button.dataset.mbConfirmTitle + ': inviato all\'agente.') : 'Lavish non è collegato: scrivi l\'operazione in chat.'));
                 });
+                // Enter in the field confirms, as the button does.
+                if (field)
+                    field.addEventListener('keydown', event => { if (event && event.key === 'Enter') { event.preventDefault?.(); yes.click(); } });
             };
-            bar.querySelectorAll('[data-mb-op]').forEach(button => button.addEventListener('click', () => {
+            bar.querySelectorAll('button[data-mb-op]').forEach(button => button.addEventListener('click', () => {
                 if (button.classList.contains('mb-action'))
                     bar.querySelectorAll('.mb-action').forEach(other => other.classList.toggle('mb-action-main', other === button));
                 ask(button);
@@ -54,7 +77,7 @@
                     return;
                 }
                 disarm();
-                status.textContent = sendOperation(operation, text, form) ? '✓ Inviato all\'agente.' : 'Lavish non è collegato: scrivi in chat.';
+                status.textContent = sendOperation(operation, text, form) ? sentText('✓ Inviato all\'agente.') : 'Lavish non è collegato: scrivi in chat.';
             });
         });
         // Comparison matrix (form C): a tapped cell shows its reason in the box under the table; a tapped option highlights
@@ -96,13 +119,21 @@
             }
             catch { } return id ? document.getElementById(id) : null; };
             show(panelOf(target())?.id || panels[0]?.id);
-            links.forEach(link => link.addEventListener('click', event => {
+            // A tab link or a pill that leads to a section (data-mb-goto) opens that tab and keeps the hash in step.
+            const go = (event, id) => {
                 event.preventDefault();
-                show(link.dataset.mbTab);
+                show(id);
                 try {
-                    history.replaceState(null, '', '#' + link.dataset.mbTab);
+                    history.replaceState(null, '', '#' + id);
                 }
                 catch { }
+            };
+            links.forEach(link => link.addEventListener('click', event => go(event, link.dataset.mbTab)));
+            document.querySelectorAll('a[data-mb-goto]').forEach(link => link.addEventListener('click', event => {
+                if (!panels.some(panel => panel.id === link.dataset.mbGoto))
+                    return;
+                go(event, link.dataset.mbGoto);
+                link.ownerDocument.getElementById(link.dataset.mbGoto)?.scrollIntoView({ block: 'start' });
             }));
             window.addEventListener('hashchange', () => { const el = target(), panel = el && panelOf(el); if (!panel)
                 return; show(panel.id); if (el !== panel)

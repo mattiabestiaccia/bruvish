@@ -1,0 +1,127 @@
+// Diagnostics of an operation executor: the table of the attempts and the last problem in place of the producer's cards
+// with the same roles in the section «diagnostica». Pages without diagnostics are unchanged.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import { renderDocument } from '../lib/document.mjs';
+import { createDocument, createWindow } from '../test-helpers/mini-dom.mjs';
+
+process.env.TZ = 'Europe/Rome';
+// 23 November 2026, 14:05 and 14:20 in Rome.
+const T1 = Date.UTC(2026, 10, 23, 13, 5) / 1000, T2 = Date.UTC(2026, 10, 23, 13, 20) / 1000;
+const refused = { id: 'a2', ora: T2, operazione: 'unisci', fonte: 'chat', esito: 'rifiutato', motivo: 'La testa della PR è cambiata.', passo: 'Rifai il clic dalla pagina rigenerata.', dettaglio: 'head <abc> != <def>', frase: 'Mergia' };
+const done = { id: 'a1', ora: T1, operazione: 'commento', fonte: 'pagina', esito: 'fatto', motivo: 'Commento pubblicato.' };
+const diagnostics = { executor: { running: true, since: T1, version: '1', last_round: T2 }, view: { id_vista: 'f'.repeat(32) }, attempts: [refused, done], total: 2, problem: refused };
+// The producer's Diagnostica section as the pr-revisione adapter sends it (tools/pr-revisione README, «Contratto dei dati
+// per Bruvish»): five cards in this order, with the ids carta-diagnostica-<n>.
+const PRODUCER_TITLES = ['Stato dell\'esecutore', 'Questa vista', 'Tentativi', 'Ultimo problema', 'Cosa è cambiato su GitHub'];
+const producerSection = count => ({ id: 'diagnostica', title: 'Diagnostica', count: 2, cards: PRODUCER_TITLES.slice(0, count).map((title, i) => ({ id: 'carta-diagnostica-' + (i + 1), title, paragraphs: ['Dal produttore.'] })) });
+const titlesOf = html => [.../<section id="diagnostica"[\s\S]*?<\/section>/.exec(html)[0].matchAll(/<h3>([^<]+)<\/h3>/g)].map(m => m[1].replace('&#39;', '\''));
+const page = (extra = {}) => ({
+    title: 'PR #16', theme: 'revisione', tabs: true,
+    sections: [{ id: 'file', title: 'File', cards: [{ id: 'f', title: 'F', paragraphs: ['Uno.'] }] }, producerSection(5)],
+    diagnostics, ...extra,
+});
+const body = html => html.slice(html.indexOf('<body>'));
+const cardHtml = (html, id) => (new RegExp('<article class="card" id="' + id + '"[\\s\\S]*?</article>').exec(html) || [''])[0];
+
+test('the attempts table and the last problem take the place of the producer\'s cards, in the producer\'s order', async () => {
+    const html = await renderDocument(page());
+    const section = /<section id="diagnostica"[\s\S]*?<\/section>/.exec(html)[0];
+    const order = [...section.matchAll(/<article class="card" id="([^"]+)"/g)].map(m => m[1]);
+    assert.deepEqual(order, ['carta-diagnostica-1', 'carta-diagnostica-2', 'mb-diag-attempts', 'mb-diag-problem', 'carta-diagnostica-5']);
+    const problem = cardHtml(html, 'mb-diag-problem');
+    assert.match(problem, /^<article class="card" id="mb-diag-problem" data-mb-state="blocked" data-mb-tone="rosso">/);
+    assert.match(problem, /<h3>Ultimo problema<\/h3><span class="mb-labels"><span class="mb-label" data-tone="rosso">Rifiutato<\/span>/);
+    assert.match(problem, /<th scope="row">Operazione<\/th><td><p><span class="sentence"><code>unisci<\/code> · 23 nov, 14:20 · chat<\/span><\/p><\/td>/);
+    assert.match(problem, /<th scope="row">Causa<\/th><td><p><span class="sentence">La testa della PR è cambiata\.<\/span><\/p><\/td>/);
+    assert.match(problem, /<th scope="row">Cosa fare<\/th><td><p><span class="sentence">Rifai il clic dalla pagina rigenerata\.<\/span><\/p><\/td>/);
+    assert.match(problem, /<th scope="row">Frase<\/th><td><p><span class="sentence">«Mergia»<\/span><\/p><\/td>/);
+    assert.match(problem, /<details class="mb-transcript"><summary>Dettaglio tecnico<\/summary><pre>head &lt;abc&gt; != &lt;def&gt;<\/pre><\/details>/, 'the technical detail is preformatted and escaped');
+    const attempts = cardHtml(html, 'mb-diag-attempts');
+    assert.match(attempts, /<thead><tr><th scope="col">Ora<\/th><th scope="col">Operazione<\/th><th scope="col">Fonte<\/th><th scope="col">Esito<\/th><th scope="col">Motivo<\/th><th scope="col">Cosa fare<\/th><\/tr><\/thead>/);
+    assert.match(attempts, /<tr><td>23 nov, 14:20<\/td><td><code>unisci<\/code><\/td><td>chat<\/td><td><span class="mb-level" data-tone="rosso">Rifiutato<\/span><\/td><td>La testa della PR è cambiata\.<br>Frase: «Mergia»<\/td><td>Rifai il clic dalla pagina rigenerata\.<\/td><\/tr>/);
+    assert.match(attempts, /<tr><td>23 nov, 14:05<\/td><td><code>commento<\/code><\/td><td>pagina<\/td><td><span class="mb-level" data-tone="verde">Fatto<\/span><\/td><td>Commento pubblicato\.<\/td><td>—<\/td><\/tr>/);
+    assert.match(attempts, /<div class="mb-notes"><p><span class="sentence">2 di 2, dal più recente\.<\/span><\/p><\/div>/);
+    assert.match(attempts, /data-mb-help/, 'the attempts card explains Rifiutato and Incerto in its help');
+});
+
+test('every outcome has its label and colour; an attempt still running shows «In corso»', async () => {
+    const outcomes = { fatto: ['Fatto', 'verde'], parziale: ['Fatto a metà', 'giallo'], rimandato: ['Rimandato', 'giallo'], rifiutato: ['Rifiutato', 'rosso'], incerto: ['Incerto', 'rosso'], scartato: ['Scartato', 'blu'] };
+    const attempts = [...Object.keys(outcomes).map((esito, i) => ({ id: 'x' + i, ora: T1, operazione: 'commento', esito })), { id: 'run', ora: T1, operazione: 'unisci' }];
+    const html = await renderDocument(page({ diagnostics: { attempts, total: 30, problem: null } }));
+    for (const [label, tone] of [...Object.values(outcomes), ['In corso', 'giallo']])
+        assert.match(cardHtml(html, 'mb-diag-attempts'), new RegExp('<span class="mb-level" data-tone="' + tone + '">' + label + '</span>'));
+    assert.match(html, /7 di 30, dal più recente\./, 'the note says how many of the total are shown');
+    assert.equal(cardHtml(html, 'mb-diag-problem'), '', 'no problem: no problem card');
+    // A problem that is only postponed or partial is yellow, not blocked.
+    const late = await renderDocument(page({ diagnostics: { attempts: [], problem: { operazione: 'unisci', esito: 'rimandato', motivo: 'CI in corso.' } } }));
+    assert.match(cardHtml(late, 'mb-diag-problem'), /^<article class="card" id="mb-diag-problem" data-mb-state="info" data-mb-tone="giallo">/);
+});
+
+test('no attempts: the card says so; a page without the section «diagnostica» keeps its sections', async () => {
+    const empty = await renderDocument(page({ diagnostics: { attempts: [], total: 0, problem: null } }));
+    assert.match(cardHtml(empty, 'mb-diag-attempts'), /<p><span class="sentence">Nessun tentativo\.<\/span><\/p>/);
+    assert.doesNotMatch(cardHtml(empty, 'mb-diag-attempts'), /<table/);
+    const input = page();
+    input.sections = [input.sections[0]];
+    const html = body(await renderDocument(input));
+    assert.doesNotMatch(html, /diagnostica|mb-diag-/, 'no section added, no diagnostics cards');
+    assert.match(html, /<nav class="mb-tabs" aria-label="Schede"><a href="#file" data-mb-tab="file" data-lavish-action>File<\/a><\/nav>/);
+});
+
+test('a page without diagnostics is unchanged; malformed diagnostics stop the render with the expected shape', async () => {
+    const { diagnostics: _, ...plain } = page();
+    const html = await renderDocument(plain);
+    assert.doesNotMatch(body(html), /mb-diag-/);
+    assert.match(html, /<section id="diagnostica" aria-label="Diagnostica"><article class="card" id="carta-diagnostica-1"/);
+    for (const bad of [null, [], 'x', { attempts: {} }, { attempts: [null] }, { attempts: [{ motivo: 3 }] }, { attempts: [{ ora: {} }] }, { attempts: [{ ora: 'adesso' }] }, { problem: { ora: '14:20' } }, { total: -1 }, { total: 1.5 }, { problem: 'x' }, { problem: { esito: 1 } }])
+        await assert.rejects(renderDocument(page({ diagnostics: bad })), /diagnostics must be/);
+});
+
+test('texts from the executor are escaped; an odd operation name is shown as text, not as code', async () => {
+    const html = await renderDocument(page({ diagnostics: { attempts: [{ ora: T1, operazione: 'x`<b>', esito: 'rifiutato', motivo: '<script>alert(1)</script>' }], problem: null } }));
+    const attempts = cardHtml(html, 'mb-diag-attempts');
+    assert.match(attempts, /<tr><td>23 nov, 14:05<\/td><td>x`&lt;b&gt;<\/td>/);
+    assert.match(attempts, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+    assert.doesNotMatch(attempts, /<script>|<b>/);
+});
+
+test('with the real producer section, each Diagnostica card appears once, in the producer\'s order', async () => {
+    const input = page();
+    input.sections = [input.sections[0], producerSection(5)];
+    assert.deepEqual(titlesOf(await renderDocument(input)), PRODUCER_TITLES);
+    // No problem: the producer sends three cards and Bruvish only the attempts.
+    input.sections = [input.sections[0], producerSection(3)];
+    input.diagnostics = { ...diagnostics, problem: null };
+    assert.deepEqual(titlesOf(await renderDocument(input)), ['Stato dell\'esecutore', 'Questa vista', 'Tentativi']);
+    // Without diagnostics the section stays as the producer sent it.
+    const { diagnostics: _, ...plain } = { ...input, sections: [input.sections[0], producerSection(5)] };
+    assert.deepEqual(titlesOf(await renderDocument(plain)), PRODUCER_TITLES);
+});
+
+const pills = [{ text: '**Approvata** da te · testa `abc1234`', tone: 'verde' }, { text: '**1 problema** · scheda Diagnostica', tone: 'rosso', section: 'diagnostica' }];
+
+test('the review pills render in the header; a pill with a section leads to that tab', async () => {
+    const html = await renderDocument(page({ pills }));
+    assert.match(html, /<div class="mb-pills"><span class="mb-pill" data-tone="verde"><strong>Approvata<\/strong> da te · testa <code>abc1234<\/code><\/span><a class="mb-pill" data-tone="rosso" href="#diagnostica" data-mb-goto="diagnostica" data-lavish-action><strong>1 problema<\/strong> · scheda Diagnostica<\/a><\/div>/);
+    const document = createDocument(html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''));
+    const window = createWindow(document);
+    vm.runInNewContext(/<\/style><script>([\s\S]*?)<\/script>/.exec(html)[1], window);
+    const files = document.getElementById('file'), diag = document.getElementById('diagnostica');
+    assert.equal(files.hidden, false);
+    assert.equal(diag.hidden, true);
+    document.querySelector('a[data-mb-goto]').click();
+    assert.equal(diag.hidden, false, 'the pill opens the Diagnostica tab');
+    assert.equal(files.hidden, true);
+    assert.equal(window.location.hash, '#diagnostica');
+    assert.equal(document.querySelector('a[data-mb-tab="diagnostica"]').getAttribute('aria-current'), 'page');
+});
+
+test('a level pill can lead to a section too; a section that is not on the page stops the render', async () => {
+    const html = await renderDocument(page({ pills: [{ text: 'Rischio alto', tone: 'rosso', level: true, section: 'file' }] }));
+    assert.match(html, /<a class="mb-level" data-tone="rosso" href="#file" data-mb-goto="file" data-lavish-action>Rischio alto<\/a>/);
+    await assert.rejects(renderDocument(page({ pills: [{ text: 'x', tone: 'rosso', section: 'altrove' }] })), /pills: section must be the id of a section of this page[\s\S]*\(got "altrove"\)/);
+    // Without a section, a pill keeps its markup.
+    assert.match(await renderDocument(page({ pills: [pills[0]] })), /<div class="mb-pills"><span class="mb-pill" data-tone="verde">/);
+});
