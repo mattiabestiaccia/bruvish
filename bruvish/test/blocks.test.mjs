@@ -144,7 +144,7 @@ test('the bubble joins the fixed meaning and a summary of this card; the voice r
     await assert.rejects(render(doc([card(bad)])), /Card a: (voice|summary)/);
 });
 
-test('voice sits left of the corner help with a gap at every card breakpoint, and the bubble stays below both', async () => {
+test('🔊 and «?» are the same round button, stacked in a column just right of the card, in every theme and at every breakpoint', async () => {
   for (const theme of ['B', 'F', 'E2', 'G2', 'D3', 'revisione']) {
     const html = await render(doc([card({ help: 'Serve.' }), card({ id: 'plain' })], { theme }));
     const { document } = boot(html), css = styleOf(html), container = document.getElementById('a');
@@ -152,16 +152,24 @@ test('voice sits left of the corner help with a gap at every card breakpoint, an
     for (const width of [1024, 601, 600, 390, 240]) {
       const look = el => computed(css, el, width), px = value => parseFloat(value) || 0;
       const cardLook = look(container), voiceLook = look(voice), toggleLook = look(toggle);
-      assert.equal(voiceLook.float, 'right');
-      assert.equal(toggleLook.position, 'absolute');
-      assert.equal(toggleLook.right, '10px');
-      assert.equal(toggleLook.top, '10px');
-      const voiceRight = px(cardLook['padding-right'] || cardLook.padding) + px(voiceLook['margin-right']);
-      const helpLeft = px(toggleLook.right) + px(toggleLook.width);
-      assert(voiceRight > helpLeft, theme + ' at ' + width + ': voice and help have separate hit areas');
-      assert.equal(look(document.getElementById('plain').querySelector('.voice'))['margin-right'], undefined);
-      assert.equal(look(container.querySelector('.mb-help')).clear, 'both', 'the bubble cannot paint under the floated voice');
+      for (const key of ['position', 'width', 'height', 'border-radius', 'font']) assert.equal(voiceLook[key], toggleLook[key], theme + ' at ' + width + ': both buttons share ' + key);
+      assert.equal(voiceLook.position, 'absolute');
+      assert.equal(voiceLook.width, voiceLook.height, 'square box, so round with a 50% radius');
+      assert.equal(voiceLook['border-radius'], '50%');
+      assert(px(toggleLook.top) >= px(voiceLook.top) + px(voiceLook.height), theme + ' at ' + width + ': «?» is stacked under 🔊');
+      assert.equal(voiceLook.float, undefined, 'the voice no longer floats in the text');
+      if (width > 600) {
+        assert.equal(voiceLook.left, 'calc(100% + 8px)', theme + ' at ' + width + ': just right of the card');
+        assert.equal(toggleLook.left, voiceLook.left, 'one column');
+        assert(/^(\S+\s+)?\S*(48|auto)/.test((cardLook['margin-right'] || cardLook.margin || '').replace(/^16px\s+/, '')), theme + ' at ' + width + ' leaves room for the column: ' + cardLook.margin);
+      } else {
+        assert.equal(voiceLook.right, '10px', theme + ' at ' + width + ': inside the card on a phone');
+        assert.equal(toggleLook.right, voiceLook.right);
+        assert(px(cardLook['padding-right'] || (cardLook.padding || '').split(/\s+/)[1]) >= px(voiceLook.right) + px(voiceLook.width), theme + ' at ' + width + ': the text never runs under the buttons');
+      }
+      assert.equal(look(container.querySelector('.mb-help')).clear, 'both');
     }
+    assert.match(container.innerHTML || html, /class="voice"/);
     toggle.click();
     assert.equal(container.querySelector('.mb-help').hidden, false);
   }
@@ -775,7 +783,7 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
   // (3) The files sit in the column without a card around them, under one button; the reviewer note glows under its line.
   const files = document.getElementById('carta-diff');
   const frame = look(files);
-  assert.deepEqual([frame.width, frame.padding, frame.border, frame.background, frame['box-shadow']], ['100%', '0', '0', 'none', 'none']);
+  assert.deepEqual([frame.width, frame.padding, frame.border, frame.background, frame['box-shadow']], ['calc(100% - 48px)', '0', '0', 'none', 'none']);
   const [toggleAll] = document.querySelectorAll('[data-mb-diff-all]'), details = files.querySelectorAll('details.mb-diff-file');
   assert.equal(document.querySelectorAll('[data-mb-diff-all]').length, 1);
   assert.equal(details.length, 2);
@@ -798,11 +806,14 @@ test('the review page of postit#6 in the theme «revisione» matches the approve
   details[1].removeAttribute('open');
   document.dispatch(details[1], 'toggle');
   assert.equal(toggleAll.textContent, 'Apri tutti', 'the button follows a file closed by its own name');
-  // 🔊 stays beside «?» on the files page too, with separate hit areas.
+  // On the files page too, 🔊 and «?» form the same round column right of the card, never over the diffs.
   const voice = files.querySelector('.voice'), help = files.querySelector('[data-mb-help]');
   for (const width of [1024, 600, 390]) {
     const px = v => parseFloat(v) || 0, v = look(voice, width), h = look(help, width), c = look(files, width);
-    assert(px(c['padding-right'] || c.padding) + px(v['margin-right']) > px(h.right) + px(h.width), 'files page at ' + width + ': voice and help do not overlap');
+    assert.equal(v.width, h.width, 'files page at ' + width + ': same size');
+    assert(px(h.top) >= px(v.top) + px(v.height), 'files page at ' + width + ': stacked');
+    if (width > 600) assert.equal(c.width, 'calc(100% - 48px)', 'the diffs leave the column free');
+    else assert(px(c['padding-right']) >= px(v.width), 'files page at ' + width + ': the diffs stay clear of the buttons');
   }
   // The file name opens with an arrow that turns when the file opens, then the state and the coloured counts (S5).
   assert.deepEqual(details.map(d => d.querySelector('summary').textContent), ['▸src/cli.tsmodificato · +1 −1', '▸tests/cli.test.tsmodificato · +11']);
