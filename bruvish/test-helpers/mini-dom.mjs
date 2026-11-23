@@ -45,6 +45,7 @@ export function createDocument(html) {
       get ownerDocument() { return document; },
       append(...nodes) { for (const n of nodes) { if (typeof n !== 'string') { n.remove(); n.parent = this; } this.children.push(n); } },
       appendChild(node) { this.append(node); return node; },
+      replaceChildren(...nodes) { this.children = []; this.append(...nodes); },
       after(node) { node.remove(); const i = this.parent.children.indexOf(this); node.parent = this.parent; this.parent.children.splice(i + 1, 0, node); },
       remove() { if (this.parent) { this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; } },
       contains(other) { for (let n = other; n; n = n.parent) if (n === this) return true; return false; },

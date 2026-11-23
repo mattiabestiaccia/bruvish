@@ -28,6 +28,8 @@ Building blocks (full example: bruvish/examples/revisione-completa.json), all op
         events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}
   card: table.variant: "matrix"                         comparison (form C): criteria in rows, options in columns, cells {text, tone, detail}; reason under the table, Bilancio row
   card: transcript: {summary, text}                    preformatted text, closed; opens on a tap
+  page: actions: {view, primary: [{operation, label, confirm}], menu: [...]}  header operations with a confirm dropdown
+  card: action: {operation, field: text|line, submit, required} or {choices: [...], submit}  operation with a text
   card: summary: "..."                                 in the help bubble under the fixed help (Cosa notare qui)
   card: voice: "..."                                   the text the voice button reads, written for the card
   question.text: {label, placeholder, for: ["value"]}   a text with the answer: {choice, text}
