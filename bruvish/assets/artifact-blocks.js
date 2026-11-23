@@ -1,6 +1,22 @@
 (() => {
     // Behaviour of the building blocks (tabs, help, free text in answers, line comments). Embedded only in pages that use them.
     const init = () => {
+        // Comparison matrix (form C): a tapped cell shows its reason in the box under the table; a tapped option highlights
+        // its column. The reason is the cell's own rendered markup, already escaped by the renderer.
+        document.querySelectorAll('[data-mb-matrix]').forEach(matrix => {
+            const box = matrix.querySelector('.mb-matrix-detail');
+            matrix.querySelectorAll('.mb-matrix-cell').forEach(cell => cell.addEventListener('click', () => {
+                matrix.querySelectorAll('.mb-matrix-cell[aria-pressed="true"]').forEach(other => other.setAttribute('aria-pressed', 'false'));
+                cell.setAttribute('aria-pressed', 'true');
+                if (box)
+                    box.innerHTML = cell.dataset.mbMatrixDetail;
+            }));
+            matrix.querySelectorAll('.mb-matrix-option').forEach(option => option.addEventListener('click', () => {
+                const col = option.dataset.mbMatrixCol, on = option.getAttribute('aria-pressed') !== 'true';
+                matrix.querySelectorAll('.mb-matrix-option').forEach(other => other.setAttribute('aria-pressed', String(on && other === option)));
+                matrix.querySelectorAll('td[data-mb-matrix-col]').forEach(td => td.classList.toggle('mb-matrix-dim', on && td.dataset.mbMatrixCol !== col));
+            }));
+        });
         // Tabs: the index bar shows one section at a time. The hash, a link or a reveal of the frame pointing into a hidden
         // section opens its tab first. The minimap follows, since it maps only the visible cards.
         const bar = document.querySelector('nav.mb-tabs');

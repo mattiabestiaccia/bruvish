@@ -224,11 +224,36 @@ function pillsOf(pills) {
 function cardTable(card) {
     if (card.table === undefined)
         return '';
-    const t = card.table, shape = 'Card ' + card.id + ': table must be { "headers": ["File", "Rischio"], "rows": [["`a.js` · `b.js`", { "text": "alto", "tone": "rosso" }]] }, with as many cells per row as headers';
+    const t = card.table, matrixShape = 'Card ' + card.id + ': a matrix needs column headers, row labels and cells with text, tone and detail, like { "variant": "matrix", "headers": ["Criterio", "Opzione A"], "rows": [["Costo", { "text": "+ basso", "tone": "verde", "detail": "perché" }]] }, with as many cells per row as headers';
+    const shape = t?.variant === 'matrix' ? matrixShape : 'Card ' + card.id + ': table must be { "headers": ["File", "Rischio"], "rows": [["`a.js` · `b.js`", { "text": "alto", "tone": "rosso" }]] }, with as many cells per row as headers';
     const cellOk = c => typeof c === 'string' || (c && typeof c === 'object' && !Array.isArray(c) && typeof c.text === 'string' && TONES.includes(c.tone));
     if (!t || typeof t !== 'object' || Array.isArray(t) || !Array.isArray(t.rows) || (t.headers !== undefined && (!Array.isArray(t.headers) || t.headers.some(h => typeof h !== 'string')))
         || t.rows.some(row => !Array.isArray(row) || !row.every(cellOk) || (t.headers && row.length !== t.headers.length)))
         throw new Error(shape);
+    if (t.variant !== undefined && t.variant !== 'matrix')
+        throw new Error('Card ' + card.id + ': table.variant must be "matrix" or absent (got ' + JSON.stringify(t.variant) + ')');
+    if (t.variant === 'matrix') {
+        if (!t.headers || t.headers.length < 2 || t.headers.some(h => !h.trim()) || t.rows.length === 0 || t.rows.some(row =>
+            typeof row[0] !== 'string' || !row[0].trim() || row.slice(1).some(c => typeof c === 'string' ||
+                !c.text.trim() || typeof c.detail !== 'string' || !c.detail.trim())))
+            throw new Error(matrixShape);
+        // Form C of the lab (Mattia, 22 November 2026): criteria in rows, options in columns; the cells keep their size and
+        // the reason of the tapped cell shows in one box under the table; a «Bilancio» row counts + − ~ per option; tapping
+        // an option highlights its column. Under 700 px the same data becomes one card per option, with native disclosures.
+        const options = t.headers.slice(1);
+        const count = col => t.rows.reduce((n, row) => { const k = row[col].tone === 'verde' ? 'verde' : row[col].tone === 'rosso' ? 'rosso' : 'giallo'; n[k]++; return n; }, { verde: 0, rosso: 0, giallo: 0 });
+        const counts = col => { const n = count(col); return '<span class="mb-matrix-counts"><span data-tone="verde">+ ' + n.verde + '</span><span data-tone="rosso">− ' + n.rosso + '</span><span data-tone="giallo">~ ' + n.giallo + '</span></span>'; };
+        const cellButton = (c, option, criterion) => '<button type="button" class="mb-matrix-cell" data-tone="' + c.tone + '" aria-pressed="false" title="' + escape(c.detail) +
+            '" data-mb-matrix-detail="' + escape('<b>' + inline(option) + ' · ' + inline(criterion) + ':</b> ' + inline(c.text) + (/[.!?…][»"”’')\]*`=]*$/.test(c.text.trimEnd()) ? ' ' : '. ') + inline(c.detail)) + '">' + inline(c.text) + '</button>';
+        const table = '<div class="mb-matrix-scroll"><table class="mb-table mb-matrix-table"><thead><tr><th scope="col" class="mb-matrix-criterion">' + inline(t.headers[0]) + '</th>' +
+            options.map((h, i) => '<th scope="col"><button type="button" class="mb-matrix-option" data-mb-matrix-col="' + (i + 1) + '" aria-pressed="false">' + inline(h) + '</button></th>').join('') + '</tr></thead><tbody>' +
+            t.rows.map(([name, ...cells]) => '<tr><th scope="row" class="mb-matrix-criterion">' + inline(name) + '</th>' + cells.map((c, i) => '<td data-mb-matrix-col="' + (i + 1) + '">' + cellButton(c, options[i], name) + '</td>').join('') + '</tr>').join('') +
+            '<tr class="mb-matrix-balance"><th scope="row" class="mb-matrix-criterion">Bilancio</th>' + options.map((_, i) => '<td data-mb-matrix-col="' + (i + 1) + '">' + counts(i + 1) + '</td>').join('') + '</tr></tbody></table></div>';
+        const detail = '<div class="mb-matrix-detail" aria-live="polite"><span class="mb-matrix-hint">Tocca una casella: qui compare il motivo. Tocca un\'alternativa per metterla in risalto.</span></div>';
+        const cards = '<div class="mb-matrix-cards">' + options.map((h, i) => '<section class="mb-matrix-card"><h4>' + inline(h) + '</h4>' + counts(i + 1) +
+            t.rows.map(row => { const c = row[i + 1]; return '<details data-tone="' + c.tone + '"><summary><small>' + inline(row[0]) + '</small>' + inline(c.text) + '</summary><p>' + inline(c.detail) + '</p></details>'; }).join('') + '</section>').join('') + '</div>';
+        return '<div class="mb-matrix" data-mb-matrix>' + table + detail + cards + '</div>';
+    }
     const cell = c => typeof c === 'string' ? c.split(' · ').map(inline).join('<br>') : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
     return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map(h => '<th scope="col">' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map(c => '<td>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 }
