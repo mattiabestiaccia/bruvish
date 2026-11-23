@@ -1,5 +1,5 @@
-// Diagnostics of an operation executor: the last problem and the table of the attempts at the top of the section
-// «diagnostica», from the structured diagnostics of the page. Pages without diagnostics are unchanged.
+// Diagnostics of an operation executor: the table of the attempts and the last problem in place of the producer's cards
+// with the same roles in the section «diagnostica». Pages without diagnostics are unchanged.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -12,20 +12,24 @@ const T1 = Date.UTC(2026, 10, 23, 13, 5) / 1000, T2 = Date.UTC(2026, 10, 23, 13,
 const refused = { id: 'a2', ora: T2, operazione: 'unisci', fonte: 'chat', esito: 'rifiutato', motivo: 'La testa della PR è cambiata.', passo: 'Rifai il clic dalla pagina rigenerata.', dettaglio: 'head <abc> != <def>', frase: 'Mergia' };
 const done = { id: 'a1', ora: T1, operazione: 'commento', fonte: 'pagina', esito: 'fatto', motivo: 'Commento pubblicato.' };
 const diagnostics = { executor: { running: true, since: T1, version: '1', last_round: T2 }, view: { id_vista: 'f'.repeat(32) }, attempts: [refused, done], total: 2, problem: refused };
-const producerCard = { id: 'carta-diagnostica-1', title: 'Stato dell\'esecutore', paragraphs: ['Acceso.'] };
+// The producer's Diagnostica section as the pr-revisione adapter sends it (tools/pr-revisione README, «Contratto dei dati
+// per Bruvish»): five cards in this order, with the ids carta-diagnostica-<n>.
+const PRODUCER_TITLES = ['Stato dell\'esecutore', 'Questa vista', 'Tentativi', 'Ultimo problema', 'Cosa è cambiato su GitHub'];
+const producerSection = count => ({ id: 'diagnostica', title: 'Diagnostica', count: 2, cards: PRODUCER_TITLES.slice(0, count).map((title, i) => ({ id: 'carta-diagnostica-' + (i + 1), title, paragraphs: ['Dal produttore.'] })) });
+const titlesOf = html => [.../<section id="diagnostica"[\s\S]*?<\/section>/.exec(html)[0].matchAll(/<h3>([^<]+)<\/h3>/g)].map(m => m[1].replace('&#39;', '\''));
 const page = (extra = {}) => ({
     title: 'PR #16', theme: 'revisione', tabs: true,
-    sections: [{ id: 'file', title: 'File', cards: [{ id: 'f', title: 'F', paragraphs: ['Uno.'] }] }, { id: 'diagnostica', title: 'Diagnostica', count: 2, cards: [producerCard] }],
+    sections: [{ id: 'file', title: 'File', cards: [{ id: 'f', title: 'F', paragraphs: ['Uno.'] }] }, producerSection(5)],
     diagnostics, ...extra,
 });
 const body = html => html.slice(html.indexOf('<body>'));
 const cardHtml = (html, id) => (new RegExp('<article class="card" id="' + id + '"[\\s\\S]*?</article>').exec(html) || [''])[0];
 
-test('the last problem and the attempts table open the section «diagnostica», before its own cards', async () => {
+test('the attempts table and the last problem take the place of the producer\'s cards, in the producer\'s order', async () => {
     const html = await renderDocument(page());
     const section = /<section id="diagnostica"[\s\S]*?<\/section>/.exec(html)[0];
     const order = [...section.matchAll(/<article class="card" id="([^"]+)"/g)].map(m => m[1]);
-    assert.deepEqual(order, ['mb-diag-problem', 'mb-diag-attempts', 'carta-diagnostica-1']);
+    assert.deepEqual(order, ['carta-diagnostica-1', 'carta-diagnostica-2', 'mb-diag-attempts', 'mb-diag-problem', 'carta-diagnostica-5']);
     const problem = cardHtml(html, 'mb-diag-problem');
     assert.match(problem, /^<article class="card" id="mb-diag-problem" data-mb-state="blocked" data-mb-tone="rosso">/);
     assert.match(problem, /<h3>Ultimo problema<\/h3><span class="mb-labels"><span class="mb-label" data-tone="rosso">Rifiutato<\/span>/);
@@ -55,17 +59,15 @@ test('every outcome has its label and colour; an attempt still running shows «I
     assert.match(cardHtml(late, 'mb-diag-problem'), /^<article class="card" id="mb-diag-problem" data-mb-state="info" data-mb-tone="giallo">/);
 });
 
-test('no attempts: the card says so; no section «diagnostica»: Bruvish adds it at the end with its count', async () => {
+test('no attempts: the card says so; a page without the section «diagnostica» keeps its sections', async () => {
     const empty = await renderDocument(page({ diagnostics: { attempts: [], total: 0, problem: null } }));
     assert.match(cardHtml(empty, 'mb-diag-attempts'), /<p><span class="sentence">Nessun tentativo\.<\/span><\/p>/);
     assert.doesNotMatch(cardHtml(empty, 'mb-diag-attempts'), /<table/);
     const input = page();
     input.sections = [input.sections[0]];
-    const html = await renderDocument(input);
-    assert.match(html, /<a href="#diagnostica" data-mb-tab="diagnostica" data-lavish-action>Diagnostica<span class="mb-count">2<\/span><\/a><\/nav>/, 'the new tab is the last one');
-    assert.match(html, /<section id="diagnostica" aria-label="Diagnostica"><article class="card" id="mb-diag-problem"/);
-    const none = { ...input, diagnostics: {} };
-    assert.match(await renderDocument(none), /<a href="#diagnostica" data-mb-tab="diagnostica" data-lavish-action>Diagnostica<\/a>/, 'no attempts: no count');
+    const html = body(await renderDocument(input));
+    assert.doesNotMatch(html, /diagnostica|mb-diag-/, 'no section added, no diagnostics cards');
+    assert.match(html, /<nav class="mb-tabs" aria-label="Schede"><a href="#file" data-mb-tab="file" data-lavish-action>File<\/a><\/nav>/);
 });
 
 test('a page without diagnostics is unchanged; malformed diagnostics stop the render with the expected shape', async () => {
@@ -85,20 +87,14 @@ test('texts from the executor are escaped; an odd operation name is shown as tex
     assert.doesNotMatch(attempts, /<script>|<b>/);
 });
 
-// The producer's Diagnostica section as the pr-revisione adapter sends it (tools/pr-revisione README, «Contratto dei dati
-// per Bruvish»): five cards in this order, with the ids carta-diagnostica-<n>.
-const PRODUCER_TITLES = ['Stato dell\'esecutore', 'Questa vista', 'Tentativi', 'Ultimo problema', 'Cosa è cambiato su GitHub'];
-const producerSection = count => ({ id: 'diagnostica', title: 'Diagnostica', count: 2, cards: PRODUCER_TITLES.slice(0, count).map((title, i) => ({ id: 'carta-diagnostica-' + (i + 1), title, paragraphs: ['Dal produttore.'] })) });
-const titlesOf = html => [.../<section id="diagnostica"[\s\S]*?<\/section>/.exec(html)[0].matchAll(/<h3>([^<]+)<\/h3>/g)].map(m => m[1].replace('&#39;', '\''));
-
-test('with the real producer section, each Diagnostica card appears once: Bruvish replaces the producer\'s attempts and last problem', async () => {
+test('with the real producer section, each Diagnostica card appears once, in the producer\'s order', async () => {
     const input = page();
     input.sections = [input.sections[0], producerSection(5)];
-    assert.deepEqual(titlesOf(await renderDocument(input)), ['Ultimo problema', 'Tentativi', 'Stato dell\'esecutore', 'Questa vista', 'Cosa è cambiato su GitHub']);
+    assert.deepEqual(titlesOf(await renderDocument(input)), PRODUCER_TITLES);
     // No problem: the producer sends three cards and Bruvish only the attempts.
     input.sections = [input.sections[0], producerSection(3)];
     input.diagnostics = { ...diagnostics, problem: null };
-    assert.deepEqual(titlesOf(await renderDocument(input)), ['Tentativi', 'Stato dell\'esecutore', 'Questa vista']);
+    assert.deepEqual(titlesOf(await renderDocument(input)), ['Stato dell\'esecutore', 'Questa vista', 'Tentativi']);
     // Without diagnostics the section stays as the producer sent it.
     const { diagnostics: _, ...plain } = { ...input, sections: [input.sections[0], producerSection(5)] };
     assert.deepEqual(titlesOf(await renderDocument(plain)), PRODUCER_TITLES);

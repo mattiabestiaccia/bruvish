@@ -168,7 +168,7 @@ function headerActions(actions) {
         && typeof o.confirm === 'string' && o.confirm.trim() && (o.hint === undefined || typeof o.hint === 'string') && (o.danger === undefined || typeof o.danger === 'boolean');
     // A fixed operation may ask for a text in its confirmation dropdown: a single line (a login).
     const fixedItem = o => item(o) && (o.field === undefined || o.field === 'line') && (o.placeholder === undefined || typeof o.placeholder === 'string')
-        && (o.required === undefined || typeof o.required === 'boolean') && !(o.required && o.field === undefined);
+        && (o.required === undefined || typeof o.required === 'boolean') && !(o.required && o.field === undefined) && o.danger === undefined;
     if (!actions || typeof actions !== 'object' || Array.isArray(actions) || typeof actions.view !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(actions.view)
         || (actions.primary !== undefined && !Array.isArray(actions.primary)) || (actions.menu !== undefined && !Array.isArray(actions.menu)) || (actions.fixed !== undefined && !Array.isArray(actions.fixed))
         || ![...(actions.primary || []), ...(actions.menu || [])].every(item) || !(actions.fixed || []).every(fixedItem))
@@ -178,7 +178,7 @@ function headerActions(actions) {
     // Fixed operations are always visible beside the main ones, whatever the state of the page; they never become the
     // main alternative. Without them the header keeps the markup it had before.
     const fieldAttrs = o => o.field === undefined ? '' : ' data-mb-field-kind="' + o.field + '"' + (o.placeholder ? ' data-mb-placeholder="' + escape(o.placeholder) + '"' : '') + (o.required ? ' data-mb-required' : '');
-    const fixed = (actions.fixed || []).length ? '<div class="mb-actions-fixed">' + actions.fixed.map(o => '<button type="button" class="mb-action-fixed' + (o.danger ? ' mb-danger' : '') + '"' + attrs(o) + fieldAttrs(o) + '>' + inline(o.label) + '</button>').join('') + '</div>' : '';
+    const fixed = (actions.fixed || []).length ? '<div class="mb-actions-fixed">' + actions.fixed.map(o => '<button type="button" class="mb-action-fixed"' + attrs(o) + fieldAttrs(o) + '>' + inline(o.label) + '</button>').join('') + '</div>' : '';
     const menu = (actions.menu || []).length ? '<details class="mb-actions-menu"><summary>Altre operazioni ⋯</summary><div class="mb-actions-items">' +
         actions.menu.map(o => '<button type="button" class="mb-action-item' + (o.danger ? ' mb-danger' : '') + '"' + attrs(o) + '>' + inline(o.label) + (o.hint ? '<small>' + inline(o.hint) + '</small>' : '') + '</button>').join('') + '</div></details>' : '';
     return '<div class="mb-actions" data-mb-actions>' + (fixed ? '<div class="mb-actions-row">' + primary + fixed + '</div>' : primary) + menu + '<div class="mb-confirm" role="dialog" aria-label="Conferma" hidden></div></div>';
@@ -485,17 +485,15 @@ function questionText(card, q, answer) {
     return '<div class="mb-answer-text"' + (t.for === undefined ? '' : ' data-mb-for="' + escape(JSON.stringify(t.for.map(String))) + '"') + (shown ? '' : ' hidden') + '><label><span class="mb-answer-label">' + inline(t.label ?? 'Il tuo testo') + '</span><textarea data-mb-field="' + card.id + ':text" name="text" rows="3"' + (t.placeholder ? ' placeholder="' + escape(t.placeholder) + '"' : '') + '>' + escape(typeof answer?.text === 'string' ? answer.text : '') + '</textarea></label></div>';
 }
 // Diagnostics of an operation executor (diagnostics in the page JSON): what the executor did with each operation the page
-// or the chat sent. Bruvish renders two cards at the top of the section «diagnostica» (added at the end when the page
-// has none): the last problem, framed in its colour, and the table of the attempts, most recent first. They replace the
-// producer's own cards with the same roles: by the producer's card order, «Tentativi» is carta-diagnostica-3 and «Ultimo
-// problema» carta-diagnostica-4. The executor writes these facts, never the agent; times are Unix seconds, shown in the
-// local time of the renderer.
+// or the chat sent. In the section «diagnostica» Bruvish renders two cards in place of the producer's cards with the same
+// roles, in the producer's card order: the table of the attempts, most recent first, in place of carta-diagnostica-3, and
+// the last problem, framed in its colour, in place of carta-diagnostica-4. A page without that section keeps its sections.
+// The executor writes these facts, never the agent; times are Unix seconds, shown in the local time of the renderer.
 const OUTCOMES = { fatto: ['Fatto', 'verde'], parziale: ['Fatto a metà', 'giallo'], rimandato: ['Rimandato', 'giallo'], rifiutato: ['Rifiutato', 'rosso'], incerto: ['Incerto', 'rosso'], scartato: ['Scartato', 'blu'] };
 const outcomeOf = value => value === undefined || value === null || value === '' ? ['In corso', 'giallo'] : OUTCOMES[value] || [String(value), 'blu'];
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 const two = n => String(n).padStart(2, '0');
 const localTime = t => { if (typeof t !== 'number' || !Number.isFinite(t)) return '—'; const d = new Date(t * 1000); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ', ' + two(d.getHours()) + ':' + two(d.getMinutes()); };
-const REPLACED_DIAGNOSTIC_CARDS = new Set(['carta-diagnostica-3', 'carta-diagnostica-4']);
 const ATTEMPT_TEXTS = ['id', 'operazione', 'fonte', 'esito', 'motivo', 'passo', 'dettaglio', 'frase'];
 // An operation name shows as code when it is a plain identifier; anything else stays text, escaped like every other.
 const operationText = op => typeof op === 'string' && OP_ID.test(op) ? '`' + op + '`' : (op ? String(op) : '?');
@@ -509,28 +507,27 @@ function withDiagnostics(input) {
     if (!d || typeof d !== 'object' || Array.isArray(d) || (d.attempts !== undefined && (!Array.isArray(d.attempts) || !d.attempts.every(attemptOk)))
         || (d.total !== undefined && !(Number.isInteger(d.total) && d.total >= 0)) || (d.problem !== undefined && d.problem !== null && !attemptOk(d.problem)))
         throw new Error(shape);
-    const attempts = d.attempts || [], total = Math.max(d.total ?? attempts.length, attempts.length), cards = [];
+    const attempts = d.attempts || [], total = Math.max(d.total ?? attempts.length, attempts.length);
+    let problem = null;
     if (d.problem) {
         const p = d.problem, [label, tone] = outcomeOf(p.esito), serious = tone === 'rosso';
         const fields = [{ label: 'Operazione', paragraphs: [[operationText(p.operazione), localTime(p.ora), p.fonte].filter(Boolean).join(' · ')] },
             { label: 'Causa', paragraphs: [p.motivo || '—'] }, { label: 'Cosa fare', paragraphs: [p.passo || '—'] }, ...(p.frase ? [{ label: 'Frase', paragraphs: ['«' + p.frase + '»'] }] : [])];
-        cards.push({ id: 'mb-diag-problem', title: 'Ultimo problema', tone, ...(serious ? { status: 'blocked' } : {}), labels: [{ text: label, tone }], fields,
-            ...(p.dettaglio ? { transcript: { summary: 'Dettaglio tecnico', text: p.dettaglio } } : {}) });
+        problem = { id: 'mb-diag-problem', title: 'Ultimo problema', tone, ...(serious ? { status: 'blocked' } : {}), labels: [{ text: label, tone }], fields,
+            ...(p.dettaglio ? { transcript: { summary: 'Dettaglio tecnico', text: p.dettaglio } } : {}) };
     }
     const help = 'Il registro dell\'esecutore delle operazioni, scritto dall\'esecutore e non dall\'agente. **Rifiutato** vuol dire che l\'operazione non è partita; **Incerto** vuol dire: controlla a mano prima di riprovare.';
-    cards.push(attempts.length ? {
+    const tried = attempts.length ? {
         id: 'mb-diag-attempts', title: 'Tentativi', help,
         table: { headers: ['Ora', 'Operazione', 'Fonte', 'Esito', 'Motivo', 'Cosa fare'], rows: attempts.map(a => {
             const [label, tone] = outcomeOf(a.esito);
             return [localTime(a.ora), operationText(a.operazione), a.fonte || '—', { text: label, tone }, (a.motivo || '—') + (a.frase ? ' · Frase: «' + a.frase + '»' : ''), a.passo || '—'];
         }) },
         notes: [attempts.length + ' di ' + total + ', dal più recente.'],
-    } : { id: 'mb-diag-attempts', title: 'Tentativi', help, paragraphs: ['Nessun tentativo.'] });
-    const sections = input.sections || [];
-    const at = sections.findIndex(s => s && s.id === 'diagnostica');
-    return { ...input, sections: at < 0
-            ? [...sections, { id: 'diagnostica', title: 'Diagnostica', ...(total ? { count: total } : {}), cards }]
-            : sections.map((s, i) => i === at ? { ...s, cards: [...cards, ...(s.cards || []).filter(c => !REPLACED_DIAGNOSTIC_CARDS.has(c?.id))] } : s) };
+    } : { id: 'mb-diag-attempts', title: 'Tentativi', help, paragraphs: ['Nessun tentativo.'] };
+    const replaced = { 'carta-diagnostica-3': tried, 'carta-diagnostica-4': problem };
+    return { ...input, sections: (input.sections || []).map(s => s && s.id === 'diagnostica'
+            ? { ...s, cards: (s.cards || []).flatMap(c => c && Object.hasOwn(replaced, c.id) ? (replaced[c.id] ? [replaced[c.id]] : []) : [c]) } : s) };
 }
 // The index of the sections. With tabs: true it is the tab bar: artifact-blocks.js shows one
 // section at a time; without JS every section stays visible, one under the other. A section count shows beside its title.

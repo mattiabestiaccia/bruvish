@@ -229,7 +229,6 @@ header.mb-header-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;g
 .mb-actions-fixed{display:flex;flex-wrap:wrap;gap:8px}
 .mb-action-fixed{font:inherit;font-size:17px;font-weight:650;padding:9px 16px;border:1px solid var(--title);border-radius:10px;cursor:pointer;color:var(--title);background:transparent}
 .mb-action-fixed:hover,.mb-action-fixed:focus-visible{background:var(--field)}
-.mb-action-fixed.mb-danger{color:var(--mb-red);border-color:var(--mb-red)}
 .mb-confirm-field{margin:0 0 10px}
 .mb-actions-menu{position:relative}
 .mb-actions-menu>summary{list-style:none;cursor:pointer;font-size:15px;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:5px 10px}
