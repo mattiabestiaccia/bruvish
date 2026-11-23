@@ -135,3 +135,44 @@ test('a line comment on a page with operations carries the view id, so the agent
     box.querySelectorAll('button')[0].click();
     assert.deepEqual(plainOf(window.queued.map(q => [q.tag, q.data])), [['line-comment', { file: 'src/a.js', line: 2, text: 'Meglio una costante.', view: 'v1234' }]]);
 });
+
+const reviewer = { operation: 'revisore', label: 'Assegna un revisore', field: 'line', required: true, placeholder: 'Login GitHub, per esempio octocat', confirm: 'Chiede la revisione a una persona. Scrivi il suo login, poi Conferma.' };
+
+test('a fixed operation is an always-visible header button beside the main ones; without it the header markup is unchanged', async () => {
+    const html = await renderDocument(page({ actions: { ...actions, fixed: [reviewer] } }));
+    assert.match(html, /<div class="mb-actions" data-mb-actions><div class="mb-actions-row"><div class="mb-actions-primary">[\s\S]*?<\/div><div class="mb-actions-fixed"><button type="button" class="mb-action-fixed" data-mb-op="revisore" data-mb-confirm-title="Assegna un revisore" data-mb-confirm="Chiede la revisione a una persona\.[^"]*" data-mb-field-kind="line" data-mb-placeholder="Login GitHub, per esempio octocat" data-mb-required>Assegna un revisore<\/button><\/div><\/div><details class="mb-actions-menu">/);
+    // Only the fixed operation: no main alternative, no menu, the button is still there.
+    const alone = await renderDocument(page({ actions: { view: 'v1234', fixed: [reviewer] } }));
+    assert.match(alone, /<div class="mb-actions" data-mb-actions><div class="mb-actions-row"><div class="mb-actions-fixed"><button type="button" class="mb-action-fixed" data-mb-op="revisore"/);
+    assert.doesNotMatch(alone.slice(alone.indexOf('<body>')), /mb-actions-primary|mb-actions-menu/);
+    for (const input of [page(), page({ actions: { ...actions, fixed: [] } })])
+        assert.match(await renderDocument(input), /<div class="mb-actions" data-mb-actions><div class="mb-actions-primary">/, 'no fixed operation: no row wrapper');
+    for (const bad of [{ ...actions, fixed: reviewer }, { ...actions, fixed: [{ ...reviewer, field: 'area' }] }, { ...actions, fixed: [{ ...reviewer, required: 'yes' }] },
+        { ...actions, fixed: [{ ...reviewer, field: undefined }] }, { ...actions, fixed: [{ ...reviewer, placeholder: 3 }] }, { ...actions, fixed: [{ ...reviewer, confirm: '' }] }])
+        await assert.rejects(renderDocument(page({ actions: bad })), /actions must be/);
+});
+
+test('the fixed operation asks for its text in the confirmation: empty refuses, Enter or Conferma sends the text', async () => {
+    const { document, window, sent } = boot(await renderDocument(page({ actions: { ...actions, fixed: [reviewer] } })));
+    const box = document.querySelector('.mb-confirm'), button = document.querySelector('.mb-action-fixed'), main = document.querySelector('.mb-action-main');
+    button.click();
+    assert.equal(box.hidden, false);
+    assert.equal(box.querySelector('.mb-confirm-title').textContent, 'Assegna un revisore?');
+    const field = box.querySelector('input.mb-confirm-field');
+    assert.equal(field.getAttribute('placeholder'), 'Login GitHub, per esempio octocat');
+    assert.equal(field.getAttribute('aria-label'), 'Assegna un revisore');
+    assert.equal(document.activeElement, field, 'the field takes the focus');
+    assert.ok(main.classList.contains('mb-action-main') && !button.classList.contains('mb-action-main'), 'a fixed operation never becomes the main alternative');
+    box.querySelector('.mb-confirm-yes').click();
+    assert.equal(box.querySelector('.mb-op-status').textContent, 'Compila il campo prima di confermare.');
+    assert.equal(window.queued.length, 0);
+    field.value = '  octocat ';
+    document.dispatch(field, 'keydown', { key: 'Enter' });
+    assert.deepEqual(plainOf(window.queued.map(q => [q.tag, q.data])), [['operation', { view: 'v1234', operation: 'revisore', text: 'octocat' }]]);
+    assert.equal(sent.count, 1);
+    assert.equal(box.querySelector('.mb-confirm-field'), null, 'after sending the dropdown shows only the outcome text');
+    // A header operation without a field keeps the plain confirmation.
+    main.click();
+    assert.equal(box.querySelector('.mb-confirm-field'), null);
+    assert.equal(box.querySelector('.mb-op-status'), null);
+});

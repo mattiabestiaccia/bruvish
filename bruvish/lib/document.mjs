@@ -163,18 +163,25 @@ const OP_ID = /^[a-z][a-z0-9-]{0,39}$/;
 function headerActions(actions) {
     if (actions === undefined)
         return '';
-    const shape = 'actions must be { "view": "<id of this page>", "primary": [{ "operation": "unisci", "label": "Unisci", "confirm": "What happens." }], "menu": [{ "operation": "chiudi", "label": "Chiudi", "hint": "...", "confirm": "...", "danger": true }] }';
+    const shape = 'actions must be { "view": "<id of this page>", "primary": [{ "operation": "unisci", "label": "Unisci", "confirm": "What happens." }], "menu": [{ "operation": "chiudi", "label": "Chiudi", "hint": "...", "confirm": "...", "danger": true }], "fixed": [{ "operation": "revisore", "label": "Assegna un revisore", "confirm": "...", "field": "line", "placeholder": "...", "required": true }] }';
     const item = o => o && typeof o === 'object' && !Array.isArray(o) && OP_ID.test(o.operation || '') && typeof o.label === 'string' && o.label.trim()
         && typeof o.confirm === 'string' && o.confirm.trim() && (o.hint === undefined || typeof o.hint === 'string') && (o.danger === undefined || typeof o.danger === 'boolean');
+    // A fixed operation may ask for a text in its confirmation dropdown: a single line (a login) or a longer text.
+    const fixedItem = o => item(o) && (o.field === undefined || ['line', 'text'].includes(o.field)) && (o.placeholder === undefined || typeof o.placeholder === 'string')
+        && (o.required === undefined || typeof o.required === 'boolean') && !(o.required && o.field === undefined);
     if (!actions || typeof actions !== 'object' || Array.isArray(actions) || typeof actions.view !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(actions.view)
-        || (actions.primary !== undefined && !Array.isArray(actions.primary)) || (actions.menu !== undefined && !Array.isArray(actions.menu))
-        || ![...(actions.primary || []), ...(actions.menu || [])].every(item))
+        || (actions.primary !== undefined && !Array.isArray(actions.primary)) || (actions.menu !== undefined && !Array.isArray(actions.menu)) || (actions.fixed !== undefined && !Array.isArray(actions.fixed))
+        || ![...(actions.primary || []), ...(actions.menu || [])].every(item) || !(actions.fixed || []).every(fixedItem))
         throw new Error(shape);
     const attrs = o => ' data-mb-op="' + o.operation + '" data-mb-confirm-title="' + escape(o.label) + '" data-mb-confirm="' + escape(inline(o.confirm)) + '"';
     const primary = (actions.primary || []).length ? '<div class="mb-actions-primary">' + actions.primary.map((o, i) => '<button type="button" class="mb-action' + (i === 0 ? ' mb-action-main' : '') + '"' + attrs(o) + '>' + inline(o.label) + '</button>').join('') + '</div>' : '';
+    // Fixed operations are always visible beside the main ones, whatever the state of the page; they never become the
+    // main alternative. Without them the header keeps the markup it had before.
+    const fieldAttrs = o => o.field === undefined ? '' : ' data-mb-field-kind="' + o.field + '"' + (o.placeholder ? ' data-mb-placeholder="' + escape(o.placeholder) + '"' : '') + (o.required ? ' data-mb-required' : '');
+    const fixed = (actions.fixed || []).length ? '<div class="mb-actions-fixed">' + actions.fixed.map(o => '<button type="button" class="mb-action-fixed' + (o.danger ? ' mb-danger' : '') + '"' + attrs(o) + fieldAttrs(o) + '>' + inline(o.label) + '</button>').join('') + '</div>' : '';
     const menu = (actions.menu || []).length ? '<details class="mb-actions-menu"><summary>Altre operazioni ⋯</summary><div class="mb-actions-items">' +
         actions.menu.map(o => '<button type="button" class="mb-action-item' + (o.danger ? ' mb-danger' : '') + '"' + attrs(o) + '>' + inline(o.label) + (o.hint ? '<small>' + inline(o.hint) + '</small>' : '') + '</button>').join('') + '</div></details>' : '';
-    return '<div class="mb-actions" data-mb-actions>' + primary + menu + '<div class="mb-confirm" role="dialog" aria-label="Conferma" hidden></div></div>';
+    return '<div class="mb-actions" data-mb-actions>' + (fixed ? '<div class="mb-actions-row">' + primary + fixed + '</div>' : primary) + menu + '<div class="mb-confirm" role="dialog" aria-label="Conferma" hidden></div></div>';
 }
 // A card operation: a text field (comment), a single-line field (login), or a choice among review outcomes with a text.
 function cardAction(card) {

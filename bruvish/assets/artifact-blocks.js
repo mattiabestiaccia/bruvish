@@ -4,6 +4,7 @@
         // Page operations (S20). Header and «⋯» menu: a click opens a confirmation dropdown that says what happens; «Conferma»
         // queues the operation and sends it. Card forms: a text, then two taps on the button (choose, then confirm).
         const view = document.querySelector('main[data-mb-view]')?.dataset.mbView || '';
+        const sentText = fallback => fallback;
         const sendOperation = (operation, text, element) => {
             if (!window.lavish?.queuePrompt)
                 return false;
@@ -19,16 +20,35 @@
                 const title = make('b', { class: 'mb-confirm-title' }, button.dataset.mbConfirmTitle + '?'), text = make('p', { class: 'mb-confirm-text' });
                 text.innerHTML = button.dataset.mbConfirm;
                 const row = make('div', { class: 'mb-confirm-row' }), no = make('button', { type: 'button', class: 'mb-confirm-no' }, 'Annulla'), yes = make('button', { type: 'button', class: 'mb-confirm-yes' }, 'Conferma');
+                // A fixed operation that asks for a text (a login, a reason) carries its field inside the dropdown.
+                const kind = button.dataset.mbFieldKind;
+                let field = null, status = null;
+                if (kind === 'line' || kind === 'text') {
+                    const attributes = { class: 'mb-op-text mb-confirm-field', 'aria-label': button.dataset.mbConfirmTitle, placeholder: button.dataset.mbPlaceholder || '' };
+                    field = kind === 'text' ? make('textarea', { ...attributes, rows: '3' }) : make('input', { ...attributes, type: 'text', autocomplete: 'off', spellcheck: 'false' });
+                    status = make('span', { class: 'mb-op-status', role: 'status' });
+                    row.append(status);
+                }
                 row.append(no, yes);
-                box.append(title, text, row);
+                box.append(...[title, text, field, row].filter(Boolean));
                 box.hidden = false;
+                field?.focus?.();
                 no.addEventListener('click', () => { box.hidden = true; button.focus?.(); });
                 yes.addEventListener('click', () => {
-                    const sent = sendOperation(button.dataset.mbOp, '', button);
-                    box.replaceChildren(make('p', { class: 'mb-confirm-text' }, sent ? '✓ ' + button.dataset.mbConfirmTitle + ': inviato all\'agente.' : 'Lavish non è collegato: scrivi l\'operazione in chat.'));
+                    const value = field ? String(field.value || '').trim() : '';
+                    if (field && button.hasAttribute('data-mb-required') && !value) {
+                        status.textContent = 'Compila il campo prima di confermare.';
+                        field.focus?.();
+                        return;
+                    }
+                    const sent = sendOperation(button.dataset.mbOp, value, button);
+                    box.replaceChildren(make('p', { class: 'mb-confirm-text' }, sent ? sentText('✓ ' + button.dataset.mbConfirmTitle + ': inviato all\'agente.') : 'Lavish non è collegato: scrivi l\'operazione in chat.'));
                 });
+                // Enter in a single-line field confirms, as the button does.
+                if (kind === 'line')
+                    field.addEventListener('keydown', event => { if (event && event.key === 'Enter') { event.preventDefault?.(); yes.click(); } });
             };
-            bar.querySelectorAll('[data-mb-op]').forEach(button => button.addEventListener('click', () => {
+            bar.querySelectorAll('button[data-mb-op]').forEach(button => button.addEventListener('click', () => {
                 if (button.classList.contains('mb-action'))
                     bar.querySelectorAll('.mb-action').forEach(other => other.classList.toggle('mb-action-main', other === button));
                 ask(button);
