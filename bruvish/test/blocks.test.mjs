@@ -198,6 +198,18 @@ test('the voice plays the Qwen track named by the hash of the spoken text, and f
   await settle();
   assert.equal(played.length, 1);
   assert.deepEqual(spoken, ['Una carta Testo.'], 'no track yet: the browser voice reads');
+  spoken.length = 0;
+  played.length = 0;
+  let abort;
+  document = voiceWindow(() => new Promise((resolve, reject) => { abort = reject; }));
+  document.querySelector('#b [data-mb-voice]').click();
+  await settle();
+  assert.equal(played.length, 1, 'the track is still loading');
+  document.querySelector('#b [data-mb-voice]').click();
+  assert.equal(played[0].paused, true, 'a second click stops the loading track');
+  abort(new Error('AbortError: play() interrupted by pause()'));
+  await settle();
+  assert.deepEqual(spoken, [], 'a track stopped while loading never falls back to the browser voice');
 });
 
 test('the bubble joins the fixed meaning and a summary of this card; the voice reads the text written for the card (S6)', async () => {
