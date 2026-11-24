@@ -176,6 +176,30 @@ test('help opens with a click on «?» in the flow of the card, closes with anot
   await assert.rejects(render(doc([card({ help: '' })])), /Card a: help/);
 });
 
+test('the voice plays the Qwen track named by the hash of the spoken text, and falls back to the browser voice without it', async () => {
+  // The same vectors pin the hash in voce-ai (sintesi-vocale, strumento/test_voce.py): whitespace collapsed, NFC, first 32 hex.
+  const html = await render(doc([card({ voice: ' È  l’ora\n  del caffè. ' }), card({ id: 'b' })]));
+  const played = [], spoken = [];
+  const voiceWindow = (play) => { const { document, window } = boot(html); Object.assign(window, { crypto: globalThis.crypto, TextEncoder, SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } }, speechSynthesis: { speaking: false, speak: u => spoken.push(u.text), cancel() {} }, Audio: class { constructor(src) { this.src = src; this.paused = false; played.push(this); } addEventListener() {} play() { return play(this); } pause() { this.paused = true; } } }); return document; };
+  const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+  let document = voiceWindow(() => Promise.resolve());
+  document.querySelector('#a [data-mb-voice]').click();
+  await settle();
+  assert.deepEqual(played.map(a => a.src), ['tracce/cfb5ee9602d7516dde85cf7f8ef1304a.m4a']);
+  assert.deepEqual(spoken, [], 'the track plays, the browser stays silent');
+  document.querySelector('#b [data-mb-voice]').click();
+  assert.equal(played[0].paused, true, 'a second click stops the track');
+  document.querySelector('#b [data-mb-voice]').click();
+  await settle();
+  assert.equal(played[1].src, 'tracce/866eb26d42d1a47dba20a032da6641bc.m4a', 'title and body, as the browser voice reads them');
+  played.length = 0;
+  document = voiceWindow(() => Promise.reject(new Error('404')));
+  document.querySelector('#b [data-mb-voice]').click();
+  await settle();
+  assert.equal(played.length, 1);
+  assert.deepEqual(spoken, ['Una carta Testo.'], 'no track yet: the browser voice reads');
+});
+
 test('the bubble joins the fixed meaning and a summary of this card; the voice reads the text written for the card (S6)', async () => {
   const html = await render(doc([card({ help: 'Il significato.', summary: 'Qui conta **una** riga.', voice: 'La PR cambia "una" riga & passa.' })]));
   const body = cardHtml(html);
