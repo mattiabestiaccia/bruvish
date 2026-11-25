@@ -7,23 +7,23 @@ const PROBE_ATTEMPTS = 3;
 const RETRY_PAUSE_MS = 250;
 
 export class SlowServerError extends Error {
-  constructor(attempts, waitedMs) {
+  constructor(endpoint, attempts, waitedMs) {
     super(
-      `The Lavish server is slow to answer: no reply to ${attempts} health checks in ${(waitedMs / 1000).toFixed(1)} s, ` +
-        "most likely because the machine is under heavy load. The page was not refused and the server was not touched or replaced. " +
-        "Retry in a few seconds.",
+      "Il server Lavish risponde lentamente. " +
+        `Il controllo ${endpoint} è scaduto dopo ${attempts} tentativi in ${(waitedMs / 1000).toFixed(1)} s. ` +
+        "Riprova tra qualche secondo.",
     );
     this.name = "SlowServerError";
   }
 }
 
-// One bounded GET, body included. Resolves { ok, body }; a connection error (nothing listening)
+// One bounded GET, body included. Resolves { ok, body }; a connection error
 // rejects with that error, a missing answer rejects with an AbortError.
 async function probeOnce(fetchImpl, url, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(url, { signal: controller.signal });
+    const response = await fetchImpl(url, { signal: controller.signal, redirect: "manual" });
     if (!response.ok) return { ok: false, body: null };
     try {
       return { ok: true, body: await response.json() };
@@ -36,16 +36,19 @@ async function probeOnce(fetchImpl, url, timeoutMs) {
   }
 }
 
-async function probe(fetchImpl, url, { timeoutMs, attempts, pauseMs, sleep }) {
+async function probe(fetchImpl, origin, endpoint, { timeoutMs, attempts, pauseMs, sleep }) {
   let waitedMs = 0;
   for (let attempt = 0; ; attempt += 1) {
     const attemptTimeout = timeoutMs * 2 ** attempt;
     try {
-      return await probeOnce(fetchImpl, url, attemptTimeout);
+      return await probeOnce(fetchImpl, `${origin}${endpoint}`, attemptTimeout);
     } catch (error) {
-      if (error.name !== "AbortError") throw error;
+      if (error.name !== "AbortError") {
+        if (endpoint === "/health" && attempt === 0 && error.cause?.code === "ECONNREFUSED") return null;
+        throw error;
+      }
       waitedMs += attemptTimeout;
-      if (attempt + 1 >= attempts) throw new SlowServerError(attempts, waitedMs);
+      if (attempt + 1 >= attempts) throw new SlowServerError(endpoint, attempts, waitedMs);
       const pause = pauseMs * 2 ** attempt;
       waitedMs += pause;
       await sleep(pause);
@@ -71,20 +74,15 @@ export async function assertCompatibleServer(
 ) {
   const options = { timeoutMs, attempts, pauseMs, sleep };
   const origin = `http://127.0.0.1:${env.LAVISH_AXI_PORT}`;
-  let health;
-  try {
-    health = await probe(fetchImpl, `${origin}/health`, options);
-  } catch (error) {
-    if (error instanceof SlowServerError) throw error;
-    return;
-  }
+  const health = await probe(fetchImpl, origin, "/health", options);
+  if (health === null) return;
   if (!health.ok) throw new Error("Port is occupied by a server without a healthy Lavish endpoint");
   const body = health.body ?? {};
   if (body.app !== "lavish-axi") throw new Error("Port belongs to another service");
   if (path.resolve(body.state_dir || "") !== path.resolve(env.LAVISH_AXI_STATE_DIR)) {
     throw new Error("Existing server uses another state directory; refusing to adopt it");
   }
-  const response = await probe(fetchImpl, `${origin}/mb-info`, options);
+  const response = await probe(fetchImpl, origin, "/mb-info", options);
   if (!response.ok) {
     throw new Error(
       "A non-Bruvish Lavish server is already running. Use the reviewed activation procedure; it will not be restarted automatically.",
