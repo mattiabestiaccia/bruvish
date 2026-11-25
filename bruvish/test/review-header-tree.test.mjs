@@ -183,7 +183,7 @@ test('header D without operations keeps the state top right; the theme accent an
     assert.match(css, /\.mb-icon-button:hover::after,\.mb-icon-button:focus-visible::after\{opacity:1\}/);
     assert.match(css, /\.mb-icon-button\[data-mb-icon=chiudi\]\{[^}]*color:var\(--mb-red\)/);
     // Phone: one column, the title first at full width, then the row of the operations and the state.
-    assert.match(css, /@media\(max-width:560px\)\{\.mb-header-top\{grid-template-columns:minmax\(0,1fr\)[^}]*\}\.mb-header-side\{display:flex;flex-wrap:wrap;[^}]*\}\}/);
+    assert.match(css, /@media\(max-width:560px\)\{\.mb-header-top\{grid-template-columns:minmax\(0,1fr\)[^}]*\}\.mb-header-side\{display:flex;flex-wrap:wrap;[^}]*\}\.mb-header-side>\.mb-actions\{order:1;margin-left:auto\}\}/, 'the operations sit at the right end, so their right-anchored popups stay on screen');
 });
 
 // The tree bar: groups and sections in JSON order, a status dot and a count beside an item.
