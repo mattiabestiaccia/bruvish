@@ -206,7 +206,7 @@ const treePage = (extra = {}) => ({
 test('tabs "tree": a vertical tree of top items and groups, in JSON order, with status dots and counts', async () => {
     const html = await render(treePage());
     const b = body(html);
-    assert.match(b, /<main data-mb-nav="tree" style="--mb-tree-rows:9"><header>/, 'the bar spans the header and the eight sections');
+    assert.match(b, /<main data-mb-nav="tree"><header>/);
     assert.match(b, /<nav class="mb-tabs mb-tree" aria-label="Schede"><a href="#sintesi" data-mb-tab="sintesi" data-lavish-action><span class="mb-tree-name">Sintesi<\/span><\/a><div class="mb-tree-group" data-mb-group="gate"><button type="button" class="mb-tree-branch" data-mb-branch aria-expanded="true" aria-controls="mb-group-gate" data-lavish-action><span class="mb-tree-arrow" aria-hidden="true">▸<\/span><span class="mb-tree-dot" data-dot="verde" aria-hidden="true"><\/span><span class="mb-tree-name">Gate<\/span><span class="mb-count">9 su 9<\/span><\/button><div class="mb-tree-children" id="mb-group-gate" role="group" aria-label="Gate"><a href="#intent" data-mb-tab="intent" data-lavish-action><span class="mb-tree-dot" data-dot="verde" aria-hidden="true"><\/span><span class="mb-tree-name">Intent<\/span><\/a><a href="#revisione" data-mb-tab="revisione" data-lavish-action><span class="mb-tree-dot" data-dot="giallo" aria-hidden="true"><\/span><span class="mb-tree-name">Revisione<\/span><span class="mb-count">4 corretti<\/span><\/a>/);
     const { document } = boot(html);
     const nav = document.querySelector('nav.mb-tree');

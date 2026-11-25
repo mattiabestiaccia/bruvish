@@ -58,16 +58,16 @@ test('a page without the tree keeps the assets of today: no tree stylesheet, no 
     }
 });
 
-test('a tree page adds the tree stylesheet and script after the blocks, and tells the grid how many rows the bar spans', async () => {
+test('a tree page adds the tree stylesheet and script after the blocks; main keeps the markup of before', async () => {
     const html = await render(treePage());
     assert.equal(styleOf(html), [fontsCss, baseCss, blocksCss, treeCss].join('\n'), 'the tree rules come last, so they win at equal specificity');
     assert.equal(scriptOf(html), [baseJs, blocksJs, treeJs].join('\n'));
-    // header, then one row per section: the bar runs from the top of the page to its end, beside header and cards.
-    assert.match(body(html), /<main data-mb-nav="tree" style="--mb-tree-rows:6"><header/);
-    assert.match(body(await render(treePage({ header: { notice: 'Prova.' } }))), /<main data-mb-nav="tree" style="--mb-tree-rows:7"><p class="mb-notice">/, 'a notice is one row more');
+    // The header sits above bar and cards (approved mockup barra-di-navigazione-albero.html): no row count is needed.
+    assert.match(body(html), /<main data-mb-nav="tree"><header/);
+    assert.doesNotMatch(html, /--mb-tree-rows/);
 });
 
-test('wide: a narrower bar from the top of the page; header and cards share the column on its right', async () => {
+test('wide: header D above, as wide as bar, gap and cards; under it a narrower bar on the left and the cards on the right', async () => {
     const html = await render(treePage()), css = styleOf(html);
     const { document } = boot(html);
     const main = document.querySelector('main'), nav = document.querySelector('nav.mb-tree'), header = document.querySelector('header');
@@ -75,18 +75,24 @@ test('wide: a narrower bar from the top of the page; header and cards share the 
     assert.equal(at(main)['grid-template-columns'], '200px minmax(0,1fr)', 'the bar is 200px wide (236px before)');
     assert.equal(at(main)['column-gap'], '24px');
     assert.equal(at(nav)['grid-column'], '1');
-    assert.equal(at(nav)['grid-row'], '1/span var(--mb-tree-rows,1)');
+    assert.equal(at(nav)['grid-row'], undefined, 'the bar starts under the header, as before');
     assert.equal(at(nav).position, 'sticky');
-    for (const el of [header, ...document.querySelectorAll('main > section')])
-        assert.equal(at(el)['grid-column'], '2', (el.id || el.tagName) + ' sits right of the bar');
+    for (const el of document.querySelectorAll('main > section'))
+        assert.equal(at(el)['grid-column'], '2', el.id + ' sits right of the bar');
+    // The header spans the whole grid: its left edge is the left edge of the bar.
+    assert.equal(at(header)['grid-column'], '1/-1');
     // Long names wrap (at a space, or hyphenated) instead of widening the bar; the count stays whole.
     const name = document.querySelector('nav.mb-tree .mb-tree-name');
     assert.equal(at(name)['white-space'], 'normal');
     assert.equal(at(name).hyphens, 'auto');
     assert.equal(at(name)['overflow-wrap'], 'break-word');
     assert.equal(at(document.querySelector('nav.mb-tree .mb-count'))['white-space'], 'nowrap');
-    // Header D at the width of the cards: it ends where the cards end, before the column of 🔊 and «?».
+    // ...and its right edge is the right edge of the cards: the cards end 48px before the end of their column (the column
+    // of 🔊 and «?»), so does the header, before the end of the grid.
     assert.equal(at(header)['margin-right'], '48px');
+    assert.equal(layoutBox(css, header, 1280).width, layoutBox(css, main, 1280).inner - 48);
+    const notice = boot(await render(treePage({ header: { notice: 'Prova.' } }))).document.querySelector('.mb-notice');
+    assert.deepEqual([at(notice)['grid-column'], at(notice)['margin-right']], ['1/-1', '48px'], 'the notice, above the header, too');
     // A facts value wraps only when the narrower column cannot hold the table on one line.
     // (Table layout auto: a cell that fits stays on one line whatever white-space says.)
     const facts = boot(await render(treePage({ header: { facts: [{ label: 'Unisce', text: '`un-ramo-lungo` → `main`' }] } }))).document.querySelector('.mb-facts td');
@@ -182,7 +188,7 @@ test('the examples revisione-albero render with the tree assets, one card width 
     for (const name of ['revisione-albero', 'revisione-albero-senza-gate']) {
         const html = await render(await readJson('../examples/' + name + '.json'));
         assert(styleOf(html).endsWith(treeCss), name);
-        assert.match(body(html), /<main data-mb-view="[^"]+" data-mb-executor data-mb-nav="tree" style="--mb-tree-rows:\d+">/, name);
+        assert.match(body(html), /<main data-mb-view="[^"]+" data-mb-executor data-mb-nav="tree">/, name);
         assert.match(body(html), /data-mb-diff-wrap aria-pressed="true"/, name);
     }
 });
