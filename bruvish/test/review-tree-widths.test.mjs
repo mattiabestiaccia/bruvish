@@ -108,7 +108,7 @@ test('wide: header D above, at the whole width of the page; under it a narrower 
             assert(s.innerLeft + c.left + c.width < h.left + h.width - 1, viewport + ': the cards end before the header');
         }
     }
-    // A facts value wraps only when the narrower column cannot hold the table on one line.
+    // A facts value wraps only when the column cannot hold the table on one line.
     // (Table layout auto: a cell that fits stays on one line whatever white-space says.)
     const facts = boot(await render(treePage({ header: { facts: [{ label: 'Unisce', text: '`un-ramo-lungo` → `main`' }] } }))).document.querySelector('.mb-facts td');
     assert.equal(at(facts)['white-space'], 'normal');
