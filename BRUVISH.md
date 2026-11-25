@@ -34,7 +34,7 @@ L'addon (`bruvish/assets/chrome-addon.css` e `chrome-addon.js`) dà alla barra i
 
 ### Renderer delle carte
 
-`node bruvish/bin/bruvish.mjs render input.json --output pagina.html` genera la pagina da un JSON (`bruvish/lib/document.mjs`). Esempi: `bruvish/examples/dummy.json` (forma minima), `bruvish/examples/carte-complete.json` (tutte le parti di una carta), `bruvish/examples/revisione-completa.json` (tutti i mattoni, sotto) e `bruvish/examples/revisione-albero.json` con `revisione-albero-senza-gate.json` (testata D e barra ad albero, con e senza il gate) e `bruvish/examples/vibe-b2.json` (il tema `vibe`, sotto).
+`node bruvish/bin/bruvish.mjs render input.json --output pagina.html` genera la pagina da un JSON (`bruvish/lib/document.mjs`). Esempi: `bruvish/examples/dummy.json` (forma minima), `bruvish/examples/carte-complete.json` (tutte le parti di una carta), `bruvish/examples/revisione-completa.json` (tutti i mattoni, sotto), `bruvish/examples/revisione-albero.json` con `revisione-albero-senza-gate.json` (testata D e barra ad albero, con e senza il gate) e `bruvish/examples/vibe-b2.json` (il tema `vibe`, sotto).
 
 Schema del JSON:
 
