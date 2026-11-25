@@ -59,7 +59,8 @@
             if (el)
                 reveal(el);
         });
-        // A row of the intent leads to its card: opens the round, scrolls to the card and flashes it.
+        // A row of the intent that leads to an unanswered card of the open round (the only rows rendered as links): opens
+        // the round, scrolls to the card and flashes it.
         document.querySelectorAll('a.mb-vibe-row').forEach(row => row.addEventListener('click', event => {
             const card = document.getElementById(decodeURIComponent(row.getAttribute('href').slice(1)));
             if (!card)
@@ -71,7 +72,10 @@
         }));
         // The queue: artifact.js marks the queued and the sent option of each question (mb-queued, mb-sent) from the
         // chrome's anchor lists; here each open intent row follows its card, the card turns green and the counters move.
+        // A sent answer is neither waiting nor in the queue. Without a voice written by the agent, the 🔊 of the intent
+        // reads the rows as they are shown.
         const status = document.querySelector('[data-mb-vibe-status]'), counter = document.querySelector('[data-mb-round-count]');
+        const voice = document.querySelector('[data-mb-voice-rows]');
         const openRound = rounds.find(round => round.id === grid.dataset.mbVibeOpen) || rounds[0];
         const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
         const marked = form => form && [...form.querySelectorAll('label.option')].find(label => label.classList.contains('mb-queued') || label.classList.contains('mb-sent')) || null;
@@ -94,17 +98,19 @@
                 const form = card.querySelector('form[data-mb-question]');
                 if (!form)
                     return;
-                const inQueue = !!marked(form);
-                card.classList.toggle('mb-vibe-queued', inQueue);
-                if (inQueue)
+                const label = marked(form);
+                card.classList.toggle('mb-vibe-queued', !!label);
+                if (label?.classList.contains('mb-queued'))
                     queued++;
-                else if (card.dataset.mbState === 'waiting')
+                else if (!label && card.dataset.mbState === 'waiting')
                     waiting++;
             });
             if (counter)
                 counter.textContent = waiting ? plural(waiting, 'aperta', 'aperte') : queued ? 'tutte in coda' : 'nessuna aperta';
             if (status)
                 status.textContent = plural(waiting, 'domanda', 'domande') + ' in attesa · ' + plural(queued, 'risposta', 'risposte') + ' in coda';
+            if (voice)
+                voice.dataset.mbVoiceText = [document.querySelector('.mb-vibe-intent h2')?.textContent, ...[...document.querySelectorAll('.mb-vibe-row')].map(row => row.querySelector('.mb-vibe-key').textContent + ': ' + ([...row.querySelectorAll('.mb-vibe-text')].find(text => !text.hidden)?.textContent ?? ''))].join('. ');
         };
         window.addEventListener('message', event => {
             const m = event.data;

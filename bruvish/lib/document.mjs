@@ -855,8 +855,9 @@ function headerStatus(open, state) {
     return '<p class="mb-vibe-status">' + (open ? '<span>' + escape(roundName(open.title)) + ' aperto · </span>' : '') + '<span data-mb-vibe-status>' + plural(waiting, 'domanda', 'domande') + ' in attesa · 0 risposte in coda</span></p>' +
         '<p class="mb-vibe-colours" aria-label="Che cosa dicono i colori"><span data-mb-colour="giallo">aspetta te</span><span data-mb-colour="verde">risposta o confermato</span><span data-mb-colour="blu">fatti e ripasso</span><span data-mb-colour="viola">proposta o schizzo</span><span data-mb-colour="arancione">ipotesi, non verificato</span></p>';
 }
-// The intent column: rows in three states, the legend, the output, «Dice ciò che vuoi?», the grey zones. A row linked
-// to a card is a plain link, not a Lavish action, so the reader can still annotate it to correct the intent.
+// The intent column: rows in three states, the legend, the output, «Dice ciò che vuoi?», the grey zones. Only a row that
+// leads to an unanswered card of the open round is a link (a plain link, not a Lavish action, so the reader can still
+// annotate it to correct the intent); a confirmed row is text with the round that confirmed it (S10, 23 novembre 2026).
 function intentColumn(input, prep, state, unique) {
     const it = input.intent;
     for (const key of ['title', 'output'])
@@ -875,6 +876,7 @@ function intentColumn(input, prep, state, unique) {
             throw new Error('intent.rows: card must be the id of a card of this page (got ' + JSON.stringify(card) + ')');
         return prep.cards.get(card);
     };
+    const goTo = found => found && found.section === prep.open && vibeStatus(found.card, state) !== 'answered' ? found.card.id : null;
     const rowHtml = (r, attrs, href, value) => (href ? '<a class="mb-vibe-row" href="#' + href + '"' : '<div class="mb-vibe-row"') + attrs + '><span class="mb-vibe-key"><span class="mb-vibe-dot"></span>' + inline(r.key) + '</span><span class="mb-vibe-value">' + value + '</span>' + (href ? '</a>' : '</div>');
     const built = it.rows.map(r => {
         if (!r || typeof r !== 'object' || typeof r.key !== 'string' || !r.key.trim())
@@ -891,20 +893,22 @@ function intentColumn(input, prep, state, unique) {
             const say = o => o.intent ?? o.label;
             const answer = state.answers?.[card.id], chosen = answer && options.find(o => o.value === answer.choice);
             if (chosen)
-                return [rowHtml(r, ' data-mb-row-state="confirmed"', card.id, text(say(chosen)) + where('confermato · ' + round)), say(chosen)];
-            return [rowHtml(r, ' data-mb-row-state="open" data-mb-row-card="' + card.id + '" data-mb-row-round="' + round + '"', card.id,
+                return [rowHtml(r, ' data-mb-row-state="confirmed"', null, text(say(chosen)) + where('confermato · ' + round)), say(chosen)];
+            const go = goTo(found);
+            return [rowHtml(r, ' data-mb-row-state="open" data-mb-row-card="' + card.id + '" data-mb-row-round="' + round + '"', go,
                 options.map((o, i) => '<span class="mb-vibe-text" data-mb-option="' + escape(o.value) + '"' + (i ? ' hidden' : '') + '>' + inline(say(o)) + '</span>').join('') +
-                '<small class="mb-vibe-where" data-mb-where="open">in discussione · se non rispondi vale questa · vai alla carta ›</small><small class="mb-vibe-where" data-mb-where="queued" hidden>risposta in coda · ' + round + '</small><small class="mb-vibe-where" data-mb-where="sent" hidden>risposta inviata · ' + round + '</small>'), say(options[0])];
+                '<small class="mb-vibe-where" data-mb-where="open">in discussione · se non rispondi vale questa' + (go ? ' · vai alla carta ›' : '') + '</small><small class="mb-vibe-where" data-mb-where="queued" hidden>risposta in coda · ' + round + '</small><small class="mb-vibe-where" data-mb-where="sent" hidden>risposta inviata · ' + round + '</small>'), say(options[0])];
         }
         const found = linked(r.card);
         if (r.state === 'confirmed') {
             if (typeof r.text !== 'string' || !r.text.trim() || typeof r.round !== 'string' || !r.round.trim())
                 throw new Error('intent.rows: a confirmed row needs text and round, like { "key": "Perché", "state": "confirmed", "round": "giro 0", "text": "..." }');
-            return [rowHtml(r, ' data-mb-row-state="confirmed"', found?.card.id, text(r.text) + where('confermato · ' + inline(r.round))), r.text];
+            return [rowHtml(r, ' data-mb-row-state="confirmed"', null, text(r.text) + where('confermato · ' + inline(r.round))), r.text];
         }
         if (typeof r.text !== 'string' || !r.text.trim() || (r.note !== undefined && (typeof r.note !== 'string' || !r.note.trim())))
             throw new Error('intent.rows: a hypothesis row needs text (and may have a note), like { "key": "Perimetro", "state": "hypothesis", "text": "...", "note": "si sceglie al passo 1" }');
-        return [rowHtml(r, ' data-mb-row-state="hypothesis"', found?.card.id, text(r.text) + where(['ipotesi', r.note ? inline(r.note) : '', found ? 'vai alla carta ›' : ''].filter(Boolean).join(' · '))), r.text];
+        const go = goTo(found);
+        return [rowHtml(r, ' data-mb-row-state="hypothesis"', go, text(r.text) + where(['ipotesi', r.note ? inline(r.note) : '', go ? 'vai alla carta ›' : ''].filter(Boolean).join(' · '))), r.text];
     });
     const rows = built.map(([html]) => html).join('');
     const helpId = unique('mb-help-intent');
@@ -921,7 +925,7 @@ function intentColumn(input, prep, state, unique) {
         const labelId = unique('mb-q-intent'), tipId = q.reason !== undefined ? unique('mb-tip-intent') : null;
         close = '<div class="mb-vibe-close"><p class="mb-vibe-q" id="' + labelId + '">' + inline(q.label || 'Dice ciò che vuoi?') + '</p>' + answers('intent', q, state.answers?.intent, labelId, tipId, 1) + '</div>';
     }
-    return '<aside class="mb-vibe-intent" id="intent" aria-label="Intent"><div class="mb-vibe-intent-box"><button class="voice" type="button" data-mb-voice data-mb-voice-text="' + escape(spoken) + '" aria-label="Leggi l&#39;intent">🔊</button>' + head +
+    return '<aside class="mb-vibe-intent" id="intent" aria-label="Intent"><div class="mb-vibe-intent-box"><button class="voice" type="button" data-mb-voice data-mb-voice-text="' + escape(spoken) + '"' + (it.voice ? '' : ' data-mb-voice-rows') + ' aria-label="Leggi l&#39;intent">🔊</button>' + head +
         '<div class="mb-vibe-rows">' + rows + '</div>' +
         '<p class="mb-vibe-legend"><span class="mb-vibe-dot" data-mb-dot="confirmed"></span>confermato · <span class="mb-vibe-dot" data-mb-dot="open"></span>in discussione · <span class="mb-vibe-dot" data-mb-dot="hypothesis"></span>ipotesi</p>' +
         (it.output ? '<p class="mb-vibe-output">' + inline(it.output) + '</p>' : '') + close +
@@ -1011,9 +1015,18 @@ export async function renderDocument(input, options = {}) {
         return opening + section.cards.map(card => {
             if (vibe)
                 return vibeCard(card, section);
-            const helpId = card.help !== undefined || card.summary !== undefined ? helpOf(card) : undefined;
+            let helpId;
+            if (card.help !== undefined || card.summary !== undefined) {
+                helpId = 'mb-help-' + card.id;
+                while (ids.has(helpId))
+                    helpId += '-';
+                unique(helpId);
+            }
             const answer = state.answers?.[card.id];
-            const status = checkedStatus(answer ? 'answered' : (card.status || 'info'));
+            const status = answer ? 'answered' : (card.status || 'info');
+            if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
+                throw new Error('Unknown card status');
+            const context = (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + inline(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
             let question = '';
             if (card.question) {
                 const q = card.question;
@@ -1026,28 +1039,12 @@ export async function renderDocument(input, options = {}) {
                 }
                 question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + inline(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + inline(o.label) + '</span>' + QUEUED_MARK + '</label>').join('') + questionText(card, q, answer) + reason + '<span class="queue-status" role="status"></span></fieldset></form>';
             }
+            const comments = (state.comments || []).filter(c => c.card === card.id);
+            const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + contextOf(card) + question + cardAction(card) + cardNotes(card) + followOf(card) + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
-    function helpOf(card) {
-        let helpId = 'mb-help-' + card.id;
-        while (ids.has(helpId))
-            helpId += '-';
-        return unique(helpId);
-    }
-    function checkedStatus(status) {
-        if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
-            throw new Error('Unknown card status');
-        return status;
-    }
-    function contextOf(card) {
-        return (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + inline(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
-    }
-    function followOf(card) {
-        const comments = (state.comments || []).filter(c => c.card === card.id);
-        return comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
-    }
     // A card of the theme «vibe»: colour and fixed help from its genre, who speaks in a table with the question as a row,
     // the answers under it; the comments and the shared text blocks keep their rendering.
     function vibeCard(card) {
@@ -1056,10 +1053,19 @@ export async function renderDocument(input, options = {}) {
                 throw new Error('Card ' + card.id + ': ' + key + ' is not part of the theme "vibe"');
         checkVibeCard(card);
         const genre = genreOf(card), answer = state.answers?.[card.id];
-        const status = checkedStatus(vibeStatus(card, state));
+        const status = vibeStatus(card, state);
+        if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
+            throw new Error('Unknown card status');
+        let helpId = 'mb-help-' + card.id;
+        while (ids.has(helpId))
+            helpId += '-';
+        unique(helpId);
+        const context = (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + inline(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
+        const comments = (state.comments || []).filter(c => c.card === card.id);
+        const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
         const fresh = novelty(card.id);
         return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '" data-mb-genre="' + genre + '"' + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' +
-            cardHead({ ...card, help: card.help ?? GENRES[genre].help }, helpOf(card), { meaning: GENRES[genre].name + ' · a cosa serve' }) + vibeCardBody(card, answer, unique) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + contextOf(card) + cardNotes(card) + followOf(card) + '</article>';
+            cardHead({ ...card, help: card.help ?? GENRES[genre].help }, helpId, { meaning: GENRES[genre].name + ' · a cosa serve' }) + vibeCardBody(card, answer, unique) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + context + cardNotes(card) + follow + '</article>';
     }
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
     const blocks = usesBlocks(input, family), head = headerParts(input.header), actions = headerActions(input.actions);

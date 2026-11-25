@@ -199,9 +199,9 @@ test('the intent: rows in three states, the open one linked to its card with eve
   assert.match(aside, /<p class="mb-vibe-legend"><span class="mb-vibe-dot" data-mb-dot="confirmed"><\/span>confermato · <span class="mb-vibe-dot" data-mb-dot="open"><\/span>in discussione · <span class="mb-vibe-dot" data-mb-dot="hypothesis"><\/span>ipotesi<\/p><p class="mb-vibe-output">Uscita: <code>traguardo\.md<\/code><\/p>/);
   assert.match(aside, /<div class="mb-vibe-close"><p class="mb-vibe-q" id="mb-q-intent">Dice ciò che vuoi\?<\/p><form data-mb-question="intent" class="mb-vibe-answers"><fieldset aria-labelledby="mb-q-intent"><div class="mb-vibe-options mb-vibe-cols-1"><label class="option mb-recommended"><input data-mb-field="intent:choice" name="choice" type="radio" value="si">/);
   assert.match(aside, /<div class="mb-vibe-grey"><b>Zone grigie<\/b><p><span class="sentence">Una zona grigia\.<\/span><\/p><\/div><\/div><\/aside>$/);
-  // An answer already in the state confirms its row with the chosen text, in the round of the card.
+  // An answer already in the state confirms its row with the chosen text, in the round of the card: text, not a link.
   const answered = await render(vibe({ state: { revision: 2, answers: { 'g1-q': { choice: 'una' } } } }));
-  assert.match(answered, /<a class="mb-vibe-row" href="#g1-q" data-mb-row-state="confirmed"><span class="mb-vibe-key"><span class="mb-vibe-dot"><\/span>Decisioni<\/span><span class="mb-vibe-value"><span class="mb-vibe-text">Una sola decisione\.<\/span><small class="mb-vibe-where">confermato · Giro 1<\/small><\/span><\/a>/);
+  assert.match(answered, /<div class="mb-vibe-row" data-mb-row-state="confirmed"><span class="mb-vibe-key"><span class="mb-vibe-dot"><\/span>Decisioni<\/span><span class="mb-vibe-value"><span class="mb-vibe-text">Una sola decisione\.<\/span><small class="mb-vibe-where">confermato · Giro 1<\/small><\/span><\/div>/);
   // Without "intent", an option gives its label to the row.
   const labelled = vibe(); labelled.sections[0].cards[1].question = question({ options: [{ value: 'a', label: 'Solo A', recommended: true }, { value: 'b', label: 'B' }] });
   assert.match(await render(labelled), /<span class="mb-vibe-text" data-mb-option="a">Solo A<\/span>/);
@@ -222,12 +222,46 @@ test('the intent: rows in three states, the open one linked to its card with eve
   await assert.rejects(render(clash), /unique stable id: intent/);
 });
 
-test('without intent.voice the 🔊 of the intent reads, for an open row, the text the row shows', async () => {
+test('only a row that leads to an unanswered card of the open round is a link; the others are text', async () => {
+  // The closed-card filter of bridge.js hides a card answered at load: a link to it would lead nowhere visible.
+  const page = vibe({ state: { revision: 2, answers: { 'g1-q': { choice: 'una' }, 'g1-ipo': { choice: 'x' } }, comments: [] } });
+  page.intent.rows = [
+    { key: 'Perché', state: 'confirmed', round: 'giro 0', text: 'Rifare la revisione.', card: 'g1-ripasso' },
+    { key: 'Decisioni', state: 'open', card: 'g1-q' },
+    { key: 'Perimetro', state: 'hypothesis', card: 'g1-ipo', text: 'Da spuntare.' },
+    { key: 'Origine', state: 'hypothesis', card: 'g0-perche', text: 'Dal giro 0.' },
+    { key: 'Lettura', state: 'hypothesis', card: 'g1-ripasso', text: 'Da rileggere.' },
+  ];
+  const aside = (await render(page)).match(/<aside class="mb-vibe-intent"[\s\S]*<\/aside>/)[0];
+  assert.deepEqual([...aside.matchAll(/<a class="mb-vibe-row" href="#([^"]+)"/g)].map(m => m[1]), ['g1-ripasso']);
+  assert.equal((aside.match(/vai alla carta/g) || []).length, 1);
+  assert.match(aside, /<div class="mb-vibe-row" data-mb-row-state="confirmed"><span class="mb-vibe-key"><span class="mb-vibe-dot"><\/span>Perché/);
+  assert.match(aside, /<div class="mb-vibe-row" data-mb-row-state="hypothesis"><span class="mb-vibe-key"><span class="mb-vibe-dot"><\/span>Origine[\s\S]*?<small class="mb-vibe-where">ipotesi<\/small>/);
+  // An open row whose card is in a closed round is text too.
+  const closed = vibe(); closed.sections[1].cards[0].question = question(); closed.intent.rows = [{ key: 'Perché', state: 'open', card: 'g0-perche' }];
+  assert.match(await render(closed), /<div class="mb-vibe-row" data-mb-row-state="open" data-mb-row-card="g0-perche"[^>]*>[\s\S]*?data-mb-where="open">in discussione · se non rispondi vale questa<\/small>/);
+  // A hash naming an answered card at load opens its round and nothing more.
+  const deep = boot(await render(vibe({ state: { revision: 2, answers: { 'g1-q': { choice: 'una' } }, comments: [] } })), { hash: '#g1-q' });
+  assert.deepEqual(deep.document.querySelectorAll('.mb-vibe-round').filter(s => !s.hidden).map(s => s.id), ['giro-1']);
+  assert.equal(deep.document.getElementById('g1-q').scrolled ?? 0, 0);
+});
+
+test('without intent.voice the 🔊 of the intent reads the rows as shown, also after a queue change', async () => {
   const input = vibe(); input.intent.voice = undefined;
-  const voiceOf = html => /data-mb-voice-text="([^"]*)" aria-label="Leggi l&#39;intent"/.exec(html)[1];
+  const voiceOf = html => /data-mb-voice-text="([^"]*)" data-mb-voice-rows aria-label="Leggi l&#39;intent"/.exec(html)[1];
   assert.match(voiceOf(await render(input)), /Decisioni: Tre decisioni, entro due settimane\./);
   const answered = { ...input, state: { revision: 1, answers: { 'g1-q': { choice: 'una' } }, comments: [] } };
   assert.match(voiceOf(await render(answered)), /Decisioni: Una sola decisione\./);
+  const { document, window } = boot(await render(input));
+  const button = () => document.querySelector('.mb-vibe-intent [data-mb-voice]');
+  queue(window, selectorOf('g1-q', 'una'));
+  assert.equal(button().dataset.mbVoiceText, 'Intent in costruzione. Perché: Rifare la revisione.. Decisioni: Una sola decisione.. Perimetro: Da spuntare al passo 1.');
+  queue(window);
+  assert.match(button().dataset.mbVoiceText, /Decisioni: Tre decisioni, entro due settimane\./);
+  // A voice written by the agent stays as written.
+  const written = boot(await render(vibe()));
+  queue(written.window, selectorOf('g1-q', 'una'));
+  assert.equal(written.document.querySelector('.mb-vibe-intent [data-mb-voice]').dataset.mbVoiceText, 'Il traguardo, in breve.');
 });
 
 test('the counters of the open round count only the cards that wait, as the page script does', async () => {
@@ -281,6 +315,9 @@ test('queuing an answer rewrites its intent row with the text of that option, gr
   queue(window);
   assert.equal(row.dataset.mbRowState, 'queued');
   assert.deepEqual(where(), ['sent']);
+  // A sent answer is neither waiting nor in the queue.
+  assert.equal(document.querySelector('[data-mb-round-count]').textContent, 'nessuna aperta');
+  assert.match(document.querySelector('[data-mb-vibe-status]').textContent, /0 domande in attesa · 0 risposte in coda/);
   const fresh = boot(await render(vibe()));
   queue(fresh.window, selectorOf('g1-q', 'tre'));
   queue(fresh.window);
