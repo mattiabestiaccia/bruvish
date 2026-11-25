@@ -235,3 +235,44 @@ test('table.nowrap: a wrong shape stops the render with the right one; a page wi
     assert.equal(withoutRecord(await render(plainPage({ nowrap: [3] }))), withoutRecord(await render(plainPage())));
     await assert.rejects(render(plainPage({ nowrap: [9] })), shape);
 });
+
+// Cells of a table split into sentences in tree pages (Mattia, on the cards of the single findings, two-column tables
+// with a cell of twenty lines: «dovrebbero essere meglio differenziati, per esempio con paragrafi più brevi e la
+// spaziatura come te la descrivevo prima»). Only a part with two sentences or more changes; « · » still makes lines.
+const twoColumns = rows => treePage({ groups: undefined, sections: [{ id: 'r1', title: 'R1', cards: [{ id: 'c-r1', title: 'Rilievo 1', table: { rows, nowrap: [0] } }] }] });
+const cellsOf = async rows => body(await render(twoColumns(rows))).match(/<tbody>([\s\S]*?)<\/tbody>/)[1];
+
+test('tree pages: a table cell of several sentences shows one sentence per line with the space of sentences; short cells do not change', async () => {
+    const cells = await cellsOf([
+        ['Il rilievo', 'Prima frase del motivo. Seconda frase, con `codice`. Terza frase?'],
+        ['Deciso da', 'agente'],
+        ['Giro', '3'],
+        ['Gravità', { text: 'alta', tone: 'rosso' }],
+        ['Dove', 'a.js · b.js'],
+        ['Misto', 'Una riga sola · Prima frase. Seconda frase. · Ultima riga'],
+    ]);
+    assert.match(cells, /<td data-mb-nowrap>Il rilievo<\/td><td><span class="sentence">Prima frase del motivo\.<\/span><span class="sentence">Seconda frase, con <code>codice<\/code>\.<\/span><span class="sentence">Terza frase\?<\/span><\/td>/);
+    assert.match(cells, /<td data-mb-nowrap>Deciso da<\/td><td>agente<\/td>/, 'one word: as before');
+    assert.match(cells, /<td data-mb-nowrap>Giro<\/td><td>3<\/td>/, 'a number: as before');
+    assert.match(cells, /<td><span class="mb-level" data-tone="rosso">alta<\/span><\/td>/, 'a level: as before');
+    assert.match(cells, /<td>a\.js<br>b\.js<\/td>/, '« · » still makes lines');
+    // A part with several sentences is a column of sentence blocks: no <br> around it, which would add an empty line.
+    assert.match(cells, /<td>Una riga sola<span class="sentence">Prima frase\.<\/span><span class="sentence">Seconda frase\.<\/span>Ultima riga<\/td>/);
+    const css = styleOf(await render(twoColumns([['A', 'Una. Due.']])));
+    const doc = boot(await render(twoColumns([['A', 'Una. Due.']]))).document;
+    assert.equal(computed(css, doc.querySelectorAll('td .sentence')[1])['margin-top'], '.45em');
+    assert.equal(computed(css, doc.querySelectorAll('td .sentence')[0]).display, 'block');
+});
+
+test('without the tree a table cell of several sentences renders as before; nowrap works on a table without headers', async () => {
+    const plainPage = { ...tabsPage, sections: [{ id: 'r1', title: 'R1', cards: [{ id: 'c-r1', title: 'Rilievo 1', table: { rows: [['Il rilievo', 'Prima frase. Seconda frase.']] } }] }] };
+    assert.match(body(await render(plainPage)), /<td>Il rilievo<\/td><td>Prima frase\. Seconda frase\.<\/td>/);
+    // Two columns, only rows: the label column keeps one line.
+    const html = await render(twoColumns([['Il rilievo', 'Testo.'], ['Deciso da', 'agente']])), css = styleOf(html);
+    const labels = boot(html).document.querySelectorAll('td[data-mb-nowrap]');
+    assert.deepEqual(labels.map(td => td.textContent), ['Il rilievo', 'Deciso da']);
+    assert.equal(computed(css, labels[0], 1280)['white-space'], 'nowrap');
+    const wide = twoColumns([['A', 'B']]);
+    wide.sections[0].cards[0].table.nowrap = [2];
+    await assert.rejects(render(wide), /table\.nowrap must be a list of column numbers from 0, like \[3\] for the fourth column, each once and below 2/, 'two columns without headers: 2 is out');
+});
