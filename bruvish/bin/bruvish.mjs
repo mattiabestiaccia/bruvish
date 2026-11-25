@@ -23,6 +23,12 @@ Building blocks (full example: bruvish/examples/revisione-completa.json), all op
         With tabs the tab names the section (no heading); a title ending in " #6" shows the number
         muted; a card with a diff is the files page: no card frame, one Chiudi/Apri tutti button;
         no "Come usare questa pagina" guide (guide is optional and ignored; other themes require it)
+  page: theme: "vibe"                                  round interview (B2 arricchito; example bruvish/examples/vibe-b2.json):
+        sections are rounds shown as tabs (section open: true = the round in progress), intent: {rows: [{key,
+        state: confirmed|open|hypothesis, text, round, card, note}], output, question, grey: []} always visible
+        on the right; card: genre (ripasso, domanda, ipotesi, schizzo, chiuso), speakers: [{who: Tuo|Proposta|
+        Verificato|Ipotesi|Dubbio, text}], outcome; question.differ, options[].intent (first option recommended),
+        reason on hover or long press; no question.text
   section: count                                       counter beside the title in the index or tab bar
   card: tone, labels: [{text, tone}], help, table: {headers, rows}, notes: [],
         events: [{text, tone}], diff: {text, notes: {"file:line": "..."}}
