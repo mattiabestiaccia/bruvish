@@ -271,6 +271,7 @@ textarea.mb-op-text{min-height:90px}
 .mb-header-top>h1{margin:0;font-size:clamp(24px,2.5vw,32px);line-height:1.18;text-wrap:balance}
 .mb-header-side{display:grid;justify-items:end;gap:10px;margin-top:4px}
 .mb-header-side>.mb-actions{padding-top:0}
+@media(max-width:560px){.mb-header-top{grid-template-columns:minmax(0,1fr);gap:12px}.mb-header-side{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-top:0}}
 .mb-facts{width:100%;border-collapse:collapse;margin:14px 0 0;font-size:14px}
 .mb-facts th{font-weight:500;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:center;vertical-align:bottom;padding:0 8px 4px;border-bottom:0;white-space:nowrap}
 .mb-facts td{padding:7px 8px;vertical-align:middle;border-top:1px solid var(--line);border-bottom:0;white-space:nowrap}
@@ -334,7 +335,7 @@ main[data-mb-nav=tree] nav.mb-tree>a,main[data-mb-nav=tree] nav.mb-tree .mb-tree
 main[data-mb-nav=tree] nav.mb-tree>a[aria-current=page],main[data-mb-nav=tree] nav.mb-tree .mb-tree-group:has(a[aria-current]) .mb-tree-branch{color:var(--ink);background:none;border-color:transparent;border-bottom-color:var(--title);font-weight:650}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-arrow{display:none}
 main[data-mb-nav=tree] nav.mb-tree>a .mb-count,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch .mb-count{flex-basis:100%;margin:0;text-align:center;font-size:12px}
-main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{order:1;flex:1 0 100%;display:none;gap:6px;overflow-x:auto;padding:8px 2px;border-top:1px solid var(--line);scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{order:1;flex:1 0 100%;display:flex;gap:6px;overflow-x:auto;padding:8px 2px;border-top:1px solid var(--line);scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-group:has(a[aria-current])>.mb-tree-children{display:flex}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{flex:none;font-size:14px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a .mb-count{margin-left:4px}}

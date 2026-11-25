@@ -51,6 +51,7 @@ export function inline(value) {
     }
     return html + escape(text.slice(last));
 }
+const plain = value => inline(value).replace(/<[^>]*>/g, '');
 // One sentence per line: the renderer splits every agent string at a sentence end, so a string with several
 // sentences still shows one per line. A sentence end is . ! ? or … (closing quotes, brackets or inline marks may follow),
 // then a space or a newline, then a capital letter, a digit, a backtick, an asterisk or == (an opening quote or
@@ -207,7 +208,7 @@ function headerActions(actions) {
 function iconActions(actions, attrs, fieldAttrs) {
     const icon = o => o.icon === undefined ? '' : ' mb-icon-button';
     // The name of an icon is the whole label of the operation, with its hint («Chiudi la PR senza unirla»).
-    const name = o => escape(o.hint ? o.label + ' ' + o.hint : o.label);
+    const name = o => plain(o.hint ? o.label + ' ' + o.hint : o.label);
     const named = o => o.icon === undefined ? '' : ' data-mb-icon="' + o.icon + '" aria-label="' + name(o) + '" data-mb-name="' + name(o) + '"';
     const content = o => o.icon === undefined ? inline(o.label) : opIcon(o.icon);
     const primary = (actions.primary || []).length ? '<div class="mb-actions-primary">' + actions.primary.map((o, i) => '<button type="button" class="mb-action' + (i === 0 ? ' mb-action-main' : '') + icon(o) + '"' + attrs(o) + named(o) + '>' + content(o) + '</button>').join('') + '</div>' : '';
@@ -336,7 +337,7 @@ function headerFacts(header) {
         throw new Error(shape);
     if (header.meta !== undefined || header.subtitle !== undefined || header.stat !== undefined)
         throw new Error('header.facts replaces meta, subtitle and stat: give the same data as facts');
-    const value = f => f.type === 'link' ? '<a class="mb-fact-link" href="' + escape(f.href) + '" target="_blank" rel="noopener noreferrer">' + inline(f.text) + ' ↗</a>'
+    const value = f => f.type === 'link' ? '<a class="mb-fact-link" href="' + escape(f.href) + '" target="_blank" rel="noopener noreferrer" data-lavish-action>' + inline(f.text) + ' ↗</a>'
         : f.type === 'delta' ? (f.text === undefined ? '' : inline(f.text) + ' · ') + '<span class="mb-plus">+' + f.added + '</span> <span class="mb-minus">−' + f.removed + '</span>' : inline(f.text);
     return '<table class="mb-facts"><thead><tr>' + header.facts.map(f => '<th scope="col">' + escape(f.label) + '</th>').join('') + '</tr></thead><tbody><tr>' +
         header.facts.map(f => '<td data-label="' + escape(f.label) + '"><span class="mb-fact">' + value(f) + '</span></td>').join('') + '</tr></tbody></table>';
@@ -412,7 +413,7 @@ function cardImages(card) {
         if (typeof image.caption !== 'string' || !image.caption.trim() || /[\r\n]/.test(image.caption))
             throw new Error(where + '[' + n + '].caption is missing or not one line: write one line that says what the image shows');
     });
-    return '<div class="mb-images">' + card.images.map(i => { const caption = inline(i.caption.trim()), alt = caption.replace(/<[^>]*>/g, '');
+    return '<div class="mb-images">' + card.images.map(i => { const caption = inline(i.caption.trim()), alt = plain(i.caption.trim());
         return '<figure class="mb-image"><button type="button" class="mb-image-open" data-mb-image data-lavish-action aria-label="' + escape('Apri l\'immagine grande: ') + alt + '"><img src="' + escape(i.file) + '" alt="' + alt + '" loading="lazy" decoding="async"></button><figcaption>' + caption + '</figcaption></figure>'; }).join('') + '</div>';
 }
 // Secondary notes of a card: grey italics under a dashed line, at the end of the card body.

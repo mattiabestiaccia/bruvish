@@ -91,6 +91,7 @@ test('header D: the title comes first, without the PR number; operations and sta
     assert.deepEqual(cells.map(td => td.getAttribute('data-label')), facts.map(f => f.label), 'each value knows its label for the narrow form');
     const link = cells[0].querySelector('a');
     assert.deepEqual([link.getAttribute('href'), link.getAttribute('target'), link.getAttribute('rel'), link.textContent], ['https://github.com/mattiabestiaccia/agents-kit/pull/16', '_blank', 'noopener noreferrer', '#16 ↗']);
+    assert.equal(link.getAttribute('data-lavish-action'), '', 'a plain click opens the PR: Lavish does not turn it into an annotation');
     assert.match(body(html), /<td data-label="Repository"><span class="mb-fact"><code>mattiabestiaccia\/agents-kit<\/code><\/span><\/td>/);
     assert.match(body(html), /<td data-label="Modifiche"><span class="mb-fact">1 commit · 1 file · <span class="mb-plus">\+6<\/span> <span class="mb-minus">−0<\/span><\/span><\/td>/);
     assert.equal(table.nextElementSibling.className, 'mb-pills', 'pills follow the table');
@@ -126,6 +127,9 @@ test('icon buttons keep the contract with the executor: same attributes, same co
     assert.match(b, /<button type="button" class="mb-action-item mb-danger mb-icon-button" data-mb-op="chiudi" data-mb-confirm-title="Chiudi la PR" data-mb-confirm="Chiude\." data-mb-icon="chiudi" aria-label="Chiudi la PR senza unirla" data-mb-name="Chiudi la PR senza unirla">/);
     assert.match(b, /<details class="mb-actions-menu"><summary class="mb-icon-button" aria-label="Altre operazioni" data-mb-name="Altre operazioni"><svg class="mb-op-icon"[^>]*>[\s\S]*?<\/svg><\/summary><div class="mb-actions-items"><button type="button" class="mb-action-item" data-mb-op="aggiorna"[^>]*>Aggiorna il ramo<small>novità<\/small><\/button><\/div><\/details>/);
     assert.equal((b.match(/data-mb-op="chiudi"/g) || []).length, 1, 'the operation is not repeated in the menu');
+    // The name is plain text: the inline marks of a hint are not read aloud nor shown in the tooltip.
+    const marked = body(await render(newPage({ actions: { view: 'v1234', menu: [{ ...operations.menu[1], hint: 'senza unirla in `main` & **subito**', icon: 'chiudi' }] } })));
+    assert.match(marked, /aria-label="Chiudi la PR senza unirla in main &amp; subito" data-mb-name="Chiudi la PR senza unirla in main &amp; subito"/);
     const { document, window, sent } = boot(html);
     const box = document.querySelector('.mb-confirm');
     const [merge, ready] = document.querySelectorAll('.mb-action');
@@ -178,6 +182,8 @@ test('header D without operations keeps the state top right; the theme accent an
     assert.match(css, /\.mb-icon-button::after\{content:attr\(data-mb-name\)/);
     assert.match(css, /\.mb-icon-button:hover::after,\.mb-icon-button:focus-visible::after\{opacity:1\}/);
     assert.match(css, /\.mb-icon-button\[data-mb-icon=chiudi\]\{[^}]*color:var\(--mb-red\)/);
+    // Phone: one column, the title first at full width, then the row of the operations and the state.
+    assert.match(css, /@media\(max-width:560px\)\{\.mb-header-top\{grid-template-columns:minmax\(0,1fr\)[^}]*\}\.mb-header-side\{display:flex;flex-wrap:wrap;[^}]*\}\}/);
 });
 
 // The tree bar: groups and sections in JSON order, a status dot and a count beside an item.
@@ -273,6 +279,12 @@ test('on a phone a branch opens the first part of its group, and the bar is a tw
     // Phone: top items on the first row, the parts of the open group on a second row that scrolls sideways.
     assert.match(css, /@media\(max-width:820px\)\{[^@]*nav\.mb-tree \.mb-tree-group\{display:contents\}[^@]*nav\.mb-tree \.mb-tree-group:has\(a\[aria-current\]\)>\.mb-tree-children\{display:flex\}/);
     assert.match(css, /nav\.mb-tree \.mb-tree-children\{[^}]*overflow-x:auto/);
+    // Without the script the groups stay open also on a phone: only the hidden attribute, set by the script, hides parts.
+    assert.match(css, /@media\(max-width:820px\)\{[^@]*nav\.mb-tree \.mb-tree-children\{order:1;flex:1 0 100%;display:flex;/);
+    assert.match(css, /main\[data-mb-nav=tree\] nav\.mb-tree \.mb-tree-children\[hidden\]\{display:none\}/);
+    const parts = document.querySelectorAll('.mb-tree-children').map(p => [p.id, p.hidden]);
+    assert.deepEqual(parts, [['mb-group-gate', false], ['mb-group-modifiche', true], ['mb-group-storia', true]], 'with the script only the open group shows its parts');
+    assert(!/<div class="mb-tree-children"[^>]*hidden/.test(body(html)), 'the page as written has every group open');
 });
 
 test('tree fields: a wrong group, dot or tabs value stops the render; groups need tabs "tree"; a page with tabs: true is unchanged', async () => {
