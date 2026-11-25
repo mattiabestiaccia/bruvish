@@ -11,7 +11,7 @@ Decisione di Mattia del 25 novembre 2026 («sì, italiano anche lì», S91 della
 - **Messaggi di commit**: in italiano, con il prefisso di sempre (`feat(bruvish): …`, `fix(bruvish): …`, `test(bruvish): …`). I commit già pubblicati restano come sono.
 - **Titolo e descrizione delle PR**: in italiano.
 - **Testi del gate no-mistakes**: in italiano. Le istruzioni per le prove e per i documenti stanno in `.no-mistakes.yaml`; quelle per il revisore nella configurazione globale del gate, fuori da questo repository.
-- **Questo documento**: in italiano. I documenti dell'originale (`README.md`, `docs/`, `CONTRIBUTING.md`, `CHANGELOG.md`) restano in inglese.
+- **Documenti del fork** (questo, `app/README.md`, i `.md` in `bruvish/`): in italiano. I documenti dell'originale (`README.md`, `docs/`, `CONTRIBUTING.md`, `CHANGELOG.md`) restano in inglese.
 - **Codice**: nomi e identificatori restano in inglese, come nell'originale.
 
 ## Dove sta il delta
