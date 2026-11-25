@@ -847,7 +847,8 @@ function roundTabs(input, open, state) {
         (input.sections || []).map(s => '<a href="#' + s.id + '" class="mb-vibe-tab" data-mb-round="' + s.id + '" data-lavish-action' + (s === open ? ' aria-current="page"' : '') + '>' + escape(roundName(s.title)) + ' ' +
             (s === open ? '<small data-mb-round-count>' + (waiting ? plural(waiting, 'aperta', 'aperte') : 'nessuna aperta') + '</small>' : '<small>chiuso</small>') + '</a>').join('') + '</nav>';
 }
-const waitingIn = (section, state) => (section.cards || []).filter(c => c?.question && !state.answers?.[c.id]).length;
+const vibeStatus = (card, state) => state.answers?.[card.id] ? 'answered' : (card.status || (card.question ? 'waiting' : 'info'));
+const waitingIn = (section, state) => (section.cards || []).filter(c => c?.question && vibeStatus(c, state) === 'waiting').length;
 // Header additions: the live status line and the legend of the colours.
 function headerStatus(open, state) {
     const waiting = open ? waitingIn(open, state) : 0;
@@ -875,7 +876,7 @@ function intentColumn(input, prep, state, unique) {
         return prep.cards.get(card);
     };
     const rowHtml = (r, attrs, href, value) => (href ? '<a class="mb-vibe-row" href="#' + href + '"' : '<div class="mb-vibe-row"') + attrs + '><span class="mb-vibe-key"><span class="mb-vibe-dot"></span>' + inline(r.key) + '</span><span class="mb-vibe-value">' + value + '</span>' + (href ? '</a>' : '</div>');
-    const rows = it.rows.map(r => {
+    const built = it.rows.map(r => {
         if (!r || typeof r !== 'object' || typeof r.key !== 'string' || !r.key.trim())
             throw new Error('intent.rows: every row needs a key, like { "key": "Decisioni", "state": "open", "card": "g1-decisioni" }');
         if (!['confirmed', 'open', 'hypothesis'].includes(r.state))
@@ -890,24 +891,25 @@ function intentColumn(input, prep, state, unique) {
             const say = o => o.intent ?? o.label;
             const answer = state.answers?.[card.id], chosen = answer && options.find(o => o.value === answer.choice);
             if (chosen)
-                return rowHtml(r, ' data-mb-row-state="confirmed"', card.id, text(say(chosen)) + where('confermato · ' + round));
-            return rowHtml(r, ' data-mb-row-state="open" data-mb-row-card="' + card.id + '" data-mb-row-round="' + round + '"', card.id,
+                return [rowHtml(r, ' data-mb-row-state="confirmed"', card.id, text(say(chosen)) + where('confermato · ' + round)), say(chosen)];
+            return [rowHtml(r, ' data-mb-row-state="open" data-mb-row-card="' + card.id + '" data-mb-row-round="' + round + '"', card.id,
                 options.map((o, i) => '<span class="mb-vibe-text" data-mb-option="' + escape(o.value) + '"' + (i ? ' hidden' : '') + '>' + inline(say(o)) + '</span>').join('') +
-                '<small class="mb-vibe-where" data-mb-where="open">in discussione · se non rispondi vale questa · vai alla carta ›</small><small class="mb-vibe-where" data-mb-where="queued" hidden>risposta in coda · ' + round + '</small><small class="mb-vibe-where" data-mb-where="sent" hidden>risposta inviata · ' + round + '</small>');
+                '<small class="mb-vibe-where" data-mb-where="open">in discussione · se non rispondi vale questa · vai alla carta ›</small><small class="mb-vibe-where" data-mb-where="queued" hidden>risposta in coda · ' + round + '</small><small class="mb-vibe-where" data-mb-where="sent" hidden>risposta inviata · ' + round + '</small>'), say(options[0])];
         }
         const found = linked(r.card);
         if (r.state === 'confirmed') {
             if (typeof r.text !== 'string' || !r.text.trim() || typeof r.round !== 'string' || !r.round.trim())
                 throw new Error('intent.rows: a confirmed row needs text and round, like { "key": "Perché", "state": "confirmed", "round": "giro 0", "text": "..." }');
-            return rowHtml(r, ' data-mb-row-state="confirmed"', found?.card.id, text(r.text) + where('confermato · ' + inline(r.round)));
+            return [rowHtml(r, ' data-mb-row-state="confirmed"', found?.card.id, text(r.text) + where('confermato · ' + inline(r.round))), r.text];
         }
         if (typeof r.text !== 'string' || !r.text.trim() || (r.note !== undefined && (typeof r.note !== 'string' || !r.note.trim())))
             throw new Error('intent.rows: a hypothesis row needs text (and may have a note), like { "key": "Perimetro", "state": "hypothesis", "text": "...", "note": "si sceglie al passo 1" }');
-        return rowHtml(r, ' data-mb-row-state="hypothesis"', found?.card.id, text(r.text) + where(['ipotesi', r.note ? inline(r.note) : '', found ? 'vai alla carta ›' : ''].filter(Boolean).join(' · ')));
-    }).join('');
+        return [rowHtml(r, ' data-mb-row-state="hypothesis"', found?.card.id, text(r.text) + where(['ipotesi', r.note ? inline(r.note) : '', found ? 'vai alla carta ›' : ''].filter(Boolean).join(' · '))), r.text];
+    });
+    const rows = built.map(([html]) => html).join('');
     const helpId = unique('mb-help-intent');
     const head = cardHead({ id: 'intent', title: it.title || 'Intent in costruzione', help: it.help ?? INTENT_HELP, summary: it.summary }, helpId, { meaning: 'Intent · a cosa serve', tag: 'h2' });
-    const spoken = it.voice ? it.voice.trim() : [it.title || 'Intent in costruzione', ...it.rows.map(r => r.key + ': ' + (r.text ?? ''))].join('. ');
+    const spoken = it.voice ? it.voice.trim() : [it.title || 'Intent in costruzione', ...it.rows.map((r, i) => r.key + ': ' + built[i][1])].join('. ');
     let close = '';
     if (it.question !== undefined) {
         const q = it.question;
@@ -1009,18 +1011,9 @@ export async function renderDocument(input, options = {}) {
         return opening + section.cards.map(card => {
             if (vibe)
                 return vibeCard(card, section);
-            let helpId;
-            if (card.help !== undefined || card.summary !== undefined) {
-                helpId = 'mb-help-' + card.id;
-                while (ids.has(helpId))
-                    helpId += '-';
-                unique(helpId);
-            }
+            const helpId = card.help !== undefined || card.summary !== undefined ? helpOf(card) : undefined;
             const answer = state.answers?.[card.id];
-            const status = answer ? 'answered' : (card.status || 'info');
-            if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
-                throw new Error('Unknown card status');
-            const context = (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + inline(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
+            const status = checkedStatus(answer ? 'answered' : (card.status || 'info'));
             let question = '';
             if (card.question) {
                 const q = card.question;
@@ -1033,12 +1026,28 @@ export async function renderDocument(input, options = {}) {
                 }
                 question = '<form data-mb-question="' + card.id + '"><fieldset><legend>' + inline(q.label || 'La tua risposta') + '</legend>' + q.options.map(o => '<label class="option' + (o.recommended === true ? ' mb-recommended' : '') + '"><input data-mb-field="' + card.id + ':choice' + '" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + '><span>' + inline(o.label) + '</span>' + QUEUED_MARK + '</label>').join('') + questionText(card, q, answer) + reason + '<span class="queue-status" role="status"></span></fieldset></form>';
             }
-            const comments = (state.comments || []).filter(c => c.card === card.id);
-            const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + contextOf(card) + question + cardAction(card) + cardNotes(card) + followOf(card) + '</article>';
         }).join('') + '</section>';
     }).join('');
+    function helpOf(card) {
+        let helpId = 'mb-help-' + card.id;
+        while (ids.has(helpId))
+            helpId += '-';
+        return unique(helpId);
+    }
+    function checkedStatus(status) {
+        if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
+            throw new Error('Unknown card status');
+        return status;
+    }
+    function contextOf(card) {
+        return (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + inline(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
+    }
+    function followOf(card) {
+        const comments = (state.comments || []).filter(c => c.card === card.id);
+        return comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
+    }
     // A card of the theme «vibe»: colour and fixed help from its genre, who speaks in a table with the question as a row,
     // the answers under it; the comments and the shared text blocks keep their rendering.
     function vibeCard(card) {
@@ -1047,19 +1056,10 @@ export async function renderDocument(input, options = {}) {
                 throw new Error('Card ' + card.id + ': ' + key + ' is not part of the theme "vibe"');
         checkVibeCard(card);
         const genre = genreOf(card), answer = state.answers?.[card.id];
-        const status = answer ? 'answered' : (card.status || (card.question ? 'waiting' : 'info'));
-        if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
-            throw new Error('Unknown card status');
-        let helpId = 'mb-help-' + card.id;
-        while (ids.has(helpId))
-            helpId += '-';
-        unique(helpId);
-        const context = (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + inline(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
-        const comments = (state.comments || []).filter(c => c.card === card.id);
-        const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
+        const status = checkedStatus(vibeStatus(card, state));
         const fresh = novelty(card.id);
         return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '" data-mb-genre="' + genre + '"' + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' +
-            cardHead({ ...card, help: card.help ?? GENRES[genre].help }, helpId, { meaning: GENRES[genre].name + ' · a cosa serve' }) + vibeCardBody(card, answer, unique) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + context + cardNotes(card) + follow + '</article>';
+            cardHead({ ...card, help: card.help ?? GENRES[genre].help }, helpOf(card), { meaning: GENRES[genre].name + ' · a cosa serve' }) + vibeCardBody(card, answer, unique) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + contextOf(card) + cardNotes(card) + followOf(card) + '</article>';
     }
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
     const blocks = usesBlocks(input, family), head = headerParts(input.header), actions = headerActions(input.actions);

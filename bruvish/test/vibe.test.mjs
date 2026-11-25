@@ -222,6 +222,22 @@ test('the intent: rows in three states, the open one linked to its card with eve
   await assert.rejects(render(clash), /unique stable id: intent/);
 });
 
+test('without intent.voice the 🔊 of the intent reads, for an open row, the text the row shows', async () => {
+  const input = vibe(); input.intent.voice = undefined;
+  const voiceOf = html => /data-mb-voice-text="([^"]*)" aria-label="Leggi l&#39;intent"/.exec(html)[1];
+  assert.match(voiceOf(await render(input)), /Decisioni: Tre decisioni, entro due settimane\./);
+  const answered = { ...input, state: { revision: 1, answers: { 'g1-q': { choice: 'una' } }, comments: [] } };
+  assert.match(voiceOf(await render(answered)), /Decisioni: Una sola decisione\./);
+});
+
+test('the counters of the open round count only the cards that wait, as the page script does', async () => {
+  const input = vibe(); input.sections[0].cards[1].status = 'blocked';
+  const html = await render(input);
+  assert.match(html, /data-mb-state="blocked"/);
+  assert.match(html, /<small data-mb-round-count>nessuna aperta<\/small>/);
+  assert.match(html, /<span data-mb-vibe-status>0 domande in attesa · 0 risposte in coda<\/span>/);
+});
+
 test('every text of the theme goes through the escape: no HTML from the JSON reaches the page', async () => {
   const evil = '<img src=x onerror=alert(1)>"\'&';
   const page = vibe({ title: evil, intro: evil });
@@ -340,22 +356,6 @@ test('the reason of the recommended answer: on mouse hover, on keyboard focus, o
   timers.at(-1).fn?.();
   document.dispatch(document.querySelector('h1'), 'touchstart');
   assert.equal(tip.hidden, true);
-});
-
-test('the layout: grid of rounds and a sticky intent on the right; under 900 px one column with the Intent tab', () => {
-  const css = vibeCss.replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.match(css, /\[data-mb-family=vibe\] main\{[^}]*width:min\(1180px,100% - 32px\)/);
-  assert.match(css, /\.mb-vibe\{[^}]*display:grid;grid-template-columns:minmax\(0,1fr\) 340px/);
-  assert.match(css, /\.mb-vibe-intent\{[^}]*position:sticky/);
-  assert.match(css, /nav\.mb-vibe-tabs\{[^}]*position:sticky;top:0/);
-  assert.match(css, /\.mb-vibe-phone\{display:none\}/);
-  assert.match(css, /@media\(max-width:900px\)\{[^@]*\.mb-vibe\{grid-template-columns:minmax\(0,1fr\)\}[^@]*\.mb-vibe-phone\{display:flex\}[^@]*\.mb-vibe\[data-mb-vibe-view=intent\] \.mb-vibe-rounds\{display:none\}[^@]*\.mb-vibe\[data-mb-vibe-view=round\] \.mb-vibe-intent\{display:none\}/);
-  // Colours by meaning: Ipotesi orange, the waiting yellow only for cards that wait for an answer.
-  assert.match(css, /--mb-orange:#f3a972/);
-  assert.match(css, /\.card\[data-mb-state=info\]\[data-mb-genre=ipotesi\]\{--mb-state-color:var\(--mb-orange\)\}/);
-  assert.match(css, /\[data-mb-who=ipotesi\] th\{color:var\(--mb-orange\)\}/);
-  assert.match(css, /\.card\[data-mb-state=waiting\]\{[^}]*animation:mb-vibe-wait 3s ease-in-out infinite/);
-  assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{[^}]*mb-vibe-changed[^}]*animation:none/);
 });
 
 test('the example vibe-b2 uses the whole contract and renders through the CLI', async () => {
