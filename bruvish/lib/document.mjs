@@ -271,6 +271,7 @@ const ICONS = {
     dot: 'M8 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z',
 };
 const icon = name => '<svg class="mb-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="' + ICONS[name] + '"></path></svg>';
+const STATES = { bozza: ['Bozza', 'draft'], aperta: ['Aperta', 'open'], unita: ['Unita', 'merged'], chiusa: ['Chiusa', 'closed'] };
 // Page header: a badge (text, tone, optional icon), the meta items on the same row above the title, the subtitle under it.
 function headerParts(header) {
     if (header === undefined)
@@ -286,6 +287,16 @@ function headerParts(header) {
         if (b.icon !== undefined && !Object.hasOwn(ICONS, b.icon))
             throw new Error('header.badge.icon must be one of ' + Object.keys(ICONS).join(', ') + ' (got ' + JSON.stringify(b.icon) + ')');
         badge = '<span class="mb-badge" data-tone="' + b.tone + '">' + (b.icon === undefined ? '' : icon(b.icon)) + inline(b.text) + '</span>';
+    }
+    // The state of a PR (Mattia, 25 November 2026): four values, each with its colour and icon, so the page says the outcome
+    // after a merge or a close in the header. It is not a tone: the colours of the other blocks do not change.
+    if (header.state !== undefined) {
+        if (!Object.hasOwn(STATES, header.state))
+            throw new Error('header.state must be one of ' + Object.keys(STATES).join(', ') + ' (got ' + JSON.stringify(header.state) + ')');
+        if (header.badge !== undefined)
+            throw new Error('header.state replaces header.badge: give one of the two');
+        const [text, name] = STATES[header.state];
+        badge = '<span class="mb-badge" data-state="' + header.state + '">' + icon(name) + text + '</span>';
     }
     if (header.meta !== undefined && (!Array.isArray(header.meta) || header.meta.some(m => typeof m !== 'string')))
         throw new Error('header.meta must be an array of strings, like ["repo **bruvish**", "21 novembre 2026"]');

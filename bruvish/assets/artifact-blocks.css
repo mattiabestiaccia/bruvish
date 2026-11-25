@@ -279,6 +279,11 @@ textarea.mb-op-text{min-height:90px}
 .mb-fact-link{font-weight:650;color:var(--title);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--title) 45%,transparent);text-underline-offset:3px}
 .mb-fact-link:hover,.mb-fact-link:focus-visible{text-decoration-color:var(--title)}
 .mb-header-facts>.mb-pills{margin-top:14px}
+/* State of a PR (header.state): grey draft, green open, violet merged, red closed, as in the approved mockup. */
+.mb-badge[data-state=bozza]{background:#565b6e}
+.mb-badge[data-state=aperta]{background:#1f7a45}
+.mb-badge[data-state=unita]{background:#8957e5}
+.mb-badge[data-state=chiusa]{background:#da3633}
 /* Narrow: two columns, label and value; every value stays on one line. */
 @media(max-width:820px){.mb-facts thead{display:none}.mb-facts,.mb-facts tbody,.mb-facts tr{display:block}.mb-facts td+td{border-left:0}.mb-facts td{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;align-items:baseline;padding:7px 0;text-align:left}.mb-facts td::before{content:attr(data-label);color:var(--muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}.mb-fact{overflow-x:auto}}
 /* Operations as icon buttons: the name shows on hover and with the keyboard focus (aria-label for screen readers). */

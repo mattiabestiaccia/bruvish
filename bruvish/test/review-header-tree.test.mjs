@@ -332,3 +332,25 @@ test('the diagnostics page sits under a group when its section names one; withou
     const top = boot(await render(withDiag({}))).document;
     assert.equal(top.querySelector('nav.mb-tree > a[data-mb-tab="diagnostica"]')?.dataset.mbTab, 'diagnostica');
 });
+
+test('header.state gives the PR state with its own colour and icon: Bozza grey, Aperta green, Unita violet, Chiusa red', async () => {
+    const expected = { bozza: ['Bozza', 'draft'], aperta: ['Aperta', 'open'], unita: ['Unita', 'merged'], chiusa: ['Chiusa', 'closed'] };
+    for (const [state, [text]] of Object.entries(expected)) {
+        // Header D: the state under the operations, top right; the outcome after a merge or a close lives here.
+        const html = await render(newPage({ header: { state, facts } }));
+        const { document } = boot(html);
+        const badge = document.querySelector('.mb-header-side .mb-badge');
+        assert.equal(badge.getAttribute('data-state'), state);
+        assert.equal(badge.getAttribute('data-tone'), null, 'the state is not a tone: the other colours do not change');
+        assert.equal(badge.textContent, text);
+        assert.equal(badge.querySelectorAll('svg').length, 1, state + ': an icon');
+        // Classic header: the same badge above the title.
+        const classic = await render({ ...todayPage, header: { state, subtitle: 'x' } });
+        assert.match(body(classic), new RegExp('<div class="mb-header-meta"><span class="mb-badge" data-state="' + state + '"><svg class="mb-icon"[^>]*><path[^>]*></path></svg>' + text + '</span></div>'));
+    }
+    const css = styleOf(await render(newPage({ header: { state: 'bozza', facts } })));
+    for (const [state, colour] of Object.entries({ bozza: '#565b6e', aperta: '#1f7a45', unita: '#8957e5', chiusa: '#da3633' }))
+        assert.match(css, new RegExp('\\.mb-badge\\[data-state=' + state + '\\]\\{background:' + colour + '\\}'), state);
+    await assert.rejects(render(newPage({ header: { state: 'Aperta', facts } })), /header\.state must be one of bozza, aperta, unita, chiusa/);
+    await assert.rejects(render(newPage({ header: { state: 'bozza', badge: { text: 'Bozza', tone: 'blu' }, facts } })), /header\.state replaces header\.badge/);
+});
