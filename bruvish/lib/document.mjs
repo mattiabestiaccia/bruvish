@@ -160,12 +160,25 @@ function cardHead(card, helpId) {
 // Cards carry their own operation with a text field (comment, review, reviewer). Every operation is queued for the agent
 // as { tag: "operation", data: { view, operation, text } }, bound to the view id of the page.
 const OP_ID = /^[a-z][a-z0-9-]{0,39}$/;
+// Icons of the header operations (header D, Mattia, 25 November 2026): a closed set drawn in the approved mockup
+// (laboratorio-stile/lavish/revisione-pr/intestazione-D.html), never SVG from the JSON. «altre» (three dots) is the
+// icon of the «⋯» menu, never of an operation.
+const OP_ICONS = {
+    unisci: '<circle cx="4" cy="3.25" r="1.75"/><circle cx="4" cy="12.75" r="1.75"/><circle cx="12" cy="8" r="1.75"/><path d="M4 5v6M4 5c0 3 3 3 6.25 3"/>',
+    pronta: '<circle cx="8" cy="8" r="6.5"/><path d="M5 8.3l2.1 2.1L11.2 6"/>',
+    revisore: '<circle cx="6" cy="5" r="2.5"/><path d="M1.5 14c0-2.8 2-4.5 4.5-4.5s4.5 1.7 4.5 4.5M12.5 3.5v4M10.5 5.5h4"/>',
+    chiudi: '<circle cx="4" cy="3.25" r="1.75"/><circle cx="4" cy="12.75" r="1.75"/><circle cx="12" cy="12.75" r="1.75"/><path d="M4 5v6M12 7.2v3.8M10.3 1.6l3.4 3.4M13.7 1.6l-3.4 3.4"/>',
+    altre: '<circle cx="3" cy="8" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/><circle cx="13" cy="8" r="1.1" fill="currentColor"/>',
+};
+export const OPERATION_ICONS = ['unisci', 'pronta', 'revisore', 'chiudi'];
+const opIcon = name => '<svg class="mb-op-icon" viewBox="0 0 16 16" aria-hidden="true">' + OP_ICONS[name] + '</svg>';
 function headerActions(actions) {
     if (actions === undefined)
         return '';
-    const shape = 'actions must be { "view": "<id of this page>", "primary": [{ "operation": "unisci", "label": "Unisci", "confirm": "What happens." }], "menu": [{ "operation": "chiudi", "label": "Chiudi", "hint": "...", "confirm": "...", "danger": true }], "fixed": [{ "operation": "revisore", "label": "Assegna un revisore", "confirm": "...", "field": "line", "placeholder": "...", "required": true }] }';
+    const shape = 'actions must be { "view": "<id of this page>", "primary": [{ "operation": "unisci", "label": "Unisci", "confirm": "What happens.", "icon": "unisci" }], "menu": [{ "operation": "chiudi", "label": "Chiudi", "hint": "...", "confirm": "...", "danger": true, "icon": "chiudi" }], "fixed": [{ "operation": "revisore", "label": "Assegna un revisore", "confirm": "...", "field": "line", "placeholder": "...", "required": true, "icon": "revisore" }] }; icon is one of ' + OPERATION_ICONS.join(', ') + ' or absent';
     const item = o => o && typeof o === 'object' && !Array.isArray(o) && OP_ID.test(o.operation || '') && typeof o.label === 'string' && o.label.trim()
-        && typeof o.confirm === 'string' && o.confirm.trim() && (o.hint === undefined || typeof o.hint === 'string') && (o.danger === undefined || typeof o.danger === 'boolean');
+        && typeof o.confirm === 'string' && o.confirm.trim() && (o.hint === undefined || typeof o.hint === 'string') && (o.danger === undefined || typeof o.danger === 'boolean')
+        && (o.icon === undefined || OPERATION_ICONS.includes(o.icon));
     // A fixed operation may ask for a text in its confirmation dropdown: a single line (a login).
     const fixedItem = o => item(o) && (o.field === undefined || o.field === 'line') && (o.placeholder === undefined || typeof o.placeholder === 'string')
         && (o.required === undefined || typeof o.required === 'boolean') && !(o.required && o.field === undefined) && o.danger === undefined;
@@ -174,14 +187,34 @@ function headerActions(actions) {
         || ![...(actions.primary || []), ...(actions.menu || [])].every(item) || !(actions.fixed || []).every(fixedItem))
         throw new Error(shape);
     const attrs = o => ' data-mb-op="' + o.operation + '" data-mb-confirm-title="' + escape(o.label) + '" data-mb-confirm="' + escape(inline(o.confirm)) + '"';
+    const fieldAttrs = o => o.field === undefined ? '' : ' data-mb-field-kind="' + o.field + '"' + (o.placeholder ? ' data-mb-placeholder="' + escape(o.placeholder) + '"' : '') + (o.required ? ' data-mb-required' : '');
+    const all = [...(actions.primary || []), ...(actions.fixed || []), ...(actions.menu || [])];
+    if (all.some(o => o.icon !== undefined))
+        return iconActions(actions, attrs, fieldAttrs);
     const primary = (actions.primary || []).length ? '<div class="mb-actions-primary">' + actions.primary.map((o, i) => '<button type="button" class="mb-action' + (i === 0 ? ' mb-action-main' : '') + '"' + attrs(o) + '>' + inline(o.label) + '</button>').join('') + '</div>' : '';
     // Fixed operations are always visible beside the main ones, whatever the state of the page; they never become the
     // main alternative. Without them the header keeps the markup it had before.
-    const fieldAttrs = o => o.field === undefined ? '' : ' data-mb-field-kind="' + o.field + '"' + (o.placeholder ? ' data-mb-placeholder="' + escape(o.placeholder) + '"' : '') + (o.required ? ' data-mb-required' : '');
     const fixed = (actions.fixed || []).length ? '<div class="mb-actions-fixed">' + actions.fixed.map(o => '<button type="button" class="mb-action-fixed"' + attrs(o) + fieldAttrs(o) + '>' + inline(o.label) + '</button>').join('') + '</div>' : '';
     const menu = (actions.menu || []).length ? '<details class="mb-actions-menu"><summary>Altre operazioni ⋯</summary><div class="mb-actions-items">' +
         actions.menu.map(o => '<button type="button" class="mb-action-item' + (o.danger ? ' mb-danger' : '') + '"' + attrs(o) + '>' + inline(o.label) + (o.hint ? '<small>' + inline(o.hint) + '</small>' : '') + '</button>').join('') + '</div></details>' : '';
     return '<div class="mb-actions" data-mb-actions>' + (fixed ? '<div class="mb-actions-row">' + primary + fixed + '</div>' : primary) + menu + '<div class="mb-confirm" role="dialog" aria-label="Conferma" hidden></div></div>';
+}
+// Header operations as icon buttons (header D): one row, in a fixed place top right. Every button keeps the classes and
+// the attributes of its text form (data-mb-op, confirmation, field, required), so a click opens the same confirmation
+// and sends the same message; the name moves to aria-label and to the tooltip (data-mb-name). An operation without an
+// icon stays a text button. A menu operation with an icon stands beside the menu (red when dangerous); the menu keeps
+// the others, behind the three-dots icon.
+function iconActions(actions, attrs, fieldAttrs) {
+    const icon = o => o.icon === undefined ? '' : ' mb-icon-button';
+    const named = o => o.icon === undefined ? '' : ' data-mb-icon="' + o.icon + '" aria-label="' + escape(o.label) + '" data-mb-name="' + escape(o.label) + '"';
+    const content = o => o.icon === undefined ? inline(o.label) : opIcon(o.icon);
+    const primary = (actions.primary || []).length ? '<div class="mb-actions-primary">' + actions.primary.map((o, i) => '<button type="button" class="mb-action' + (i === 0 ? ' mb-action-main' : '') + icon(o) + '"' + attrs(o) + named(o) + '>' + content(o) + '</button>').join('') + '</div>' : '';
+    const fixed = (actions.fixed || []).length ? '<div class="mb-actions-fixed">' + actions.fixed.map(o => '<button type="button" class="mb-action-fixed' + icon(o) + '"' + attrs(o) + fieldAttrs(o) + named(o) + '>' + content(o) + '</button>').join('') + '</div>' : '';
+    const menuItems = actions.menu || [], out = menuItems.filter(o => o.icon !== undefined), kept = menuItems.filter(o => o.icon === undefined);
+    const beside = out.map(o => '<button type="button" class="mb-action-item' + (o.danger ? ' mb-danger' : '') + ' mb-icon-button"' + attrs(o) + named(o) + '>' + opIcon(o.icon) + '</button>').join('');
+    const menu = kept.length ? '<details class="mb-actions-menu"><summary class="mb-icon-button" aria-label="Altre operazioni" data-mb-name="Altre operazioni">' + opIcon('altre') + '</summary><div class="mb-actions-items">' +
+        kept.map(o => '<button type="button" class="mb-action-item' + (o.danger ? ' mb-danger' : '') + '"' + attrs(o) + '>' + inline(o.label) + (o.hint ? '<small>' + inline(o.hint) + '</small>' : '') + '</button>').join('') + '</div></details>' : '';
+    return '<div class="mb-actions mb-actions-icons" data-mb-actions><div class="mb-actions-row">' + primary + fixed + beside + menu + '</div><div class="mb-confirm" role="dialog" aria-label="Conferma" hidden></div></div>';
 }
 // A card operation: a text field (comment), a single-line field (login), or a choice among review outcomes with a text.
 function cardAction(card) {
@@ -261,6 +294,7 @@ function headerParts(header) {
     const count = n => Number.isInteger(n) && n >= 0;
     if (header.stat !== undefined && (!header.stat || typeof header.stat !== 'object' || Array.isArray(header.stat) || !count(header.stat.added) || !count(header.stat.removed)))
         throw new Error('header.stat must be { "added": 12, "removed": 1 }, two whole numbers from 0');
+    const facts = headerFacts(header);
     const meta = (header.meta || []).map(m => '<span class="mb-meta-item">' + inline(m) + '</span>').join('');
     // The line count closes the subtitle, in the colours of the diff: added green, removed red.
     const stat = header.stat ? '<span class="mb-plus">+' + header.stat.added + '</span> <span class="mb-minus">−' + header.stat.removed + '</span>' : '';
@@ -269,7 +303,30 @@ function headerParts(header) {
         notice: header.notice === undefined ? '' : '<p class="mb-notice">' + inline(header.notice) + '</p>',
         before: badge || meta ? '<div class="mb-header-meta">' + badge + meta + '</div>' : '',
         after: subtitle ? '<p class="mb-subtitle">' + subtitle + '</p>' : '',
+        badge, facts,
     };
+}
+// Facts table of header D (Mattia, 25 November 2026): the data of the page as columns, label over value, given by the
+// JSON as a list (PR, Repository, Aperta da, … on a review page; any other list elsewhere). A value is a text with
+// inline marks, a link (https only, opens in a new tab) or a delta (+added green, −removed red, after an optional text).
+// The facts replace meta, subtitle and stat of the classic header.
+const FACT_TYPES = ['link', 'delta'];
+function headerFacts(header) {
+    if (header.facts === undefined)
+        return '';
+    const shape = 'header.facts must be a non-empty array of { "label": "Repository", "text": "`owner/repo`" }, { "label": "PR", "text": "#16", "type": "link", "href": "https://…" } or { "label": "Modifiche", "text": "1 commit · 1 file", "type": "delta", "added": 6, "removed": 0 }';
+    const count = n => Number.isInteger(n) && n >= 0, text = t => typeof t === 'string' && t.trim();
+    const ok = f => f && typeof f === 'object' && !Array.isArray(f) && text(f.label) && (f.type === undefined || FACT_TYPES.includes(f.type))
+        && (f.type === 'delta' ? (f.text === undefined || text(f.text)) && count(f.added) && count(f.removed) : text(f.text))
+        && (f.type === 'link' ? typeof f.href === 'string' && /^https:\/\/[^\s]+$/.test(f.href) : f.href === undefined);
+    if (!Array.isArray(header.facts) || !header.facts.length || !header.facts.every(ok))
+        throw new Error(shape);
+    if (header.meta !== undefined || header.subtitle !== undefined || header.stat !== undefined)
+        throw new Error('header.facts replaces meta, subtitle and stat: give the same data as facts');
+    const value = f => f.type === 'link' ? '<a class="mb-fact-link" href="' + escape(f.href) + '" target="_blank" rel="noopener noreferrer">' + inline(f.text) + ' ↗</a>'
+        : f.type === 'delta' ? (f.text === undefined ? '' : inline(f.text) + ' · ') + '<span class="mb-plus">+' + f.added + '</span> <span class="mb-minus">−' + f.removed + '</span>' : inline(f.text);
+    return '<table class="mb-facts"><thead><tr>' + header.facts.map(f => '<th scope="col">' + escape(f.label) + '</th>').join('') + '</tr></thead><tbody><tr>' +
+        header.facts.map(f => '<td data-label="' + escape(f.label) + '"><span class="mb-fact">' + value(f) + '</span></td>').join('') + '</tr></tbody></table>';
 }
 // A pill with "level": true is a level (risk, outcome): full semantic colour, like a level cell of a table.
 // A pill with "section": "<id>" leads to that section (its tab, on a page with tabs), like «1 problema» to the diagnostics.
@@ -531,12 +588,13 @@ function withDiagnostics(input) {
 }
 // The index of the sections. With tabs: true it is the tab bar: artifact-blocks.js shows one
 // section at a time; without JS every section stays visible, one under the other. A section count shows beside its title.
+const countOk = n => (Number.isInteger(n) && n >= 0) || (typeof n === 'string' && n.trim());
 function sectionIndex(input) {
     if (input.tabs !== undefined && typeof input.tabs !== 'boolean')
         throw new Error('tabs must be true or false');
     const tabs = input.tabs === true;
     return '<nav' + (tabs ? ' class="mb-tabs" aria-label="Schede"' : '') + '>' + input.sections.map(s => {
-        if (s.count !== undefined && !(Number.isInteger(s.count) && s.count >= 0) && !(typeof s.count === 'string' && s.count.trim()))
+        if (s.count !== undefined && !countOk(s.count))
             throw new Error('Section ' + s.id + ': count must be a whole number or a short text, like 3 or "2 nuove"');
         return '<a href="#' + s.id + '"' + (tabs ? ' data-mb-tab="' + s.id + '" data-lavish-action' : '') + '>' + escape(s.title) + (s.count === undefined ? '' : '<span class="mb-count">' + escape(s.count) + '</span>') + '</a>';
     }).join('') + '</nav>';
@@ -651,8 +709,14 @@ export async function renderDocument(input, options = {}) {
     // In the theme «revisione» a title ending in « #<number> » (the PR) shows the number muted, as on the review page.
     const number = review ? / #\d+$/.exec(input.title) : null;
     const title = number ? escape(input.title.slice(0, number.index)) + ' <span class="mb-number">' + escape(number[0].slice(1)) + '</span>' : escape(input.title);
+    // Header D (header.facts): the title is the first thing, without the PR number, which the facts table carries; the
+    // operations and the state sit top right, in a fixed place that a long title does not move; the facts follow.
+    const intro = paragraphs(input.intro ? [input.intro] : []), pills = pillsOf(input.pills, (input.sections || []).map(section => section.id));
+    const factsHeader = () => { const plain = / #\d+$/.exec(input.title), side = actions + head.badge;
+        return '<header class="mb-header-facts"><div class="mb-header-top"><h1>' + escape(plain ? input.title.slice(0, plain.index) : input.title) + '</h1>' + (side ? '<div class="mb-header-side">' + side + '</div>' : '') + '</div>' + head.facts + intro + pills + '</header>'; };
+    const classicHeader = () => (actions ? '<header class="mb-header-actions"><div class="mb-header-main">' : '<header>') + head.before + '<h1>' + title + '</h1>' + head.after + intro + pills + (actions ? '</div>' + actions : '') + '</header>';
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + executor + '>' + head.notice + (actions ? '<header class="mb-header-actions"><div class="mb-header-main">' : '<header>') + head.before + '<h1>' + title + '</h1>' + head.after + paragraphs(input.intro ? [input.intro] : []) + pillsOf(input.pills, (input.sections || []).map(section => section.id)) + (actions ? '</div>' + actions : '') + '</header>' + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + executor + '>' + head.notice + (head.facts ? factsHeader() : classicHeader()) + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }

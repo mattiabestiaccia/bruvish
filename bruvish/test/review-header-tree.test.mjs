@@ -53,3 +53,144 @@ test('review pages written as today render byte for byte as on carry (page skele
     assert.equal(sha(skeleton(await render(todayPage))), 'bc9bd33671d2236fd432093af308c1c2ddc4e9ab0f2fad5b4fa13e927133ad84', 'operations page of today');
 });
 
+// The data of the approved mockup (agents-kit #16).
+const facts = [
+    { label: 'PR', text: '#16', type: 'link', href: 'https://github.com/mattiabestiaccia/agents-kit/pull/16' },
+    { label: 'Repository', text: '`mattiabestiaccia/agents-kit`' },
+    { label: 'Aperta da', text: 'mattiabestiaccia' },
+    { label: 'Quando', text: '25 nov 2026, 02:02' },
+    { label: 'Head', text: '`6c5241a`' },
+    { label: 'Unisce', text: '`prova-pagina-revisione` → `main`' },
+    { label: 'Modifiche', text: '1 commit · 1 file', type: 'delta', added: 6, removed: 0 },
+];
+const icons = {
+    view: 'v1234',
+    primary: [{ ...operations.primary[0], icon: 'unisci' }, { ...operations.primary[1], icon: 'pronta' }],
+    fixed: [{ ...operations.fixed[0], icon: 'revisore' }],
+    menu: [operations.menu[0], { ...operations.menu[1], icon: 'chiudi' }],
+};
+const newPage = (extra = {}) => ({ ...todayPage, header: { badge: { text: 'Bozza', tone: 'blu', icon: 'draft' }, facts }, actions: icons, ...extra });
+
+test('header D: the title comes first, without the PR number; operations and state sit top right; the facts table follows', async () => {
+    const html = await render(newPage({ pills: [{ text: 'rischio basso', tone: 'verde', level: true }] }));
+    const { document } = boot(html);
+    const header = document.querySelector('header');
+    assert(header.classList.contains('mb-header-facts'));
+    const [top, table] = header.elements;
+    assert(top.classList.contains('mb-header-top'), 'the top row comes first');
+    const [h1, side] = top.elements;
+    assert.equal(h1.tagName, 'h1', 'the title is the first thing');
+    assert.equal(h1.textContent, 'Una PR', 'the number goes to the facts table');
+    assert.match(html, /<title>Una PR #16<\/title>/, 'the browser tab keeps the number');
+    assert(side.classList.contains('mb-header-side'));
+    assert.deepEqual(side.elements.map(e => e.className), ['mb-actions mb-actions-icons', 'mb-badge'], 'operations, then the state under them');
+    assert.equal(table.tagName, 'table');
+    assert.equal(table.className, 'mb-facts');
+    assert.deepEqual(table.querySelectorAll('th').map(th => [th.getAttribute('scope'), th.textContent]), facts.map(f => ['col', f.label]));
+    const cells = table.querySelectorAll('td');
+    assert.deepEqual(cells.map(td => td.getAttribute('data-label')), facts.map(f => f.label), 'each value knows its label for the narrow form');
+    const link = cells[0].querySelector('a');
+    assert.deepEqual([link.getAttribute('href'), link.getAttribute('target'), link.getAttribute('rel'), link.textContent], ['https://github.com/mattiabestiaccia/agents-kit/pull/16', '_blank', 'noopener noreferrer', '#16 ↗']);
+    assert.match(body(html), /<td data-label="Repository"><span class="mb-fact"><code>mattiabestiaccia\/agents-kit<\/code><\/span><\/td>/);
+    assert.match(body(html), /<td data-label="Modifiche"><span class="mb-fact">1 commit · 1 file · <span class="mb-plus">\+6<\/span> <span class="mb-minus">−0<\/span><\/span><\/td>/);
+    assert.equal(table.nextElementSibling.className, 'mb-pills', 'pills follow the table');
+    assert.doesNotMatch(body(html), /mb-header-meta|mb-subtitle|mb-number/);
+});
+
+test('header D escapes every fact; a link is https only; facts replace meta, subtitle and stat; a bad shape stops the render', async () => {
+    const evil = [{ label: '<b>x</b>', text: '<img src=x onerror=alert(1)> **ok**' }, { label: 'PR', text: '"#1"', type: 'link', href: 'https://example.org/a?b="c"&d=<e>' }];
+    const html = await render(newPage({ header: { facts: evil } }));
+    assert.match(body(html), /<th scope="col">&lt;b&gt;x&lt;\/b&gt;<\/th>/);
+    assert.match(body(html), /<td data-label="&lt;b&gt;x&lt;\/b&gt;"><span class="mb-fact">&lt;img src=x onerror=alert\(1\)&gt; <strong>ok<\/strong><\/span><\/td>/);
+    assert.match(body(html), /href="https:\/\/example\.org\/a\?b=&quot;c&quot;&amp;d=&lt;e&gt;"/);
+    assert.doesNotMatch(body(html), /<img|<b>x/);
+    const shape = /header\.facts must be/;
+    for (const bad of ['x', [], [{ label: '', text: 'a' }], [{ label: 'A' }], [{ label: 'A', text: 3 }], [{ label: 'A', text: 'a', type: 'img' }],
+        [{ label: 'A', text: 'a', type: 'link' }], [{ label: 'A', text: 'a', type: 'link', href: 'javascript:alert(1)' }], [{ label: 'A', text: 'a', type: 'link', href: 'http://x.org' }],
+        [{ label: 'A', text: 'a', type: 'link', href: 'https://x.org/a b' }], [{ label: 'A', type: 'delta', added: -1, removed: 0 }], [{ label: 'A', type: 'delta', added: 1 }], [{ label: 'A', type: 'delta', added: 1.5, removed: 0 }]])
+        await assert.rejects(render(newPage({ header: { facts: bad } })), shape, JSON.stringify(bad));
+    for (const extra of [{ meta: ['x'] }, { subtitle: 'x' }, { stat: { added: 1, removed: 0 } }])
+        await assert.rejects(render(newPage({ header: { facts, ...extra } })), /header\.facts replaces meta, subtitle and stat/);
+    // A delta without its text is only the counts.
+    assert.match(body(await render(newPage({ header: { facts: [{ label: 'Modifiche', type: 'delta', added: 1180, removed: 92 }] } }))), /<td data-label="Modifiche"><span class="mb-fact"><span class="mb-plus">\+1180<\/span> <span class="mb-minus">−92<\/span><\/span><\/td>/);
+});
+
+test('icon buttons keep the contract with the executor: same attributes, same confirmation, same message', async () => {
+    const html = await render(newPage());
+    const b = body(html);
+    // Same attributes as today, plus the name for assistive technology and the tooltip; the label text is not content.
+    assert.match(b, /<div class="mb-actions mb-actions-icons" data-mb-actions><div class="mb-actions-row"><div class="mb-actions-primary"><button type="button" class="mb-action mb-action-main mb-icon-button" data-mb-op="pronta-unisci" data-mb-confirm-title="Pronta e unisci" data-mb-confirm="Unisce\." data-mb-icon="unisci" aria-label="Pronta e unisci" data-mb-name="Pronta e unisci"><svg class="mb-op-icon" viewBox="0 0 16 16" aria-hidden="true">/);
+    assert.match(b, /<button type="button" class="mb-action mb-icon-button" data-mb-op="pronta" data-mb-confirm-title="Segna come pronta" data-mb-confirm="Toglie la bozza\." data-mb-icon="pronta" aria-label="Segna come pronta" data-mb-name="Segna come pronta">/);
+    assert.match(b, /<div class="mb-actions-fixed"><button type="button" class="mb-action-fixed mb-icon-button" data-mb-op="revisore" data-mb-confirm-title="Assegna un revisore" data-mb-confirm="Chiede\." data-mb-field-kind="line" data-mb-placeholder="login" data-mb-required data-mb-icon="revisore" aria-label="Assegna un revisore" data-mb-name="Assegna un revisore">/);
+    // A menu operation with an icon stands beside the menu, red when dangerous; the rest stays in the «⋯» menu, now an icon.
+    assert.match(b, /<button type="button" class="mb-action-item mb-danger mb-icon-button" data-mb-op="chiudi" data-mb-confirm-title="Chiudi la PR" data-mb-confirm="Chiude\." data-mb-icon="chiudi" aria-label="Chiudi la PR" data-mb-name="Chiudi la PR">/);
+    assert.match(b, /<details class="mb-actions-menu"><summary class="mb-icon-button" aria-label="Altre operazioni" data-mb-name="Altre operazioni"><svg class="mb-op-icon"[^>]*>[\s\S]*?<\/svg><\/summary><div class="mb-actions-items"><button type="button" class="mb-action-item" data-mb-op="aggiorna"[^>]*>Aggiorna il ramo<small>novità<\/small><\/button><\/div><\/details>/);
+    assert.equal((b.match(/data-mb-op="chiudi"/g) || []).length, 1, 'the operation is not repeated in the menu');
+    const { document, window, sent } = boot(html);
+    const box = document.querySelector('.mb-confirm');
+    const [merge, ready] = document.querySelectorAll('.mb-action');
+    ready.click();
+    assert.equal(box.querySelector('.mb-confirm-title').textContent, 'Segna come pronta?');
+    assert(ready.classList.contains('mb-action-main') && !merge.classList.contains('mb-action-main'), 'the clicked alternative becomes the main one');
+    box.querySelector('.mb-confirm-yes').click();
+    document.querySelector('[data-mb-op="chiudi"]').click();
+    assert.equal(box.querySelector('.mb-confirm-title').textContent, 'Chiudi la PR?');
+    box.querySelector('.mb-confirm-yes').click();
+    document.querySelector('[data-mb-op="revisore"]').click();
+    box.querySelector('.mb-confirm-field').value = 'octocat';
+    box.querySelector('.mb-confirm-yes').click();
+    assert.deepEqual(plainOf(window.queued.map(q => [q.tag, q.data])), [
+        ['operation', { view: 'v1234', operation: 'pronta', text: '' }], ['operation', { view: 'v1234', operation: 'chiudi', text: '' }], ['operation', { view: 'v1234', operation: 'revisore', text: 'octocat' }]]);
+    assert.equal(sent.count, 3);
+    assert.equal(box.textContent, '✓ Inviato: l\'esito arriva nel pannello e nella Diagnostica.');
+});
+
+test('an operation without an icon stays a text button; an unknown icon or an icon on a non-operation stops the render', async () => {
+    const mixed = { ...icons, primary: [operations.primary[0], icons.primary[1]] };
+    const b = body(await render(newPage({ actions: mixed })));
+    assert.match(b, /<button type="button" class="mb-action mb-action-main" data-mb-op="pronta-unisci" data-mb-confirm-title="Pronta e unisci" data-mb-confirm="Unisce\.">Pronta e unisci<\/button>/);
+    // Without any icon the header operations keep the markup of today, also in header D.
+    const plain = body(await render(newPage({ actions: operations })));
+    assert.match(plain, /<div class="mb-actions" data-mb-actions><div class="mb-actions-row"><div class="mb-actions-primary"><button type="button" class="mb-action mb-action-main" data-mb-op="pronta-unisci"/);
+    assert.match(plain, /<details class="mb-actions-menu"><summary>Altre operazioni ⋯<\/summary>/);
+    for (const icon of ['altre', 'svg', '<svg/>', 3, ''])
+        await assert.rejects(render(newPage({ actions: { ...icons, fixed: [{ ...operations.fixed[0], icon }] } })), /actions must be/, String(icon));
+    // Every menu operation with an icon: no «⋯» menu is left.
+    const allOut = body(await render(newPage({ actions: { view: 'v1234', menu: [{ ...operations.menu[1], icon: 'chiudi' }] } })));
+    assert.doesNotMatch(allOut, /mb-actions-menu/);
+});
+
+test('header D without operations keeps the state top right; the theme accent and the tooltip come from the stylesheet', async () => {
+    const { actions: _, diagnostics: __, ...noActions } = newPage();
+    const html = await render(noActions);
+    assert.match(body(html), /<main><header class="mb-header-facts"><div class="mb-header-top"><h1>Una PR<\/h1><div class="mb-header-side"><span class="mb-badge" data-tone="blu">/);
+    const css = styleOf(html);
+    // The table is two points smaller than the card text (19px), headings centred, vertical lines between the columns.
+    assert.match(css, /\.mb-facts\{[^}]*font-size:17px/);
+    assert.match(css, /\.mb-facts th\{[^}]*text-align:center/);
+    assert.match(css, /\.mb-facts th\+th,\.mb-facts td\+td\{border-left:1px solid var\(--line\)\}/);
+    // Narrow: two columns, label and value, every value on one line.
+    assert.match(css, /@media\(max-width:820px\)\{[^@]*\.mb-facts td\{display:grid;grid-template-columns:[^}]*\}[^@]*\.mb-facts td::before\{content:attr\(data-label\)/);
+    assert.match(css, /\.mb-facts td\{[^}]*white-space:nowrap/);
+    // The name of an icon operation shows on hover and with the keyboard focus.
+    assert.match(css, /\.mb-icon-button::after\{content:attr\(data-mb-name\)/);
+    assert.match(css, /\.mb-icon-button:hover::after,\.mb-icon-button:focus-visible::after\{opacity:1\}/);
+    assert.match(css, /\.mb-icon-button\[data-mb-icon=chiudi\]\{[^}]*color:var\(--mb-red\)/);
+});
+
+// The tree bar: groups and sections in JSON order, a status dot and a count beside an item.
+const treePage = (extra = {}) => ({
+    title: 'Una PR', theme: 'revisione', tabs: 'tree',
+    groups: [{ id: 'gate', title: 'Gate', dot: 'verde', count: '9 su 9' }, { id: 'modifiche', title: 'Modifiche', count: '10 file' }, { id: 'storia', title: 'Storia' }],
+    sections: [
+        { id: 'sintesi', title: 'Sintesi', cards: [{ id: 'c-sintesi', title: 'Sintesi', paragraphs: ['Testo.'] }] },
+        { id: 'intent', title: 'Intent', group: 'gate', dot: 'verde', cards: [{ id: 'c-intent', title: 'Intent', paragraphs: ['Testo.'] }] },
+        { id: 'revisione', title: 'Revisione', group: 'gate', dot: 'giallo', count: '4 corretti', cards: [{ id: 'c-rev', title: 'Revisione', paragraphs: ['Testo.'] }] },
+        { id: 'ci', title: 'CI', group: 'gate', dot: 'vuoto', count: 'nessuna', cards: [{ id: 'c-ci', title: 'CI', paragraphs: ['Testo.'] }] },
+        { id: 'file', title: 'File modificati', group: 'modifiche', count: 10, cards: [{ id: 'c-file', title: 'File', diff: { text: 'diff --git a/x.js b/x.js\n--- a/x.js\n+++ b/x.js\n@@ -1,1 +1,1 @@\n-a\n+b\n' } }] },
+        { id: 'commit', title: 'Commit', group: 'modifiche', count: 4, cards: [{ id: 'c-commit', title: 'Commit', paragraphs: ['Testo.'] }] },
+        { id: 'conversazione', title: 'Conversazione', group: 'storia', cards: [{ id: 'c-conv', title: 'Conversazione', paragraphs: ['Testo.'] }] },
+        { id: 'cronologia', title: 'Cronologia', group: 'storia', cards: [{ id: 'c-cron', title: 'Cronologia', paragraphs: ['Testo.'] }] },
+    ],
+    ...extra,
+});
