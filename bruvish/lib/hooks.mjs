@@ -7,7 +7,7 @@ import path from "node:path";
 // with the hook table in BRUVISH.md.
 export const HOOKS = Object.freeze({
   "src/server.js": ["server-import", "server-routes", "artifact-script"],
-  "src/cli.js": ["open-import", "open-present"],
+  "src/cli.js": ["open-import", "open-present", "open-discovery"],
   "scripts/build.js": ["build"],
   ".prettierignore": ["prettier"],
   ".github/workflows/ci.yml": ["workflow-ci"],
