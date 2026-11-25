@@ -893,8 +893,8 @@ function intentColumn(input, prep, state, unique) {
             const say = o => o.intent ?? o.label;
             const answer = state.answers?.[card.id], chosen = answer && options.find(o => String(o.value) === String(answer.choice));
             if (vibeStatus(card, state) === 'answered') {
-                const said = chosen ? say(chosen) : card.outcome;
-                return [rowHtml(r, ' data-mb-row-state="confirmed"', null, (said ? text(said) : '') + where('confermato · ' + round)), said ?? 'confermato'];
+                const said = (chosen ? say(chosen) : card.outcome) ?? 'confermato';
+                return [rowHtml(r, ' data-mb-row-state="confirmed"', null, text(said) + where('confermato · ' + round)), said];
             }
             const go = goTo(found);
             return [rowHtml(r, ' data-mb-row-state="open" data-mb-row-card="' + card.id + '" data-mb-row-round="' + round + '"', go,

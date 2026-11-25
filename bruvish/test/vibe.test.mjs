@@ -128,8 +128,16 @@ test('a numeric option value matches the answer the page queues, which is always
   // An answer that matches no option still confirms the row: never «se non rispondi vale questa» on an answered card.
   const stray = vibe({ state: { revision: 2, answers: { 'g1-q': { choice: 'altro' } }, comments: [] } });
   const strayHtml = await render(stray);
-  assert.match(strayHtml, /<div class="mb-vibe-row" data-mb-row-state="confirmed"><span class="mb-vibe-key"><span class="mb-vibe-dot"><\/span>Decisioni<\/span><span class="mb-vibe-value"><small class="mb-vibe-where">confermato · Giro 1<\/small>/);
+  assert.match(strayHtml, /<div class="mb-vibe-row" data-mb-row-state="confirmed"><span class="mb-vibe-key"><span class="mb-vibe-dot"><\/span>Decisioni<\/span><span class="mb-vibe-value"><span class="mb-vibe-text">confermato<\/span><small class="mb-vibe-where">confermato · Giro 1<\/small>/);
   assert.doesNotMatch(strayHtml, /se non rispondi vale questa/);
+  // Without intent.voice its 🔊 reads the same row before and after a queue change.
+  stray.intent.voice = undefined;
+  const { document, window } = boot(await render(stray));
+  const voice = () => document.querySelector('.mb-vibe-intent [data-mb-voice]').dataset.mbVoiceText;
+  const written = voice();
+  assert.match(written, /Decisioni: confermato\./);
+  queue(window);
+  assert.equal(voice(), written);
 });
 
 test('the scaffold: header, the bar of the rounds with the open one current, the rounds column and the intent on the right', async () => {
