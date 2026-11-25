@@ -1,0 +1,38 @@
+/* Pages with the tree bar (tabs: "tree"), after the first real review page in this form (Mattia, 25 novembre 2026).
+   Embedded only in tree pages, after artifact-blocks.css: a page without the tree keeps the stylesheet of before, byte
+   for byte. Here the rules of artifact-blocks.css for the tree are refined, never repeated. */
+/* Wide: a narrower bar (200px: the names of the parts, «Conversazione» the longest, and a short count such as 6/6 or 2),
+   from the top of the page to its end, beside the header and the cards. A long name wraps (at a space, or hyphenated)
+   instead of widening the bar; the count stays whole. The header and the cards share the column on its right and end where the cards end. */
+@media(min-width:821px){main[data-mb-nav=tree]{grid-template-columns:200px minmax(0,1fr);column-gap:24px}
+main[data-mb-nav=tree]>*{grid-column:2}
+main[data-mb-nav=tree]>nav.mb-tree{grid-column:1;grid-row:1/span var(--mb-tree-rows,1)}
+main[data-mb-nav=tree]>header,main[data-mb-nav=tree]>.mb-notice,main[data-mb-nav=tree]>.guide{margin-right:48px}
+main[data-mb-nav=tree] nav.mb-tree a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{gap:6px;padding:6px 8px}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{margin-left:12px;padding-left:6px}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{padding:4px 6px}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-name{flex:0 1 auto;white-space:normal;overflow-wrap:break-word;hyphens:auto}
+main[data-mb-nav=tree] nav.mb-tree .mb-count{flex:none}
+/* The facts table of header D has less room beside the bar: a value wraps only when the table cannot stay on one line. */
+main[data-mb-nav=tree] .mb-facts td{white-space:normal}}
+/* One width for every card: the column right of the bar, less the gutter of the round column of 🔊 and «?». The central
+   column at 80% and its cap of 907px go away, so short cards (the outcome of the rebase, a table of three rows) are as
+   wide as long ones. The files card already took this width; «Righe per file», above it, was centred at 80% of a section
+   without cap (the rule for the full-width files page) and stood to the right of the files, wider than the other cards. */
+@media(min-width:601px){main[data-mb-nav=tree]>section{max-width:none;margin-inline:0}
+main[data-mb-nav=tree] .card{width:calc(100% - 48px);margin:0 0 18px}}
+/* Lines < sentences < paragraphs inside the cards, with the values of Bruvish (artifact.css: lines 1.45, sentences of a
+   paragraph 0.45em more, paragraphs 1.8em, 1.2em in a cell): the theme «revisione» set sentences to 0 and paragraphs to
+   0.7em, so a long paragraph read as one block. */
+main[data-mb-nav=tree] .card .sentence+.sentence{margin-top:.45em}
+main[data-mb-nav=tree] .card>p{margin:0 0 1.8em}
+main[data-mb-nav=tree] .card td p{margin:0 0 1.2em}
+main[data-mb-nav=tree] .card>p:last-child,main[data-mb-nav=tree] .card td p:last-child{margin-bottom:0}
+/* Diff lines wrap inside the card; «A capo» (aria-pressed) switches the wrap off for the whole page, and then a long line
+   stays one line and the block scrolls sideways inside the card. Line numbers never wrap. */
+main[data-mb-nav=tree] .mb-diff-tools{display:flex;flex-wrap:wrap;gap:8px}
+.mb-diff-wrap{font-size:15px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 10px}
+.mb-diff-wrap:hover{color:var(--ink);border-color:var(--title)}
+.mb-diff-wrap[aria-pressed=true]{color:var(--ink);border-color:var(--title);background:color-mix(in srgb,var(--title) 14%,var(--card))}
+main[data-mb-nav=tree] .mb-diff-lines td.mb-code{white-space:pre-wrap;overflow-wrap:anywhere}
+main[data-mb-nav=tree][data-mb-wrap=off] .mb-diff-lines td.mb-code{white-space:pre;overflow-wrap:normal}

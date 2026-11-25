@@ -206,7 +206,7 @@ const treePage = (extra = {}) => ({
 test('tabs "tree": a vertical tree of top items and groups, in JSON order, with status dots and counts', async () => {
     const html = await render(treePage());
     const b = body(html);
-    assert.match(b, /<main data-mb-nav="tree"><header>/);
+    assert.match(b, /<main data-mb-nav="tree" style="--mb-tree-rows:9"><header>/, 'the bar spans the header and the eight sections');
     assert.match(b, /<nav class="mb-tabs mb-tree" aria-label="Schede"><a href="#sintesi" data-mb-tab="sintesi" data-lavish-action><span class="mb-tree-name">Sintesi<\/span><\/a><div class="mb-tree-group" data-mb-group="gate"><button type="button" class="mb-tree-branch" data-mb-branch aria-expanded="true" aria-controls="mb-group-gate" data-lavish-action><span class="mb-tree-arrow" aria-hidden="true">▸<\/span><span class="mb-tree-dot" data-dot="verde" aria-hidden="true"><\/span><span class="mb-tree-name">Gate<\/span><span class="mb-count">9 su 9<\/span><\/button><div class="mb-tree-children" id="mb-group-gate" role="group" aria-label="Gate"><a href="#intent" data-mb-tab="intent" data-lavish-action><span class="mb-tree-dot" data-dot="verde" aria-hidden="true"><\/span><span class="mb-tree-name">Intent<\/span><\/a><a href="#revisione" data-mb-tab="revisione" data-lavish-action><span class="mb-tree-dot" data-dot="giallo" aria-hidden="true"><\/span><span class="mb-tree-name">Revisione<\/span><span class="mb-count">4 corretti<\/span><\/a>/);
     const { document } = boot(html);
     const nav = document.querySelector('nav.mb-tree');
@@ -275,6 +275,8 @@ test('on a phone a branch opens the first part of its group, and the bar is a tw
     const css = styleOf(html);
     // Wide: a grid of the bar on the left, kept in view, and the page; the files page takes all the width that is left.
     assert.match(css, /@media\(min-width:821px\)\{main\[data-mb-nav=tree\]\{display:grid;grid-template-columns:236px minmax\(0,1fr\)/);
+    // artifact-tree.css, embedded after it in tree pages only, narrows the bar to 200px (review-tree-widths.test.mjs).
+    assert.match(css, /@media\(min-width:821px\)\{main\[data-mb-nav=tree\]\{grid-template-columns:200px minmax\(0,1fr\);column-gap:24px\}/);
     assert.match(css, /main\[data-mb-nav=tree\]>nav\.mb-tree\{[^}]*position:sticky/);
     // Phone: top items on the first row, the parts of the open group on a second row that scrolls sideways.
     assert.match(css, /@media\(max-width:820px\)\{[^@]*nav\.mb-tree \.mb-tree-group\{display:contents\}[^@]*nav\.mb-tree \.mb-tree-group:has\(a\[aria-current\]\)>\.mb-tree-children\{display:flex\}/);

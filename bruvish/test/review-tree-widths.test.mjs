@@ -79,11 +79,11 @@ test('wide: a narrower bar from the top of the page; header and cards share the 
     assert.equal(at(nav).position, 'sticky');
     for (const el of [header, ...document.querySelectorAll('main > section')])
         assert.equal(at(el)['grid-column'], '2', (el.id || el.tagName) + ' sits right of the bar');
-    // Long names end with an ellipsis instead of widening the bar; the count stays whole.
+    // Long names wrap (at a space, or hyphenated) instead of widening the bar; the count stays whole.
     const name = document.querySelector('nav.mb-tree .mb-tree-name');
-    assert.equal(at(name)['text-overflow'], 'ellipsis');
-    assert.equal(at(name)['white-space'], 'nowrap');
-    assert.equal(at(name).overflow, 'hidden');
+    assert.equal(at(name)['white-space'], 'normal');
+    assert.equal(at(name).hyphens, 'auto');
+    assert.equal(at(name)['overflow-wrap'], 'break-word');
     assert.equal(at(document.querySelector('nav.mb-tree .mb-count'))['white-space'], 'nowrap');
     // Header D at the width of the cards: it ends where the cards end, before the column of 🔊 and «?».
     assert.equal(at(header)['margin-right'], '48px');
@@ -94,7 +94,7 @@ test('wide: a narrower bar from the top of the page; header and cards share the 
     assert.equal(at(facts, 800)['white-space'], 'nowrap', 'the two-column narrow form keeps each value on one line');
     // Under 820px the bar is the horizontal bar of today: none of these rules apply.
     assert.equal(at(main, 800)['grid-template-columns'], undefined);
-    assert.equal(at(name, 800)['text-overflow'], undefined);
+    assert.equal(at(name, 800).hyphens, undefined);
 });
 
 test('every card of a tree page has one width: the column right of the bar, less the gutter of 🔊 and «?»', async () => {
