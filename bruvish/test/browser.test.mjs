@@ -308,3 +308,60 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
         await rm(dir, { recursive: true, force: true });
     }
 });
+
+// Card fields (label and value table) in a tree review page, measured by the browser: the table stays inside its card,
+// a long label wraps inside a bounded column instead of squeezing the value, and a short label keeps a narrow column.
+test('card fields stay inside the card, wrap a long label in a bounded column and keep the value readable', { timeout: 60000, skip: buildSkip || (!chrome && 'set LAVISH_MB_TEST_CHROME to a Chrome for Testing executable') }, async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'lavish-fields-'));
+    let browser, client;
+    try {
+        const longLabel = 'Che cosa dicono i riferimenti (rapporto dello scout con il nome lungo del lavoro, sezioni 4, 5.2 e 8)';
+        const paths = '`tests/pr_revisione_test.py`, `tools/pr-revisione/README.md`, `tools/pr-revisione/diagnostica.py`, `tools/pr-revisione/pr-revisione-ai` · https://github.com/esempio/repository-con-un-nome-lungo/pull/35';
+        const input = { title: 'Una PR', theme: 'revisione', tabs: 'tree', sections: [{ id: 's', title: 'Carte', cards: [
+            { id: 'lungo', title: 'Etichetta lunga', fields: [{ label: longLabel, paragraphs: ['**Canale fra pannello ed esecutore (sezione 4).** Oggi la vista sta in `pagina.html`, che gli agenti nella sandbox leggono.', 'Un secondo paragrafo con abbastanza parole da andare a capo in una colonna di valori larga.'] }] },
+            { id: 'unire', title: 'Prima di unire', fields: [{ label: 'Altre PR aperte sugli stessi file', paragraphs: [paths] }, { label: 'Ordine e installazioni', paragraphs: ['La PR 35 tocca quattro file in comune: chi arriva seconda si ribasa.'] }] },
+            { id: 'corto', title: 'Etichetta corta', fields: [{ label: 'Oggi', paragraphs: ['Due regole allow nella base, e un testo abbastanza lungo da occupare più di una riga nella colonna dei valori.'] }] },
+        ] }] };
+        const file = path.join(dir, 'campi.html');
+        await writeFile(file, await renderDocument(input));
+        const profile = path.join(dir, 'chrome');
+        let chromeErrors = '';
+        browser = spawn(chrome, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile, '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+        browser.stderr.on('data', d => chromeErrors += d);
+        const debugPort = await until(async () => Number((await readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]), 'Chrome start ' + chromeErrors);
+        const pages = await (await fetch('http://127.0.0.1:' + debugPort + '/json/list')).json();
+        client = await cdp(pages.find(p => p.type === 'page').webSocketDebuggerUrl);
+        const measure = '(()=>{const box=el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width}};return {scroll:[document.documentElement.scrollWidth,innerWidth],cards:Object.fromEntries([...document.querySelectorAll(".card")].map(card=>{const table=card.querySelector(".mb-fields");return [card.id,{card:box(card),table:box(table),th:[...table.querySelectorAll("th")].map(box),td:[...table.querySelectorAll("td")].map(box)}]})),bold:[...document.querySelectorAll("#lungo strong")].map(s=>s.textContent),stars:document.querySelector("#lungo").textContent.includes("**")}})()';
+        for (const width of [1280, 390]) {
+            await client.call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+            await client.call('Page.navigate', { url: 'file://' + file });
+            await until(() => client.evaluate('document.readyState==="complete"&&document.querySelector("#lungo .mb-fields")!==null'), 'page loaded at ' + width);
+            await client.evaluate('document.fonts.ready.then(()=>true)');
+            const m = await client.evaluate(measure);
+            const label = width + 'px';
+            assert(m.scroll[0] <= m.scroll[1], label + ': the page does not scroll sideways ' + JSON.stringify(m.scroll));
+            for (const [id, { card, table, th, td }] of Object.entries(m.cards)) {
+                assert(table.left >= card.left - 0.5 && table.right <= card.right + 0.5, label + ' ' + id + ': the table stays inside the card ' + JSON.stringify({ card, table }));
+                for (const cell of [...th, ...td])
+                    assert(cell.right <= card.right + 0.5, label + ' ' + id + ': every cell ends inside the card ' + JSON.stringify(cell));
+            }
+            assert.deepEqual(m.bold, ['Canale fra pannello ed esecutore (sezione 4).'], label + ': the bold text, closing mark after a period');
+            assert.equal(m.stars, false, label + ': no literal asterisks');
+            if (width > 600) {
+                const { table, th, td } = m.cards.lungo;
+                assert(th[0].width <= table.width * 0.34, label + ': a long label takes at most about a third of the table ' + JSON.stringify({ table, th }));
+                assert(td[0].width >= table.width * 0.6, label + ': the value keeps the rest ' + JSON.stringify({ table, td }));
+                assert(m.cards.corto.th[0].width <= m.cards.corto.table.width * 0.2, label + ': a short label keeps a narrow column ' + JSON.stringify(m.cards.corto));
+                const unire = m.cards.unire;
+                assert(unire.td[0].width >= unire.table.width * 0.6, label + ': long paths do not squeeze the value ' + JSON.stringify(unire));
+            }
+        }
+        assert.equal(client.errors.length, 0, JSON.stringify(client.errors));
+    }
+    finally {
+        client?.close();
+        browser?.kill('SIGTERM');
+        await delay(250);
+        await rm(dir, { recursive: true, force: true });
+    }
+});

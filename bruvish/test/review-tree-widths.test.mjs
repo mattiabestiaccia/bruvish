@@ -307,3 +307,35 @@ test('without the tree a table cell of several sentences renders as before; nowr
     wide.sections[0].cards[0].table.nowrap = [2];
     await assert.rejects(render(wide), /table\.nowrap must be a list of column numbers from 0, like \[3\] for the fourth column, each once and below 2/, 'two columns without headers: 2 is out');
 });
+
+// A card «fields» table: a long label took almost the whole card, squeezed the value into a narrow column, and a long
+// path in the value pushed the table past the card's right border. From 601px the table is a two-column grid: the label
+// column is as wide as its longest label but at most a third of the card, the value takes the rest and can never be
+// wider than it; up to 600px the label stacks over the value, as before. (Real widths are measured in browser.test.mjs.)
+test('card fields: a bounded label column, a value that cannot widen the table, the stacked form on a phone', async () => {
+    const html = await render(treePage({ groups: [], sections: [{ id: 's', title: 'Carte', cards: [{ id: 'c-campi', title: 'Prima di unire', fields: [
+        { label: 'Che cosa dicono i riferimenti (rapporto dello scout con il nome lungo del lavoro, sezioni 4, 5.2 e 8)', paragraphs: ['Un valore.'] },
+        { label: 'Oggi', paragraphs: ['`tools/pr-revisione/diagnostica.py`'] },
+    ] }] }] }));
+    const css = styleOf(html), { document } = boot(html);
+    const table = document.querySelector('#c-campi .mb-fields'), [longLabel, shortLabel] = document.querySelectorAll('#c-campi .mb-fields th'), value = document.querySelector('#c-campi .mb-fields td');
+    for (const width of [1280, 820, 601]) {
+        const at = el => computed(css, el, width);
+        assert.equal(at(table).display, 'grid', width + ': the table is a grid');
+        assert.equal(at(table)['grid-template-columns'], 'fit-content(33%) minmax(0,1fr)', width + ': label at most a third, the value the rest and never wider');
+        assert.equal(at(document.querySelector('#c-campi .mb-fields tbody')).display, 'contents');
+        assert.equal(at(document.querySelector('#c-campi .mb-fields tr')).display, 'contents', width + ': the labels of all rows share one column');
+        for (const label of [longLabel, shortLabel]) {
+            assert.equal(at(label)['white-space'], 'normal', width + ': a label wraps inside its column (it was nowrap)');
+            assert.equal(at(label)['overflow-wrap'], 'anywhere');
+        }
+        assert.equal(at(value)['min-width'], '0', width + ': the value shrinks below its longest word');
+        assert.equal(at(value)['overflow-wrap'], 'anywhere', width + ': a long path breaks instead of widening the table');
+    }
+    const phone = el => computed(css, el, 390);
+    assert.notEqual(phone(table).display, 'grid', 'up to 600px the table is not a grid');
+    assert.equal(phone(longLabel).display, 'block', 'the label stacks over the value');
+    assert.equal(phone(value).display, 'block');
+    assert.equal(phone(value)['overflow-wrap'], 'anywhere', 'also a phone: a long path never widens the card');
+    assert.equal(phone(longLabel)['white-space'], 'normal');
+});

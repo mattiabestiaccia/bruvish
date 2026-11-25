@@ -282,3 +282,18 @@ test('the example with every card novelty renders through the CLI', async () => 
     for (const needle of ['class="mb-fields"', 'mb-reason', 'mb-comment', '<code>', '<strong>', '<em>']) assert(html.includes(needle), needle);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('a bold sentence that ends with a period and a closing mark renders bold, at the start of a value or after another sentence', async () => {
+  const lead = '**Canale fra pannello ed esecutore (sezione 4).**';
+  assert.equal(inline(lead), '<strong>Canale fra pannello ed esecutore (sezione 4).</strong>');
+  for (const text of [lead + ' Oggi la vista sta in `pagina.html`, che gli agenti leggono.', 'Una premessa. ' + lead + ' Oggi la vista sta in `pagina.html`.', lead + '\nOggi: `a.b` e `c`.']) {
+    const parts = splitSentences(text);
+    assert(parts.includes(lead), 'the bold sentence is one sentence: ' + JSON.stringify(parts));
+    assert.equal(inline(lead), '<strong>Canale fra pannello ed esecutore (sezione 4).</strong>');
+    assert(!parts.map(inline).join('').replace(/<code>[\s\S]*?<\/code>/g, '').includes('**'), 'no literal asterisks: ' + JSON.stringify(parts));
+  }
+  const body = cardHtml(await renderDocument(doc([{ id: 'campo', title: 'Campo', fields: [{ label: 'Che cosa dicono i riferimenti (rapporto dello scout, sezioni 4, 5.2 e 8)', paragraphs: [lead + ' Oggi la vista sta in `pagina.html`, che gli agenti nella sandbox leggono.'] }] }])), 'campo');
+  assert.match(body, /<td><p><span class="sentence"><strong>Canale fra pannello ed esecutore \(sezione 4\)\.<\/strong><\/span><span class="sentence">Oggi la vista sta in <code>pagina\.html<\/code>/);
+  // The marks are the writer's: a closing «**» put inside a code span (`.**`) is code, never a closing mark.
+  assert.equal(inline('**Canale (sezione 4)`.**`'), '**Canale (sezione 4)<code>.**</code>');
+});
