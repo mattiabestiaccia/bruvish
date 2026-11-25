@@ -66,19 +66,13 @@ function probeOnce(get, url, timeoutMs) {
   });
 }
 
-// Asks once per window while the answer is late. A closed port means "no server" (null) only in the
-// first `freeAttempts` attempts; past them, the server stopped answering during the check.
-async function probe(get, url, endpoint, windows, freeAttempts = 0) {
-  for (const [attempt, windowMs] of windows.entries()) {
+// Asks once per window while the answer is late. A closed port means "no server" (null) at any
+// attempt: it is not a foreign server to drive, and upstream reads it the same way.
+async function probe(get, url, endpoint, windows) {
+  for (const windowMs of windows) {
     const result = await probeOnce(get, url, windowMs);
     if (result === TIMED_OUT) continue;
-    if (result.unreachable) {
-      if (attempt < freeAttempts) return null;
-      throw new Error(
-        `Il server Lavish ha smesso di rispondere durante il controllo ${endpoint}. Riprova tra qualche secondo.`,
-        { cause: result.unreachable },
-      );
-    }
+    if (result.unreachable) return null;
     return result;
   }
   throw new SlowServerError(endpoint, windows);
@@ -93,7 +87,7 @@ async function probe(get, url, endpoint, windows, freeAttempts = 0) {
 export async function assertCompatibleServer(env, identity, { get = httpGet } = {}) {
   const origin = `http://127.0.0.1:${env.LAVISH_AXI_PORT}`;
   const windows = probeWindows();
-  const health = await probe(get, `${origin}/health`, "/health", windows, 1);
+  const health = await probe(get, `${origin}/health`, "/health", windows);
   if (health === null) return;
   if (!health.ok) throw new Error("Port is occupied by a server without a healthy Lavish endpoint");
   if (health.body?.app !== "lavish-axi") throw new Error("Port belongs to another service");
@@ -101,6 +95,7 @@ export async function assertCompatibleServer(env, identity, { get = httpGet } = 
     throw new Error("Existing server uses another state directory; refusing to adopt it");
   }
   const info = await probe(get, `${origin}/mb-info`, "/mb-info", [windows.at(-1)]);
+  if (info === null) return;
   if (!info.ok) {
     throw new Error(
       "A non-Bruvish Lavish server is already running. Use the reviewed activation procedure; it will not be restarted automatically.",
@@ -116,12 +111,9 @@ export async function assertCompatibleServer(env, identity, { get = httpGet } = 
 // Upstream discovery (`BRUVISH:hook open-discovery`) decides whether to adopt or start a server
 // from one short /health read per candidate address. For `open`, loopback, where the Bruvish
 // server listens, gets the same growing waits as the check above, so a late answer is reported as
-// slow instead of being taken for a free port and a second server start. The build check has
-// already passed here, so a closed port at any attempt means no server, as upstream reads it.
-// Elsewhere it is upstream's.
+// slow instead of being taken for a free port and a second server start. Elsewhere it is upstream's.
 export async function discoverHealth(host, baseUrl, upstreamProbe, { get = httpGet } = {}) {
   if (!retrying || host !== LOOPBACK) return upstreamProbe();
-  const windows = probeWindows();
-  const health = await probe(get, `${baseUrl}/health`, "/health", windows, windows.length);
+  const health = await probe(get, `${baseUrl}/health`, "/health", probeWindows());
   return health?.ok && health.body && typeof health.body === "object" ? health.body : null;
 }

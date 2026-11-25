@@ -232,26 +232,24 @@ test('nothing listening returns after one connection attempt', async () => {
     assert.equal(counter.requests, 1);
 });
 
-test('a port that closes after a health timeout stops the check with an Italian message', async (t) => {
+test('a port that closes after a health timeout means no server, so open can start its own', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
-    const refused = refusal();
     const requests = [];
-    const result = assert.rejects(
-        assertCompatibleServer(environment(4388), IDENTITY, {
-            get: fakeGet((endpoint, call) => { if (requests.length > 1) call.refuse(refused); }, requests),
-        }),
-        (error) => {
-            assert.equal(
-                error.message,
-                'Il server Lavish ha smesso di rispondere durante il controllo /health. Riprova tra qualche secondo.',
-            );
-            assert.equal(error.cause, refused);
-            return true;
-        },
-    );
+    const result = assertCompatibleServer(environment(4388), IDENTITY, {
+        get: fakeGet((endpoint, call) => { if (requests.length > 1) call.refuse(refusal()); }, requests),
+    });
     await advance(t, 700);
-    await result;
+    assert.equal(await result, undefined);
     assert.deepEqual(requests, ['/health', '/health']);
+});
+
+test('a port that closes before /mb-info answers means no server', async () => {
+    const requests = [];
+    const result = await assertCompatibleServer(environment(4388), IDENTITY, {
+        get: fakeGet((endpoint, call) => (endpoint === '/health' ? call.reply(HEALTH) : call.refuse(refusal())), requests),
+    });
+    assert.equal(result, undefined);
+    assert.deepEqual(requests, ['/health', '/mb-info']);
 });
 
 for (const endpoint of ['/health', '/mb-info']) {
