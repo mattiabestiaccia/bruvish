@@ -23,7 +23,7 @@ const shots = [{ file: 'cattura-1.png', caption: 'La pagina dopo il clic su **Un
 
 test('images: a grid of figures with the caption under each, lazy loading, alt from the caption', async () => {
     const html = await render(page(shots));
-    assert.match(body(html), /<div class="mb-images"><figure class="mb-image"><button type="button" class="mb-image-open" data-mb-image data-lavish-action aria-label="Apri l&#39;immagine grande: La pagina dopo il clic su \*\*Unisci\*\*\."><img src="cattura-1\.png" alt="La pagina dopo il clic su \*\*Unisci\*\*\." loading="lazy" decoding="async"><\/button><figcaption>La pagina dopo il clic su <strong>Unisci<\/strong>\.<\/figcaption><\/figure>/);
+    assert.match(body(html), /<div class="mb-images"><figure class="mb-image"><button type="button" class="mb-image-open" data-mb-image data-lavish-action aria-label="Apri l&#39;immagine grande: La pagina dopo il clic su Unisci\."><img src="cattura-1\.png" alt="La pagina dopo il clic su Unisci\." loading="lazy" decoding="async"><\/button><figcaption>La pagina dopo il clic su <strong>Unisci<\/strong>\.<\/figcaption><\/figure>/);
     assert.match(body(html), /<img src="Cattura_2\.webp" alt="Il messaggio &lt;di&gt; errore &amp; altro\." loading="lazy" decoding="async"><\/button><figcaption>Il messaggio &lt;di&gt; errore &amp; altro\.<\/figcaption>/);
     assert.doesNotMatch(body(html), /<di>/);
     // The block works in every theme: its rules are in the building-block stylesheet, which every page with it carries.
@@ -44,8 +44,9 @@ test('a click opens the image large inside the page; the close button, a click o
     assert.equal(box.getAttribute('role'), 'dialog');
     assert.equal(box.getAttribute('aria-modal'), 'true');
     assert.equal(box.querySelector('img').getAttribute('src'), 'cattura-1.png');
-    assert.equal(box.querySelector('img').getAttribute('alt'), 'La pagina dopo il clic su **Unisci**.');
-    assert.equal(box.querySelector('.mb-lightbox-caption').textContent, 'La pagina dopo il clic su **Unisci**.');
+    assert.equal(box.getAttribute('data-lavish-action'), '', 'the box takes its own clicks, so Lavish does not turn a backdrop click into an annotation');
+    assert.equal(box.querySelector('img').getAttribute('alt'), 'La pagina dopo il clic su Unisci.');
+    assert.equal(box.querySelector('.mb-lightbox-caption').textContent, 'La pagina dopo il clic su Unisci.');
     const close = box.querySelector('.mb-lightbox-close');
     assert.equal(document.activeElement, close, 'the close button takes the focus');
     close.click();

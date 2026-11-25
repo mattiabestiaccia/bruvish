@@ -412,8 +412,8 @@ function cardImages(card) {
         if (typeof image.caption !== 'string' || !image.caption.trim() || /[\r\n]/.test(image.caption))
             throw new Error(where + '[' + n + '].caption is missing or not one line: write one line that says what the image shows');
     });
-    return '<div class="mb-images">' + card.images.map(i => { const alt = escape(i.caption.trim());
-        return '<figure class="mb-image"><button type="button" class="mb-image-open" data-mb-image data-lavish-action aria-label="' + escape('Apri l\'immagine grande: ') + alt + '"><img src="' + escape(i.file) + '" alt="' + alt + '" loading="lazy" decoding="async"></button><figcaption>' + inline(i.caption.trim()) + '</figcaption></figure>'; }).join('') + '</div>';
+    return '<div class="mb-images">' + card.images.map(i => { const caption = inline(i.caption.trim()), alt = caption.replace(/<[^>]*>/g, '');
+        return '<figure class="mb-image"><button type="button" class="mb-image-open" data-mb-image data-lavish-action aria-label="' + escape('Apri l\'immagine grande: ') + alt + '"><img src="' + escape(i.file) + '" alt="' + alt + '" loading="lazy" decoding="async"></button><figcaption>' + caption + '</figcaption></figure>'; }).join('') + '</div>';
 }
 // Secondary notes of a card: grey italics under a dashed line, at the end of the card body.
 function cardNotes(card) {

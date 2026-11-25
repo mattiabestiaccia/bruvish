@@ -275,7 +275,7 @@
             if (!source)
                 return;
             if (!lightbox) {
-                lightbox = make('div', { class: 'mb-lightbox', role: 'dialog', 'aria-modal': 'true' });
+                lightbox = make('div', { class: 'mb-lightbox', role: 'dialog', 'aria-modal': 'true', 'data-lavish-action': '' });
                 lightbox.append(make('button', { type: 'button', class: 'mb-lightbox-close', 'aria-label': 'Chiudi l\'immagine' }, '×'), make('img', {}), make('p', { class: 'mb-lightbox-caption' }));
                 lightbox.addEventListener('click', event => { if (event.target === lightbox)
                     closeImage(); });
