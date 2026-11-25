@@ -196,3 +196,9 @@ node -e 'const http=require("http"),os=require("os");const ip=Object.values(os.n
 Se stampa `ok`: `node --test test/server-discovery.test.js`.
 
 `pnpm test` include anche le prove di Bruvish. Opzionali: `LAVISH_MB_TEST_CHROME` (Chrome for Testing) per le prove nel browser; `LAVISH_MB_TEST_DEDICATED=1` con `LAVISH_APP_BUNDLE` per la prova Electron; `BRUVISH_PARITY_CACHE=<voce della cache dello strato precedente>` per la parità con lo strato `lavish-mb`.
+
+Le larghezze vere della tabella dei campi di una carta (tabella dentro la carta, etichetta al massimo un terzo, valore il resto) si misurano solo nel browser, in `bruvish/test/browser.test.mjs`, con `LAVISH_MB_TEST_CHROME`. Nel gate quella prova non gira: `bruvish/test/review-tree-widths.test.mjs` controlla solo la struttura (griglia da 601px, righe che condividono le colonne, etichetta sopra il valore fino a 600px). Dopo un cambio a quella tabella si lancia a mano:
+
+```sh
+LAVISH_MB_TEST_CHROME=<Chrome for Testing> node --test --test-name-pattern "card fields" bruvish/test/browser.test.mjs
+```

@@ -294,6 +294,11 @@ test('a bold sentence that ends with a period and a closing mark renders bold, a
   }
   const body = cardHtml(await renderDocument(doc([{ id: 'campo', title: 'Campo', fields: [{ label: 'Che cosa dicono i riferimenti (rapporto dello scout, sezioni 4, 5.2 e 8)', paragraphs: [lead + ' Oggi la vista sta in `pagina.html`, che gli agenti nella sandbox leggono.'] }] }])), 'campo');
   assert.match(body, /<td><p><span class="sentence"><strong>Canale fra pannello ed esecutore \(sezione 4\)\.<\/strong><\/span><span class="sentence">Oggi la vista sta in <code>pagina\.html<\/code>/);
-  // The marks are the writer's: a closing «**» put inside a code span (`.**`) is code, never a closing mark.
-  assert.equal(inline('**Canale (sezione 4)`.**`'), '**Canale (sezione 4)<code>.**</code>');
+});
+
+test('the reported card text keeps its asterisks: its closing mark sits inside a code span, so it is code, not a closing mark', async () => {
+  const reported = "**Canale fra pannello ed esecutore (sezione 4)`.**` Oggi l'impronta della vista sta in `pagina.html`, che gli agenti nella sandbox leggono, e il server di Lavish su loopback è raggiungibile dalla sandbox: il canale nuovo deve essere più forte. Proposta:";
+  const body = cardHtml(await renderDocument(doc([{ id: 'riferimenti', title: 'Riferimenti', fields: [{ label: 'Che cosa dicono i riferimenti', paragraphs: [reported] }] }])), 'riferimenti');
+  assert.match(body, /<td><p><span class="sentence">\*\*Canale fra pannello ed esecutore \(sezione 4\)<code>\.\*\*<\/code><\/span><span class="sentence">Oggi l&#39;impronta della vista sta in <code>pagina\.html<\/code>/);
+  assert(!body.includes('<strong>'), 'no bold: the text never closes its mark outside code');
 });
