@@ -206,7 +206,9 @@ function headerActions(actions) {
 // the others, behind the three-dots icon.
 function iconActions(actions, attrs, fieldAttrs) {
     const icon = o => o.icon === undefined ? '' : ' mb-icon-button';
-    const named = o => o.icon === undefined ? '' : ' data-mb-icon="' + o.icon + '" aria-label="' + escape(o.label) + '" data-mb-name="' + escape(o.label) + '"';
+    // The name of an icon is the whole label of the operation, with its hint («Chiudi la PR senza unirla»).
+    const name = o => escape(o.hint ? o.label + ' ' + o.hint : o.label);
+    const named = o => o.icon === undefined ? '' : ' data-mb-icon="' + o.icon + '" aria-label="' + name(o) + '" data-mb-name="' + name(o) + '"';
     const content = o => o.icon === undefined ? inline(o.label) : opIcon(o.icon);
     const primary = (actions.primary || []).length ? '<div class="mb-actions-primary">' + actions.primary.map((o, i) => '<button type="button" class="mb-action' + (i === 0 ? ' mb-action-main' : '') + icon(o) + '"' + attrs(o) + named(o) + '>' + content(o) + '</button>').join('') + '</div>' : '';
     const fixed = (actions.fixed || []).length ? '<div class="mb-actions-fixed">' + actions.fixed.map(o => '<button type="button" class="mb-action-fixed' + icon(o) + '"' + attrs(o) + fieldAttrs(o) + named(o) + '>' + content(o) + '</button>').join('') + '</div>' : '';
@@ -604,7 +606,7 @@ function sectionIndex(input) {
 // Tree navigation bar (tabs: "tree", Mattia, 25 November 2026, laboratorio-stile/lavish/revisione-pr/
 // barra-di-navigazione-albero.html): top items and groups, in the order of the JSON; a group sits where its first section
 // is and lists its sections as its parts. Beside an item: a status dot and a count or a short note. Wide, the bar is
-// vertical on the left and stays put while the cards scroll; on a phone it is horizontal on two rows (top items, then the
+// vertical on the left and stays put while the cards scroll; up to 820px it is horizontal on two rows (top items, then the
 // parts of the open group). The renderer knows nothing of a gate: groups, dots and counts come from the JSON.
 export const DOTS = ['verde', 'giallo', 'rosso', 'vuoto'];
 function checkTree(input, unique) {

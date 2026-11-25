@@ -138,7 +138,7 @@
             links.forEach(link => link.addEventListener('click', event => go(event, link.dataset.mbTab)));
             groups.forEach(group => branchOf(group).addEventListener('click', event => {
                 const own = linksOf(group);
-                if (window.matchMedia?.('(max-width: 760px)').matches) {
+                if (window.matchMedia?.('(max-width: 820px)').matches) {
                     if (own[0] && !own.some(link => link.getAttribute('aria-current') === 'page'))
                         go(event, own[0].dataset.mbTab);
                     return;

@@ -67,7 +67,7 @@ const icons = {
     view: 'v1234',
     primary: [{ ...operations.primary[0], icon: 'unisci' }, { ...operations.primary[1], icon: 'pronta' }],
     fixed: [{ ...operations.fixed[0], icon: 'revisore' }],
-    menu: [operations.menu[0], { ...operations.menu[1], icon: 'chiudi' }],
+    menu: [operations.menu[0], { ...operations.menu[1], hint: 'senza unirla', icon: 'chiudi' }],
 };
 const newPage = (extra = {}) => ({ ...todayPage, header: { badge: { text: 'Bozza', tone: 'blu', icon: 'draft' }, facts }, actions: icons, ...extra });
 
@@ -123,7 +123,7 @@ test('icon buttons keep the contract with the executor: same attributes, same co
     assert.match(b, /<button type="button" class="mb-action mb-icon-button" data-mb-op="pronta" data-mb-confirm-title="Segna come pronta" data-mb-confirm="Toglie la bozza\." data-mb-icon="pronta" aria-label="Segna come pronta" data-mb-name="Segna come pronta">/);
     assert.match(b, /<div class="mb-actions-fixed"><button type="button" class="mb-action-fixed mb-icon-button" data-mb-op="revisore" data-mb-confirm-title="Assegna un revisore" data-mb-confirm="Chiede\." data-mb-field-kind="line" data-mb-placeholder="login" data-mb-required data-mb-icon="revisore" aria-label="Assegna un revisore" data-mb-name="Assegna un revisore">/);
     // A menu operation with an icon stands beside the menu, red when dangerous; the rest stays in the «⋯» menu, now an icon.
-    assert.match(b, /<button type="button" class="mb-action-item mb-danger mb-icon-button" data-mb-op="chiudi" data-mb-confirm-title="Chiudi la PR" data-mb-confirm="Chiude\." data-mb-icon="chiudi" aria-label="Chiudi la PR" data-mb-name="Chiudi la PR">/);
+    assert.match(b, /<button type="button" class="mb-action-item mb-danger mb-icon-button" data-mb-op="chiudi" data-mb-confirm-title="Chiudi la PR" data-mb-confirm="Chiude\." data-mb-icon="chiudi" aria-label="Chiudi la PR senza unirla" data-mb-name="Chiudi la PR senza unirla">/);
     assert.match(b, /<details class="mb-actions-menu"><summary class="mb-icon-button" aria-label="Altre operazioni" data-mb-name="Altre operazioni"><svg class="mb-op-icon"[^>]*>[\s\S]*?<\/svg><\/summary><div class="mb-actions-items"><button type="button" class="mb-action-item" data-mb-op="aggiorna"[^>]*>Aggiorna il ramo<small>novità<\/small><\/button><\/div><\/details>/);
     assert.equal((b.match(/data-mb-op="chiudi"/g) || []).length, 1, 'the operation is not repeated in the menu');
     const { document, window, sent } = boot(html);
@@ -134,7 +134,7 @@ test('icon buttons keep the contract with the executor: same attributes, same co
     assert(ready.classList.contains('mb-action-main') && !merge.classList.contains('mb-action-main'), 'the clicked alternative becomes the main one');
     box.querySelector('.mb-confirm-yes').click();
     document.querySelector('[data-mb-op="chiudi"]').click();
-    assert.equal(box.querySelector('.mb-confirm-title').textContent, 'Chiudi la PR?');
+    assert.equal(box.querySelector('.mb-confirm-title').textContent, 'Chiudi la PR?', 'the confirmation keeps the label');
     box.querySelector('.mb-confirm-yes').click();
     document.querySelector('[data-mb-op="revisore"]').click();
     box.querySelector('.mb-confirm-field').value = 'octocat';
@@ -165,9 +165,11 @@ test('header D without operations keeps the state top right; the theme accent an
     const html = await render(noActions);
     assert.match(body(html), /<main><header class="mb-header-facts"><div class="mb-header-top"><h1>Una PR<\/h1><div class="mb-header-side"><span class="mb-badge" data-tone="blu">/);
     const css = styleOf(html);
-    // The table is two points smaller than the card text (19px), headings centred, vertical lines between the columns.
-    assert.match(css, /\.mb-facts\{[^}]*font-size:17px/);
+    // Sizes of the approved mockup (values 14px, headings 11px), headings centred, vertical lines between the columns.
+    assert.match(css, /\.mb-facts\{[^}]*font-size:14px/);
+    assert.match(css, /\.mb-facts th\{[^}]*font-size:11px/);
     assert.match(css, /\.mb-facts th\{[^}]*text-align:center/);
+    assert.match(css, /\.mb-facts td::before\{[^}]*font-size:11px/);
     assert.match(css, /\.mb-facts th\+th,\.mb-facts td\+td\{border-left:1px solid var\(--line\)\}/);
     // Narrow: two columns, label and value, every value on one line.
     assert.match(css, /@media\(max-width:820px\)\{[^@]*\.mb-facts td\{display:grid;grid-template-columns:[^}]*\}[^@]*\.mb-facts td::before\{content:attr\(data-label\)/);
@@ -257,7 +259,7 @@ test('the tree shows one page at a time: a child opens its group, a branch opens
 
 test('on a phone a branch opens the first part of its group, and the bar is a two-row horizontal bar', async () => {
     const html = await render(treePage());
-    const { document } = boot(html, { matchMedia: query => ({ matches: /max-width:\s*760px/.test(query) }) });
+    const { document } = boot(html, { matchMedia: query => ({ matches: /max-width:\s*820px/.test(query) }) });
     const visible = () => document.querySelectorAll('main > section').filter(s => !s.hidden).map(s => s.id);
     document.querySelector('[data-mb-group="gate"] .mb-tree-branch').click();
     assert.deepEqual(visible(), ['intent']);
@@ -266,10 +268,10 @@ test('on a phone a branch opens the first part of its group, and the bar is a tw
     assert.deepEqual(visible(), ['ci'], 'the open group stays on its page');
     const css = styleOf(html);
     // Wide: a grid of the bar on the left, kept in view, and the page; the files page takes all the width that is left.
-    assert.match(css, /@media\(min-width:761px\)\{main\[data-mb-nav=tree\]\{display:grid;grid-template-columns:236px minmax\(0,1fr\)/);
+    assert.match(css, /@media\(min-width:821px\)\{main\[data-mb-nav=tree\]\{display:grid;grid-template-columns:236px minmax\(0,1fr\)/);
     assert.match(css, /main\[data-mb-nav=tree\]>nav\.mb-tree\{[^}]*position:sticky/);
     // Phone: top items on the first row, the parts of the open group on a second row that scrolls sideways.
-    assert.match(css, /@media\(max-width:760px\)\{[^@]*nav\.mb-tree \.mb-tree-group\{display:contents\}[^@]*nav\.mb-tree \.mb-tree-group:has\(a\[aria-current\]\)>\.mb-tree-children\{display:flex\}/);
+    assert.match(css, /@media\(max-width:820px\)\{[^@]*nav\.mb-tree \.mb-tree-group\{display:contents\}[^@]*nav\.mb-tree \.mb-tree-group:has\(a\[aria-current\]\)>\.mb-tree-children\{display:flex\}/);
     assert.match(css, /nav\.mb-tree \.mb-tree-children\{[^}]*overflow-x:auto/);
 });
 
@@ -316,4 +318,17 @@ test('the examples revisione-albero (with and without the gate) render through t
         const gate = await readJson('../examples/revisione-albero.json');
         assert.deepEqual(gate.sections.filter(s => s.group === 'gate').map(s => s.title), ['Intent', 'Rebase', 'Revisione', 'Prove', 'Documenti', 'Lint', 'Push', 'PR', 'CI'], 'the nine steps of no-mistakes, in order');
     } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('the diagnostics page sits under a group when its section names one; without a group it stays a top item', async () => {
+    const withDiag = extra => {
+        const page = treePage({ diagnostics: { attempts: [], problem: null } });
+        page.sections = [...page.sections, { id: 'diagnostica', title: 'Diagnostica', ...extra, cards: [{ id: 'carta-diagnostica-1', title: 'Stato', paragraphs: ['Testo.'] }, { id: 'carta-diagnostica-3', title: 'x', paragraphs: ['x'] }] }];
+        return page;
+    };
+    const { document } = boot(await render(withDiag({ group: 'storia' })));
+    assert.deepEqual(document.querySelectorAll('#mb-group-storia a').map(a => a.dataset.mbTab), ['conversazione', 'cronologia', 'diagnostica'], 'last of the parts of Storia');
+    assert.deepEqual(document.getElementById('diagnostica').querySelectorAll('article.card').map(c => c.id), ['carta-diagnostica-1', 'mb-diag-attempts'], 'the executor cards still replace the producer ones');
+    const top = boot(await render(withDiag({}))).document;
+    assert.equal(top.querySelector('nav.mb-tree > a[data-mb-tab="diagnostica"]')?.dataset.mbTab, 'diagnostica');
 });
