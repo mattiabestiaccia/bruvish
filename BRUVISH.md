@@ -4,6 +4,16 @@ Bruvish è Lavish (`kunchenguid/lavish-axi`) con un delta personale. Il ramo `ca
 
 Il nome Bruvish è solo quello visibile: il comando resta `lavish-axi`, `lavish-axi --version` stampa la versione ufficiale e `package.json` non cambia (versione, `files`, script).
 
+## Lingua
+
+Decisione di Mattia del 25 novembre 2026 («sì, italiano anche lì», S91 della sessione ccb): ciò che il fork scrive per una persona è in italiano.
+
+- **Messaggi di commit**: in italiano, con il prefisso di sempre (`feat(bruvish): …`, `fix(bruvish): …`, `test(bruvish): …`). I commit già pubblicati restano come sono.
+- **Titolo e descrizione delle PR**: in italiano.
+- **Testi del gate no-mistakes**: in italiano. Le istruzioni per le prove e per i documenti stanno in `.no-mistakes.yaml`; quelle per il revisore nella configurazione globale del gate, fuori da questo repository.
+- **Questo documento**: in italiano. I documenti dell'originale (`README.md`, `docs/`, `CONTRIBUTING.md`, `CHANGELOG.md`) restano in inglese.
+- **Codice**: nomi e identificatori restano in inglese, come nell'originale.
+
 ## Dove sta il delta
 
 - `bruvish/`: runtime (`lib/`), punto d'ingresso (`bin/lavish-axi.js`), daemon (`bin/lavish-server-daemon.mjs`), renderer degli artefatti (`bin/bruvish.mjs`), asset, esempi, licenze dei font e delle icone, test.

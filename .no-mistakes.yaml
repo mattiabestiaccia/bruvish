@@ -1,2 +1,15 @@
 # This fork runs no CI on GitHub, so the gate must not wait for checks.
 no_ci: true
+
+# Mattia, 25 novembre 2026 (S91): i testi che il gate scrive per una persona sono in
+# italiano. Il gate legge queste due istruzioni solo dalla copia di questo file sul ramo
+# predefinito del fork (carry), mai dal ramo spinto.
+test:
+  instructions: |
+    Lingua: scrivi in italiano il riassunto delle prove, i nomi degli scenari, gli esiti e le prove raccolte.
+    Restano come sono: comandi, nomi di file, identificatori e messaggi citati.
+document:
+  instructions: |
+    Lingua: BRUVISH.md, il documento del fork, è in italiano.
+    I documenti dell'originale (README.md, docs/, CONTRIBUTING.md, CHANGELOG.md) restano in inglese: non tradurli.
+    Scrivi in italiano il messaggio di commit del passo e il suo riepilogo.
