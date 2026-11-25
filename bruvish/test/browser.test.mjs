@@ -6,7 +6,7 @@ import os from 'node:os';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { runtimeEnvironment } from '../lib/env.mjs';
-import { builtCli, builtServer, buildSkip, isolatedEnvironment, root } from '../test-helpers/runtime.mjs';
+import { builtCli, builtServer, buildSkip, chromeSkip, isolatedEnvironment, root } from '../test-helpers/runtime.mjs';
 import { renderDocument } from '../lib/document.mjs';
 const chrome = process.env.LAVISH_MB_TEST_CHROME;
 const delay = ms => new Promise(r => setTimeout(r, ms));
@@ -311,7 +311,7 @@ test('real upstream chrome has fixed UI, runtime outline, reliable drafts and na
 
 // Card fields (label and value table) in a tree review page, measured by the browser: the table stays inside its card,
 // a long label wraps inside a bounded column instead of squeezing the value, and a short label keeps a narrow column.
-test('card fields stay inside the card, wrap a long label in a bounded column and keep the value readable', { timeout: 60000, skip: buildSkip || (!chrome && 'set LAVISH_MB_TEST_CHROME to a Chrome for Testing executable') }, async () => {
+test('card fields stay inside the card, wrap a long label in a bounded column and keep the value readable', { timeout: 60000, skip: chromeSkip }, async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'lavish-fields-'));
     let browser, client;
     try {
