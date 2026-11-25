@@ -4,9 +4,11 @@
 /* Wide: a narrower bar (200px: the names of the parts, «Conversazione» the longest, and a short count such as 6/6 or 2),
    under the header, kept in view while the cards scroll. A long name wraps (at a space, or hyphenated) instead of
    widening the bar; the count stays whole. The header (with notice, pills and guide) stays above bar and cards, as in the
-   approved mockup, and ends where the cards end: its left edge is the bar's, its right edge the cards'. */
+   approved mockup, and ends where the cards end: its left edge is the bar's, its right edge the cards'. The cards are
+   (column - 48px) * .8 wide and the column is the grid less bar and gap (224px), so the header leaves on its right
+   20% of the column plus 80% of the 48px gutter. */
 @media(min-width:821px){main[data-mb-nav=tree]{grid-template-columns:200px minmax(0,1fr);column-gap:24px}
-main[data-mb-nav=tree]>header,main[data-mb-nav=tree]>.mb-notice,main[data-mb-nav=tree]>.guide{margin-right:48px}
+main[data-mb-nav=tree]>header,main[data-mb-nav=tree]>.mb-notice,main[data-mb-nav=tree]>.guide{margin-right:calc((100% - 224px) * .2 + 38.4px)}
 main[data-mb-nav=tree] nav.mb-tree a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{gap:6px;padding:6px 8px}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{margin-left:12px;padding-left:6px}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{padding:4px 6px}
@@ -14,12 +16,13 @@ main[data-mb-nav=tree] nav.mb-tree .mb-tree-name{flex:0 1 auto;white-space:norma
 main[data-mb-nav=tree] nav.mb-tree .mb-count{flex:none}
 /* The facts table of header D ends 48px earlier than before: a value wraps only when the table cannot stay on one line. */
 main[data-mb-nav=tree] .mb-facts td{white-space:normal}}
-/* One width for every card: the column right of the bar, less the gutter of the round column of 🔊 and «?». The central
-   column at 80% and its cap of 907px go away, so short cards (the outcome of the rebase, a table of three rows) are as
-   wide as long ones. The files card already took this width; «Righe per file», above it, was centred at 80% of a section
-   without cap (the rule for the full-width files page) and stood to the right of the files, wider than the other cards. */
+/* One width for every card: 80% of the column right of the bar less the gutter of the round column of 🔊 and «?» (Mattia,
+   after the preview: «Rendi un po' più strette queste card, del 20% rispetto a ora»), aligned left beside the bar, not
+   centred. The central column of the theme and its cap of 907px go away, so short cards (the outcome of the rebase, a
+   table of three rows) are as wide as long ones, and so are the files card and «Righe per file», which was centred at
+   80% of a section without cap (the rule for the full-width files page) and stood to the right of the files. */
 @media(min-width:601px){main[data-mb-nav=tree]>section{max-width:none;margin-inline:0}
-main[data-mb-nav=tree] .card{width:calc(100% - 48px);margin:0 0 18px}}
+main[data-mb-nav=tree] .card,:root main[data-mb-nav=tree] .card[data-mb-files][data-mb-state]{width:calc((100% - 48px) * .8);margin:0 0 18px}}
 /* Lines < sentences < paragraphs inside the cards, with the values of Bruvish (artifact.css: lines 1.45, sentences of a
    paragraph 0.45em more, paragraphs 1.8em, 1.2em in a cell): the theme «revisione» set sentences to 0 and paragraphs to
    0.7em, so a long paragraph read as one block. */
