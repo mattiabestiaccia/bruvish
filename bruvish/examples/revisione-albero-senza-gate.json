@@ -5,11 +5,7 @@
   "title": "Tipo lettura come cruscotto leggero, otto forme e variante fuori repertorio #17",
   "header": {
     "notice": "Esempio: dati inventati, per mostrare la testata D e la barra ad albero.",
-    "badge": {
-      "text": "Bozza",
-      "tone": "blu",
-      "icon": "draft"
-    },
+    "state": "bozza",
     "facts": [
       {
         "label": "PR",
@@ -83,6 +79,7 @@
       {
         "operation": "chiudi",
         "label": "Chiudi la PR",
+        "hint": "senza unirla",
         "icon": "chiudi",
         "danger": true,
         "confirm": "Chiude la PR senza unirla. Si può riaprire."
@@ -235,8 +232,30 @@
           ]
         }
       ]
+    },
+    {
+      "id": "diagnostica",
+      "title": "Diagnostica",
+      "group": "storia",
+      "cards": [
+        {
+          "id": "carta-diagnostica-1",
+          "title": "Stato dell’esecutore",
+          "paragraphs": ["L’esecutore delle operazioni è in ascolto."],
+          "tone": "verde"
+        },
+        {
+          "id": "carta-diagnostica-3",
+          "title": "Tentativi",
+          "paragraphs": ["Nessun tentativo."]
+        }
+      ]
     }
   ],
+  "diagnostics": {
+    "attempts": [],
+    "problem": null
+  },
   "state": {
     "revision": 1,
     "answers": {},

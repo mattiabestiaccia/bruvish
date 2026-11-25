@@ -314,6 +314,9 @@ test('the examples revisione-albero (with and without the gate) render through t
             for (const needle of ['class="mb-header-facts"', 'class="mb-facts"', 'mb-icon-button', 'nav class="mb-tabs mb-tree"', 'data-mb-nav="tree"']) assert(html.includes(needle), name + ': ' + needle);
             const second = input.groups[0].title;
             assert.equal(second, name === 'revisione-albero' ? 'Gate' : 'Verifiche', name);
+            assert.equal(input.header.state, 'bozza', name);
+            assert.equal(input.sections.at(-1).id, 'diagnostica', name);
+            assert.equal(input.sections.at(-1).group, 'storia', name + ': the diagnostics are the last part of Storia');
         }
         const gate = await readJson('../examples/revisione-albero.json');
         assert.deepEqual(gate.sections.filter(s => s.group === 'gate').map(s => s.title), ['Intent', 'Rebase', 'Revisione', 'Prove', 'Documenti', 'Lint', 'Push', 'PR', 'CI'], 'the nine steps of no-mistakes, in order');
