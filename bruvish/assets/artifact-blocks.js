@@ -104,6 +104,12 @@
                 new ResizeObserver(() => document.documentElement.style.setProperty('--mb-tabs-height', bar.offsetHeight + 'px')).observe(bar);
             const links = [...bar.querySelectorAll('a[data-mb-tab]')];
             const panels = links.map(link => document.getElementById(link.dataset.mbTab)).filter(Boolean);
+            // Tree bar (tabs: "tree"): the group of the page shown is open, the others close; a branch opens or closes its
+            // parts without changing the page, and on a phone it opens the first part of its group.
+            const groups = bar.classList.contains('mb-tree') ? [...bar.querySelectorAll('.mb-tree-group')] : [];
+            const branchOf = group => group.querySelector('.mb-tree-branch'), partsOf = group => group.querySelector('.mb-tree-children');
+            const linksOf = group => links.filter(link => group.contains(link));
+            const setOpen = (group, open) => { partsOf(group).hidden = !open; branchOf(group).setAttribute('aria-expanded', String(open)); };
             const show = id => {
                 if (!panels.some(panel => panel.id === id))
                     return;
@@ -112,6 +118,7 @@
                     link.setAttribute('aria-current', 'page');
                 else
                     link.removeAttribute('aria-current'); });
+                groups.forEach(group => setOpen(group, linksOf(group).some(link => link.dataset.mbTab === id)));
             };
             const panelOf = el => panels.find(panel => panel === el || panel.contains(el)) || null;
             const target = () => { let id = ''; try {
@@ -129,6 +136,15 @@
                 catch { }
             };
             links.forEach(link => link.addEventListener('click', event => go(event, link.dataset.mbTab)));
+            groups.forEach(group => branchOf(group).addEventListener('click', event => {
+                const own = linksOf(group);
+                if (window.matchMedia?.('(max-width: 820px)').matches) {
+                    if (own[0] && !own.some(link => link.getAttribute('aria-current') === 'page'))
+                        go(event, own[0].dataset.mbTab);
+                    return;
+                }
+                setOpen(group, partsOf(group).hidden);
+            }));
             document.querySelectorAll('a[data-mb-goto]').forEach(link => link.addEventListener('click', event => {
                 if (!panels.some(panel => panel.id === link.dataset.mbGoto))
                     return;
@@ -249,6 +265,34 @@
             lastQueued = null;
         };
         document.querySelectorAll('[data-mb-question]').forEach(form => { form.addEventListener('click', rearm, true); form.addEventListener('keyup', rearm, true); });
+        // Images of a card: a click opens the image large in the page, in one box for the page, without libraries. The close
+        // button, a click on the backdrop or Esc closes it, and the focus goes back to the image.
+        let lightbox = null, opener = null;
+        const closeImage = () => { if (!lightbox || lightbox.hidden)
+            return; lightbox.hidden = true; opener?.focus?.(); };
+        document.querySelectorAll('[data-mb-image]').forEach(button => button.addEventListener('click', () => {
+            const source = button.querySelector('img');
+            if (!source)
+                return;
+            if (!lightbox) {
+                lightbox = make('div', { class: 'mb-lightbox', role: 'dialog', 'aria-modal': 'true', 'data-lavish-action': '' });
+                lightbox.append(make('button', { type: 'button', class: 'mb-lightbox-close', 'aria-label': 'Chiudi l\'immagine' }, '×'), make('img', {}), make('p', { class: 'mb-lightbox-caption' }));
+                lightbox.addEventListener('click', event => { if (event.target === lightbox)
+                    closeImage(); });
+                lightbox.querySelector('.mb-lightbox-close').addEventListener('click', closeImage);
+                (document.body || document.querySelector('body')).append(lightbox);
+            }
+            const alt = source.getAttribute('alt') || '', large = lightbox.querySelector('img');
+            large.setAttribute('src', source.getAttribute('src'));
+            large.setAttribute('alt', alt);
+            lightbox.setAttribute('aria-label', alt);
+            lightbox.querySelector('.mb-lightbox-caption').textContent = alt;
+            opener = button;
+            lightbox.hidden = false;
+            lightbox.querySelector('.mb-lightbox-close').focus();
+        }));
+        document.addEventListener('keydown', event => { if (event && event.key === 'Escape')
+            closeImage(); });
         // Files of a diff in the theme «revisione»: one button above them closes them all when every file is open, and
         // opens them all otherwise; its words follow the files also when one is opened or closed by its own name.
         document.querySelectorAll('[data-mb-diff-all]').forEach(button => {

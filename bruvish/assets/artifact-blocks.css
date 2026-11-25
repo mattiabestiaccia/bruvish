@@ -263,3 +263,93 @@ textarea.mb-op-text{min-height:90px}
 .card[data-mb-variant=flusso] .mb-op-choices label:has(input:focus-visible){outline:2px solid var(--title);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.card[data-mb-variant=flusso] .mb-op-choices label{transition:none}}
 @media(max-width:760px){header.mb-header-actions{grid-template-columns:minmax(0,1fr)}.mb-actions{align-items:stretch}.mb-op-choices{grid-template-columns:minmax(0,1fr)}}
+
+/* Header D (Mattia, 25 novembre 2026, laboratorio-stile/lavish/revisione-pr/intestazione-D.html): the title first, at the
+   full width of its column; operations as icons and the state under them in a fixed place top right; the facts table
+   under the title, at the sizes of the mockup (14px, headings 11px), headings centred, vertical lines between the columns. */
+.mb-header-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:start}
+.mb-header-top>h1{margin:0;font-size:clamp(24px,2.5vw,32px);line-height:1.18;text-wrap:balance}
+.mb-header-side{display:grid;justify-items:end;gap:10px;margin-top:4px}
+.mb-header-side>.mb-actions{padding-top:0}
+@media(max-width:560px){.mb-header-top{grid-template-columns:minmax(0,1fr);gap:12px}.mb-header-side{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-top:0}.mb-header-side>.mb-actions{order:1;margin-left:auto}}
+.mb-facts{width:100%;border-collapse:collapse;margin:14px 0 0;font-size:14px}
+.mb-facts th{font-weight:500;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:center;vertical-align:bottom;padding:0 8px 4px;border-bottom:0;white-space:nowrap}
+.mb-facts td{padding:7px 8px;vertical-align:middle;border-top:1px solid var(--line);border-bottom:0;white-space:nowrap}
+.mb-facts th+th,.mb-facts td+td{border-left:1px solid var(--line)}
+.mb-facts .mb-plus,.mb-facts .mb-minus{font-weight:650;font-variant-numeric:tabular-nums}
+.mb-fact-link{font-weight:650;color:var(--title);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--title) 45%,transparent);text-underline-offset:3px}
+.mb-fact-link:hover,.mb-fact-link:focus-visible{text-decoration-color:var(--title)}
+.mb-header-facts>.mb-pills{margin-top:14px}
+/* State of a PR (header.state): grey draft, green open, violet merged, red closed, as in the approved mockup. */
+.mb-badge[data-state=bozza]{background:#565b6e}
+.mb-badge[data-state=aperta]{background:#1f7a45}
+.mb-badge[data-state=unita]{background:#8957e5}
+.mb-badge[data-state=chiusa]{background:#da3633}
+/* Narrow: two columns, label and value; every value stays on one line. */
+@media(max-width:820px){.mb-facts thead{display:none}.mb-facts,.mb-facts tbody,.mb-facts tr{display:block}.mb-facts td+td{border-left:0}.mb-facts td{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;align-items:baseline;padding:7px 0;text-align:left}.mb-facts td::before{content:attr(data-label);color:var(--muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}.mb-fact{overflow-x:auto}}
+/* Operations as icon buttons: the name shows on hover and with the keyboard focus (aria-label for screen readers). */
+.mb-actions-icons .mb-actions-row{flex-wrap:nowrap;align-items:center;gap:8px}
+.mb-actions-icons .mb-actions-primary{border:0;border-radius:0;overflow:visible;gap:0}
+.mb-icon-button{position:relative;display:inline-grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid var(--line);border-radius:9px;background:var(--field);color:var(--ink);cursor:pointer;list-style:none;font-size:inherit}
+.mb-icon-button::-webkit-details-marker{display:none}
+.mb-op-icon{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.mb-icon-button::after{content:attr(data-mb-name);position:absolute;top:calc(100% + 6px);right:0;z-index:7;white-space:nowrap;padding:4px 9px;border-radius:7px;background:#0b1114;border:1px solid var(--line);color:var(--ink);font-size:14px;font-weight:400;line-height:1.3;opacity:0;pointer-events:none;transition:opacity .12s}
+.mb-icon-button:hover::after,.mb-icon-button:focus-visible::after{opacity:1}
+@media (prefers-reduced-motion:reduce){.mb-icon-button::after{transition:none}}
+.mb-actions-icons .mb-action.mb-icon-button{border:1px solid var(--mb-green);padding:0;font-size:inherit;background:var(--field);color:var(--ink)}
+.mb-actions-icons .mb-action.mb-icon-button.mb-action-main{background:#1f7a45;color:#f0fff5}
+.mb-actions-icons .mb-actions-primary>.mb-icon-button:first-child:not(:last-child){border-radius:9px 0 0 9px}
+.mb-actions-icons .mb-actions-primary>.mb-icon-button:last-child:not(:first-child){border-radius:0 9px 9px 0;border-left:0}
+.mb-actions-icons .mb-action-fixed.mb-icon-button{padding:0;font-size:inherit;border-color:var(--title);color:var(--title)}
+.mb-actions-icons .mb-action-item.mb-icon-button{display:inline-grid;width:38px;padding:0;border:1px solid var(--line);border-radius:9px;background:var(--field)}
+.mb-actions-icons .mb-actions-menu>summary.mb-icon-button{padding:0;font-size:inherit;border-radius:9px}
+.mb-icon-button[data-mb-icon=chiudi]{border-color:var(--mb-red);color:var(--mb-red)}
+.mb-icon-button:hover,.mb-icon-button:focus-visible{border-color:var(--title)}
+
+/* Tree navigation bar (tabs: "tree", Mattia, 25 novembre 2026, laboratorio-stile/lavish/revisione-pr/
+   barra-di-navigazione-albero.html). Wide: vertical on the left, kept in view while the cards scroll; a group opens on
+   its parts. Up to 820px (the same threshold as the two-column facts table): the same tree as a horizontal bar on two rows. */
+.mb-tree-dot{width:.6em;height:.6em;border-radius:50%;flex:none;background:var(--mb-green)}
+.mb-tree-dot[data-dot=giallo]{background:#e8c35a}
+.mb-tree-dot[data-dot=rosso]{background:var(--mb-red)}
+.mb-tree-dot[data-dot=vuoto]{background:transparent;border:1px solid var(--muted)}
+main[data-mb-nav=tree] nav.mb-tree a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{display:flex;align-items:center;gap:8px;line-height:1.25}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{width:100%;font:inherit;text-align:left;background:none;border:1px solid transparent;border-radius:7px;color:var(--muted);cursor:pointer}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch:hover,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch:focus-visible{color:var(--ink);border-color:var(--line)}
+main[data-mb-nav=tree] nav.mb-tree .mb-count{margin-left:auto;padding:0;border:0;background:none;font-size:13px;color:var(--muted);white-space:nowrap}
+.mb-tree-arrow{display:inline-block;width:1em;flex:none;font-size:12px;color:var(--muted);transition:transform .15s}
+.mb-tree-branch[aria-expanded=true] .mb-tree-arrow{transform:rotate(90deg)}
+@media (prefers-reduced-motion:reduce){.mb-tree-arrow{transition:none}}
+@media(min-width:821px){main[data-mb-nav=tree]{display:grid;grid-template-columns:236px minmax(0,1fr);column-gap:28px;align-items:start}
+main[data-mb-nav=tree]>*{grid-column:1/-1}
+main[data-mb-nav=tree]>nav.mb-tree{grid-column:1;position:sticky;top:12px;align-self:start;display:flex;flex-direction:column;flex-wrap:nowrap;justify-content:flex-start;gap:2px;margin:14px 0 0;padding:10px 8px 10px 0;border:0;border-right:1px solid var(--line);backdrop-filter:none;max-height:calc(100vh - 24px);overflow-y:auto}
+main[data-mb-nav=tree]>section{grid-column:2;margin-top:14px}
+main[data-mb-nav=tree] .card{scroll-margin-top:24px}
+main[data-mb-nav=tree] nav.mb-tree a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{font-size:16px;padding:6px 10px}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{display:flex;flex-direction:column;gap:1px;margin:0 0 4px 17px;padding-left:8px;border-left:1px solid var(--line)}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{font-size:15px;padding:4px 8px}}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children[hidden]{display:none}
+@media(max-width:820px){main[data-mb-nav=tree] nav.mb-tree{display:flex;flex-wrap:wrap;gap:2px;padding-bottom:0}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-group{display:contents}
+main[data-mb-nav=tree] nav.mb-tree>a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{order:0;flex:1 1 0;width:auto;flex-wrap:wrap;justify-content:center;gap:1px 5px;padding:6px 2px 5px;border:0;border-bottom:3px solid transparent;border-radius:0;background:none;font-size:14.5px;white-space:nowrap}
+main[data-mb-nav=tree] nav.mb-tree>a[aria-current=page],main[data-mb-nav=tree] nav.mb-tree .mb-tree-group:has(a[aria-current]) .mb-tree-branch{color:var(--ink);background:none;border-color:transparent;border-bottom-color:var(--title);font-weight:650}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-arrow{display:none}
+main[data-mb-nav=tree] nav.mb-tree>a .mb-count,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch .mb-count{flex-basis:100%;margin:0;text-align:center;font-size:12px}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{order:1;flex:1 0 100%;display:flex;gap:6px;overflow-x:auto;padding:8px 2px;border-top:1px solid var(--line);scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-group:has(a[aria-current])>.mb-tree-children{display:flex}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{flex:none;font-size:14px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a .mb-count{margin-left:4px}}
+
+/* Images of a card (screenshots from the VM): a grid of figures, the caption under each; a click opens the image large in
+   the page. Every theme: only the variables of the page. */
+.mb-images{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin:0 0 1.8em}
+.mb-image{margin:0}
+.mb-image-open{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--field);overflow:hidden;cursor:zoom-in}
+.mb-image-open:hover,.mb-image-open:focus-visible{border-color:var(--title)}
+.mb-image-open img{display:block;width:100%;height:auto;aspect-ratio:16/10;object-fit:cover}
+.mb-image figcaption{margin-top:6px;font-size:15px;line-height:1.35;color:var(--muted)}
+.mb-lightbox{position:fixed;inset:0;z-index:50;display:grid;place-items:center;align-content:center;gap:10px;padding:48px 24px 24px;background:rgba(0,0,0,.82);cursor:zoom-out}
+.mb-lightbox[hidden]{display:none}
+.mb-lightbox img{max-width:min(1400px,100%);max-height:calc(100vh - 140px);object-fit:contain;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6);cursor:default}
+.mb-lightbox-caption{margin:0;max-width:min(1100px,100%);color:#eef;font-size:16px;text-align:center}
+.mb-lightbox-close{position:absolute;top:12px;right:16px;width:36px;height:36px;padding:0;border-radius:50%;font-size:22px;line-height:1;background:#0b1114;color:#fff;border:1px solid var(--line)}
