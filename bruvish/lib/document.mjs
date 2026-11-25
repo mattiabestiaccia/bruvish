@@ -1076,11 +1076,9 @@ export async function renderDocument(input, options = {}) {
     // A page with diagnostics is operated by an executor: after sending, the page says where the outcome will appear
     // instead of claiming the agent received it.
     const executor = input.diagnostics !== undefined ? ' data-mb-executor' : '';
-    // The tree bar lays the page out in two columns (bar, then the page); main says so to the stylesheet. Wide, the bar runs
-    // beside every other child of main (notice, header, guide, one row per section): their count is the span of its rows.
+    // The tree bar lays the page out in two columns (bar, then the page); main says so to the stylesheet.
     const tree = input.tabs === 'tree';
-    const rows = (head.notice ? 1 : 0) + 1 + (guided ? 1 : 0) + (input.sections || []).length;
-    const nav = tree ? ' data-mb-nav="tree" style="--mb-tree-rows:' + rows + '"' : '';
+    const nav = tree ? ' data-mb-nav="tree"' : '';
     // In the theme «revisione» a title ending in « #<number> » (the PR) shows the number muted, as on the review page.
     const number = review ? / #\d+$/.exec(input.title) : null;
     const title = number ? escape(input.title.slice(0, number.index)) + ' <span class="mb-number">' + escape(number[0].slice(1)) + '</span>' : escape(input.title);

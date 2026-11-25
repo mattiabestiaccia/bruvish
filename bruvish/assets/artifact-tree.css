@@ -2,18 +2,17 @@
    Embedded only in tree pages, after artifact-blocks.css: a page without the tree keeps the stylesheet of before, byte
    for byte. Here the rules of artifact-blocks.css for the tree are refined, never repeated. */
 /* Wide: a narrower bar (200px: the names of the parts, «Conversazione» the longest, and a short count such as 6/6 or 2),
-   from the top of the page to its end, beside the header and the cards. A long name wraps (at a space, or hyphenated)
-   instead of widening the bar; the count stays whole. The header and the cards share the column on its right and end where the cards end. */
+   under the header, kept in view while the cards scroll. A long name wraps (at a space, or hyphenated) instead of
+   widening the bar; the count stays whole. The header (with notice, pills and guide) stays above bar and cards, as in the
+   approved mockup, and ends where the cards end: its left edge is the bar's, its right edge the cards'. */
 @media(min-width:821px){main[data-mb-nav=tree]{grid-template-columns:200px minmax(0,1fr);column-gap:24px}
-main[data-mb-nav=tree]>*{grid-column:2}
-main[data-mb-nav=tree]>nav.mb-tree{grid-column:1;grid-row:1/span var(--mb-tree-rows,1)}
 main[data-mb-nav=tree]>header,main[data-mb-nav=tree]>.mb-notice,main[data-mb-nav=tree]>.guide{margin-right:48px}
 main[data-mb-nav=tree] nav.mb-tree a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{gap:6px;padding:6px 8px}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{margin-left:12px;padding-left:6px}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{padding:4px 6px}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-name{flex:0 1 auto;white-space:normal;overflow-wrap:break-word;hyphens:auto}
 main[data-mb-nav=tree] nav.mb-tree .mb-count{flex:none}
-/* The facts table of header D has less room beside the bar: a value wraps only when the table cannot stay on one line. */
+/* The facts table of header D ends 48px earlier than before: a value wraps only when the table cannot stay on one line. */
 main[data-mb-nav=tree] .mb-facts td{white-space:normal}}
 /* One width for every card: the column right of the bar, less the gutter of the round column of 🔊 and «?». The central
    column at 80% and its cap of 907px go away, so short cards (the outcome of the rebase, a table of three rows) are as
