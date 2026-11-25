@@ -9,7 +9,9 @@ no_ci: true
 # - lint: build, lint, formattazione, tipi, tutte le prove e le verifiche di skill e plugin.
 #   Le prove di test/server-discovery.test.js aprono server sull'IPv4 non loopback della
 #   macchina: il processo del gate deve poterlo raggiungere (su macOS 15, permesso
-#   «Rete locale»), altrimenti 11 di quelle prove falliscono per l'ambiente.
+#   «Rete locale»). Senza quel permesso 11 di quelle prove falliscono per l'ambiente; in una
+#   sandbox ne falliscono di più (14 su 23 in quella di Claude), anche per limiti su
+#   processi, segnali e DNS.
 commands:
   prepare: pnpm install --frozen-lockfile --ignore-scripts
   lint: pnpm run check

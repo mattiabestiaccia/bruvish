@@ -184,6 +184,6 @@ node --test bruvish/test/*.test.mjs app/test/*.test.mjs
 
 Il gate no-mistakes lancia gli stessi controlli nel passo lint (`commands.prepare` e `commands.lint` in `.no-mistakes.yaml`).
 
-Le prove di `test/server-discovery.test.js` aprono server sull'IPv4 non loopback della macchina e li interrogano dallo stesso processo. Dove l'ambiente non raggiunge quell'indirizzo (una sandbox, o su macOS 15 un'app senza il permesso «Rete locale»), 11 di quelle prove falliscono con «other side closed» o `ECONNRESET`: è l'ambiente, non il codice.
+Le prove di `test/server-discovery.test.js` aprono server sull'IPv4 non loopback della macchina e li interrogano dallo stesso processo. Su macOS 15, in un'app senza il permesso «Rete locale», 11 di quelle prove falliscono con «other side closed» o `ECONNRESET`: è l'ambiente, non il codice. In una sandbox ne falliscono di più (14 su 23 in quella di Claude), perché la sandbox limita anche processi, segnali e DNS.
 
 `pnpm test` include anche le prove di Bruvish. Opzionali: `LAVISH_MB_TEST_CHROME` (Chrome for Testing) per le prove nel browser; `LAVISH_MB_TEST_DEDICATED=1` con `LAVISH_APP_BUNDLE` per la prova Electron; `BRUVISH_PARITY_CACHE=<voce della cache dello strato precedente>` per la parità con lo strato `lavish-mb`.
