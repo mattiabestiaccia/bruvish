@@ -275,8 +275,6 @@ test('on a phone a branch opens the first part of its group, and the bar is a tw
     const css = styleOf(html);
     // Wide: a grid of the bar on the left, kept in view, and the page; the files page takes all the width that is left.
     assert.match(css, /@media\(min-width:821px\)\{main\[data-mb-nav=tree\]\{display:grid;grid-template-columns:236px minmax\(0,1fr\)/);
-    // artifact-tree.css, embedded after it in tree pages only, narrows the bar to 200px (review-tree-widths.test.mjs).
-    assert.match(css, /@media\(min-width:821px\)\{main\[data-mb-nav=tree\]\{grid-template-columns:200px minmax\(0,1fr\);column-gap:24px\}/);
     assert.match(css, /main\[data-mb-nav=tree\]>nav\.mb-tree\{[^}]*position:sticky/);
     // Phone: top items on the first row, the parts of the open group on a second row that scrolls sideways.
     assert.match(css, /@media\(max-width:820px\)\{[^@]*nav\.mb-tree \.mb-tree-group\{display:contents\}[^@]*nav\.mb-tree \.mb-tree-group:has\(a\[aria-current\]\)>\.mb-tree-children\{display:flex\}/);
