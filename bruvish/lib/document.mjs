@@ -365,7 +365,8 @@ function pillsOf(pills, sectionIds = []) {
 // table.nowrap lists the columns (from 0) whose header and cells keep one line on a wide screen, so the other columns
 // share the rest (Mattia, on the card «Rilievi»: «Rilievo» narrower, «Dove» wider). Only tree pages carry the rule
 // (artifact-tree.css): elsewhere the field is checked and the markup stays as without it. In tree pages a cell of
-// several sentences also shows one sentence per line (below).
+// several sentences also shows one sentence per line (below), and the table sits in a box that scrolls sideways, so a
+// table wider than its card stays inside the card instead of running over the round column of 🔊 and «?».
 function cardTable(card, tree = false) {
     if (card.table === undefined)
         return '';
@@ -412,7 +413,8 @@ function cardTable(card, tree = false) {
         return sentences.length > 1 ? { block: true, html: sentences.map(x => '<span class="sentence">' + inline(x) + '</span>').join('') } : { block: false, html: inline(part) }; });
     const cellText = text => lines(text).map((line, i, all) => (i && !line.block && !all[i - 1].block ? '<br>' : '') + line.html).join('');
     const cell = c => typeof c === 'string' ? cellText(c) : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
-    return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map((h, i) => '<th scope="col"' + keep(i) + '>' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map((c, i) => '<td' + keep(i) + '>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+    const table = '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map((h, i) => '<th scope="col"' + keep(i) + '>' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map((c, i) => '<td' + keep(i) + '>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+    return tree ? '<div class="mb-table-scroll">' + table + '</div>' : table;
 }
 // Images of a card (Mattia, 25 November 2026: screenshots taken in the VM): each a file beside the page, by name only
 // (png, jpg, jpeg, webp; no URL, no path, no ..), with a one-line caption. A grid of figures, the caption under each,

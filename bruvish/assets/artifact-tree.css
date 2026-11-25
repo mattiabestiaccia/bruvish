@@ -16,6 +16,9 @@ main[data-mb-nav=tree] nav.mb-tree .mb-tree-name{flex:0 1 auto;white-space:norma
 main[data-mb-nav=tree] nav.mb-tree .mb-count{flex:none}
 /* The facts table of header D ends 48px earlier than before: a value wraps only when the table cannot stay on one line. */
 main[data-mb-nav=tree] .mb-facts td{white-space:normal}}
+/* From 601px to 820px the bar is a horizontal bar above the page and the column is the whole page: the header, the notice
+   and the guide leave on their right 20% of it plus 80% of the 48px gutter, and end where the cards end. */
+@media(min-width:601px) and (max-width:820px){main[data-mb-nav=tree]>header,main[data-mb-nav=tree]>.mb-notice,main[data-mb-nav=tree]>.guide{margin-right:calc(100% * .2 + 38.4px)}}
 /* One width for every card: 80% of the column right of the bar less the gutter of the round column of 🔊 and «?» (Mattia,
    after the preview: «Rendi un po' più strette queste card, del 20% rispetto a ora»), aligned left beside the bar, not
    centred. The central column of the theme and its cap of 907px go away, so short cards (the outcome of the rebase, a
@@ -38,7 +41,9 @@ main[data-mb-nav=tree] .mb-diff-tools{display:flex;flex-wrap:wrap;gap:8px}
 .mb-diff-wrap[aria-pressed=true]{color:var(--ink);border-color:var(--title);background:color-mix(in srgb,var(--title) 14%,var(--card))}
 main[data-mb-nav=tree] .mb-diff-lines td.mb-code{white-space:pre-wrap;overflow-wrap:anywhere}
 main[data-mb-nav=tree][data-mb-wrap=off] .mb-diff-lines td.mb-code{white-space:pre;overflow-wrap:normal}
-/* table.nowrap: the listed columns keep one line, so the others share the rest; on a phone, where the table scrolls
-   sideways, they wrap again so no text runs off the screen. */
-main[data-mb-nav=tree] .mb-table [data-mb-nowrap]{white-space:nowrap}
-@media(max-width:600px){main[data-mb-nav=tree] .mb-table [data-mb-nowrap]{white-space:normal}}
+/* table.nowrap: on a wide screen, beside the vertical bar, the listed columns keep one line, so the others share the
+   rest; up to 820px they wrap as the others. A table wider than its card (a long path in a nowrap column) scrolls
+   sideways inside the card: the box takes the table's margin, so a table that fits looks as before. */
+@media(min-width:821px){main[data-mb-nav=tree] .mb-table [data-mb-nowrap]{white-space:nowrap}}
+.mb-table-scroll{overflow-x:auto;margin:0 0 1.8em}
+.mb-table-scroll>.mb-table{margin:0}

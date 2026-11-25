@@ -101,6 +101,17 @@ test('wide: header D above, as wide as bar, gap and cards; under it a narrower b
     }
     const notice = boot(await render(treePage({ header: { notice: 'Prova.' } }))).document.querySelector('.mb-notice');
     assert.deepEqual([at(notice)['grid-column'], at(notice)['margin-right']], ['1/-1', margin], 'the notice, above the header, too');
+    // From 601px to 820px the bar is horizontal, above the page: the header and the notice still end where the cards end,
+    // measured on the cards themselves.
+    const card = document.getElementById('c-sintesi'), section = card.parent;
+    for (const viewport of [820, 700, 601]) {
+        const s = layoutBox(css, section, viewport), c = layoutBox(css, card, viewport), cardRight = s.innerLeft + c.left + c.width;
+        for (const [label, el] of [['header', header], ['notice', notice]]) {
+            const h = layoutBox(css, el, viewport);
+            near(h.left + h.width, cardRight, viewport + ': the ' + label + ' ends where the cards end');
+        }
+    }
+    near(layoutBox(css, header, 500).width, layoutBox(css, main, 500).inner, 'on a phone the header keeps the whole width');
     // A facts value wraps only when the narrower column cannot hold the table on one line.
     // (Table layout auto: a cell that fits stays on one line whatever white-space says.)
     const facts = boot(await render(treePage({ header: { facts: [{ label: 'Unisce', text: '`un-ramo-lungo` → `main`' }] } }))).document.querySelector('.mb-facts td');
@@ -207,7 +218,7 @@ test('the examples revisione-albero render with the tree assets, one card width 
 const findings = (extra = {}) => ({ id: 'c-rilievi', title: 'Rilievi', table: { headers: ['#', 'Rilievo', 'Gravità', 'Dove'], rows: [['1', 'Un rilievo lungo che va a capo.', { text: 'alta', tone: 'rosso' }, '`tests/pr_revisione_test.py:1186`']], ...extra } });
 const withFindings = table => treePage({ groups: undefined, sections: [{ id: 'rilievi', title: 'Rilievi', cards: [findings(table)] }] });
 
-test('table.nowrap: the listed columns keep one line on a wide tree page, header included; on a phone they wrap again', async () => {
+test('table.nowrap: the listed columns keep one line on a wide tree page, header included; up to 820px they wrap again', async () => {
     const html = await render(withFindings({ nowrap: [0, 3] })), css = styleOf(html);
     assert.match(body(html), /<table class="mb-table"><thead><tr><th scope="col" data-mb-nowrap>#<\/th><th scope="col">Rilievo<\/th><th scope="col">Gravità<\/th><th scope="col" data-mb-nowrap>Dove<\/th><\/tr><\/thead><tbody><tr><td data-mb-nowrap>1<\/td><td>Un rilievo lungo che va a capo\.<\/td><td><span class="mb-level" data-tone="rosso">alta<\/span><\/td><td data-mb-nowrap><code>tests\/pr_revisione_test\.py:1186<\/code><\/td><\/tr><\/tbody><\/table>/);
     const { document } = boot(html);
@@ -215,10 +226,34 @@ test('table.nowrap: the listed columns keep one line on a wide tree page, header
     for (const el of [num, where, whereHead])
         assert.equal(computed(css, el, 1280)['white-space'], 'nowrap');
     assert.equal(computed(css, finding, 1280)['white-space'], undefined, 'the other columns wrap as always');
-    // On a phone the table scrolls sideways already; the column wraps again so the text does not run off the screen.
-    assert.equal(computed(css, where, 500)['white-space'], 'normal');
+    // Up to 820px, where the bar is horizontal and the card narrower, the columns wrap as the others.
+    for (const viewport of [820, 700, 500])
+        for (const el of [num, where, whereHead])
+            assert.notEqual(computed(css, el, viewport)['white-space'], 'nowrap', viewport + ': ' + el.textContent + ' wraps');
     // Without nowrap the table is as before, also on a tree page.
     assert.doesNotMatch(body(await render(withFindings())), /data-mb-nowrap/);
+});
+
+test('tree pages: a table wider than its card scrolls sideways inside the card, and a table that fits keeps its width and margin', async () => {
+    const long = findings({ nowrap: [0, 3] });
+    long.table.rows[0][3] = '`bruvish/test/review-tree-widths.test.mjs:305`';
+    const html = await render(treePage({ groups: undefined, sections: [{ id: 'rilievi', title: 'Rilievi', cards: [long] }] })), css = styleOf(html);
+    assert.match(body(html), /<div class="mb-table-scroll"><table class="mb-table"><thead>[\s\S]*?<\/table><\/div>/);
+    const { document } = boot(html);
+    const card = document.getElementById('c-rilievi'), box = document.querySelector('.mb-table-scroll'), table = document.querySelector('table.mb-table');
+    assert.equal(box.parent, card, 'the box is a child of the card, so the round column of 🔊 and «?» stays outside it');
+    for (const viewport of [1440, 1024, 700]) {
+        assert.equal(computed(css, box, viewport)['overflow-x'], 'auto', viewport + ': the box scrolls sideways');
+        const c = layoutBox(css, card, viewport), b = layoutBox(css, box, viewport), t = layoutBox(css, table, viewport);
+        assert.deepEqual([b.left, b.width], [0, c.inner], viewport + ': the box fills the card and ends where the card ends');
+        assert.deepEqual([t.left, t.width], [0, b.inner], viewport + ': the table is 100% wide, as without the box');
+        assert.equal(computed(css, box, viewport).margin, '0 0 1.8em', viewport + ': the box takes the space under the table');
+        assert.equal(computed(css, table, viewport).margin, '0', viewport + ': and the table gives it up, so the space is counted once');
+    }
+    assert.equal(computed(css, table, 1440)['border-top'], '1px solid var(--line)', 'the table keeps its border');
+    // A page without the tree keeps the bare table.
+    const plainPage = { ...tabsPage, sections: [{ id: 'rilievi', title: 'Rilievi', cards: [long] }] };
+    assert.doesNotMatch(body(await render(plainPage)), /mb-table-scroll/);
 });
 
 test('table.nowrap: a wrong shape stops the render with the right one; a page without the tree accepts it and keeps its markup', async () => {
