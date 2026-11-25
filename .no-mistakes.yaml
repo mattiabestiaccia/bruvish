@@ -6,15 +6,15 @@ no_ci: true
 # fuori da ogni sandbox, sul codice del ramo spinto.
 # - prepare: installa le dipendenze dal lockfile, senza gli script di installazione. Così non
 #   lancia lo script `prepare` del ramo (`npm run build`): la build la fa già `check`.
-# - lint: build, lint, formattazione, tipi, tutte le prove e le verifiche di skill e plugin.
-#   Le prove di test/server-discovery.test.js aprono server sull'IPv4 non loopback della
-#   macchina: il processo del gate deve poterlo raggiungere (su macOS 15, permesso
-#   «Rete locale»). Senza quel permesso 11 di quelle prove falliscono per l'ambiente; in una
-#   sandbox ne falliscono di più (14 su 23 in quella di Claude), anche per limiti su
-#   processi, segnali e DNS.
+# - lint: gli stessi passi dello script `check` di package.json, nello stesso ordine, ma le
+#   prove escludono test/server-discovery.test.js. Le sue prove aprono server sull'IPv4 non
+#   loopback della macchina, e su alcune macchine quelle connessioni si chiudono senza
+#   risposta: è l'ambiente, non il codice. Il file resta identico all'originale; si lancia a
+#   mano come dice la sezione «Prove» di BRUVISH.md.
+#   Se cambia lo script `check`, va aggiornato anche questo comando.
 commands:
   prepare: pnpm install --frozen-lockfile --ignore-scripts
-  lint: pnpm run check
+  lint: pnpm run build && pnpm run lint && pnpm run format:check && pnpm run typecheck && node --test $(git ls-files -- '*.test.js' '*.test.mjs' '*.test.cjs' | grep -vx 'test/server-discovery.test.js') && node scripts/build-skill.js --check && node scripts/build-plugin.js --check
 
 # Mattia, 25 novembre 2026 (S91): i testi che il gate scrive per una persona sono in
 # italiano. Il gate legge queste due istruzioni solo dalla copia di questo file sul ramo
