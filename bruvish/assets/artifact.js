@@ -4,11 +4,27 @@
     const root = document.documentElement;
     root.dataset.mbMode = 'dark';
     const init = () => {
-        document.querySelectorAll('[data-mb-voice]').forEach(button => button.addEventListener('click', () => { if (!('speechSynthesis' in window))
-            return; if (speechSynthesis.speaking) {
+        // 🔊 reads a card. The Qwen track generated next to the page (`voce-ai tracce`) wins: its name is the
+        // SHA-256 of the spoken text with whitespace collapsed, so a changed text never plays an old track. Without
+        // the track (not generated yet, standalone copy, no Web Crypto) the browser voice reads, as before. The name is
+        // computed on load, so play() runs inside the click: WebKit refuses media started after an await.
+        let track = null;
+        const speak = text => { if (!('speechSynthesis' in window))
+            return; const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); };
+        const trackUrl = async (text) => { const normalized = text.normalize('NFC').replace(/\s+/g, ' ').trim(); const digest = await window.crypto.subtle.digest('SHA-256', new window.TextEncoder().encode(normalized)); return 'tracce/' + [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32) + '.m4a'; };
+        const lines = node => { const sentences = [...node.querySelectorAll('.sentence')].map(s => s.textContent); return sentences.length ? sentences.join(' ') : node.textContent; };
+        document.querySelectorAll('[data-mb-voice]').forEach(button => { const card = button.closest('.card'); const text = button.dataset?.mbVoiceText || [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p, :scope>.mb-fields tr')].map(node => node.matches('tr') ? node.querySelector('th').textContent + ': ' + lines(node.querySelector('td')) : lines(node))].join(' '); let url = null; if (typeof window.Audio === 'function' && window.crypto?.subtle && typeof window.TextEncoder === 'function')
+            trackUrl(text).then(value => { url = value; }, () => { }); button.addEventListener('click', () => { if (track) {
+            track.pause();
+            track = null;
+            return;
+        } if ('speechSynthesis' in window && speechSynthesis.speaking) {
             speechSynthesis.cancel();
             return;
-        } const card = button.closest('.card'); const lines = node => { const sentences = [...node.querySelectorAll('.sentence')].map(s => s.textContent); return sentences.length ? sentences.join(' ') : node.textContent; }; const text = button.dataset?.mbVoiceText || [card.querySelector('h3')?.textContent, ...[...card.querySelectorAll(':scope>p, :scope>.mb-fields tr')].map(node => node.matches('tr') ? node.querySelector('th').textContent + ': ' + lines(node.querySelector('td')) : lines(node))].join(' '); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'it-IT'; speechSynthesis.speak(utterance); }));
+        } if (!url)
+            return speak(text); const audio = new window.Audio(url); track = audio; audio.addEventListener('ended', () => { if (track === audio)
+            track = null; }); audio.play().catch(() => { if (track !== audio)
+            return; track = null; speak(text); }); }); });
         // The queued answer is marked next to the option itself, never with a sentence in the card. The answer is
         // queued with a selector that names the chosen option, so the chrome's queued-anchor list (lavish:queuedAnchors,
         // sent after every queue change and on each load) says which option of which question is in the queue:
