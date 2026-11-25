@@ -1,3 +1,4 @@
+import { get as httpGet } from "node:http";
 import path from "node:path";
 
 const LOOPBACK = "127.0.0.1";
@@ -6,6 +7,7 @@ const PROBE_WINDOWS_MS = [700];
 // not never, and a single 700 ms read used to turn that into a hard refusal.
 const OPEN_PROBE_WINDOWS_MS = [700, 1400, 2800];
 const TIMED_OUT = Symbol("timed out");
+const MAX_BODY_BYTES = 256 * 1024;
 
 let retrying = false;
 
@@ -28,37 +30,54 @@ export class SlowServerError extends Error {
   }
 }
 
-// One bounded GET, body included: TIMED_OUT when no full answer arrives in time, { unreachable }
-// when the connection fails, otherwise { ok, body }. A body that cannot be read rejects.
-async function probeOnce(fetchImpl, url, timeoutMs) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    let response;
-    try {
-      response = await fetchImpl(url, { signal: controller.signal });
-    } catch (error) {
-      return error.name === "AbortError" ? TIMED_OUT : { unreachable: error };
-    }
-    if (!response.ok) return { ok: false, body: null };
-    return { ok: true, body: await response.json() };
-  } catch (error) {
-    if (error.name === "AbortError") return TIMED_OUT;
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+// One bounded GET over node:http, with the socket destroyed on every exit like upstream's
+// fetchHealth, never fetch (docs/invariants.md, process model). Resolves TIMED_OUT when no full
+// answer arrives in time, { unreachable } when the connection fails, otherwise { ok, body }. A body
+// that cannot be read rejects.
+function probeOnce(get, url, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let request = null;
+    let answered = false;
+    const finish = (settle, value) => {
+      clearTimeout(timer);
+      request?.destroy();
+      settle(value);
+    };
+    const timer = setTimeout(() => finish(resolve, TIMED_OUT), timeoutMs);
+    request = get(url, { agent: false }, (response) => {
+      answered = true;
+      response.on("error", (error) => finish(reject, error));
+      if (response.statusCode < 200 || response.statusCode >= 300) return finish(resolve, { ok: false, body: null });
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+        if (body.length > MAX_BODY_BYTES) finish(reject, new Error(`Risposta troppo lunga da ${url}`));
+      });
+      response.on("end", () => {
+        try {
+          finish(resolve, { ok: true, body: JSON.parse(body) });
+        } catch (error) {
+          finish(reject, error);
+        }
+      });
+    });
+    request.on("error", (error) => (answered ? finish(reject, error) : finish(resolve, { unreachable: error })));
+  });
 }
 
 // Asks once per window while the answer is late. A closed port means "no server" (null) only in the
-// first `freeAttempts` attempts; past them, a connection failure rejects.
-async function probe(fetchImpl, url, endpoint, windows, freeAttempts = 0) {
+// first `freeAttempts` attempts; past them, the server stopped answering during the check.
+async function probe(get, url, endpoint, windows, freeAttempts = 0) {
   for (const [attempt, windowMs] of windows.entries()) {
-    const result = await probeOnce(fetchImpl, url, windowMs);
+    const result = await probeOnce(get, url, windowMs);
     if (result === TIMED_OUT) continue;
     if (result.unreachable) {
       if (attempt < freeAttempts) return null;
-      throw result.unreachable;
+      throw new Error(
+        `Il server Lavish ha smesso di rispondere durante il controllo ${endpoint}. Riprova tra qualche secondo.`,
+        { cause: result.unreachable },
+      );
     }
     return result;
   }
@@ -71,17 +90,17 @@ async function probe(fetchImpl, url, endpoint, windows, freeAttempts = 0) {
 // For `open`, a server that is only slow to answer /health is asked three times with growing waits
 // and then reported as slow, never as refused; /mb-info is read once, with the longest wait.
 // Upstream's own ensureServer then adopts or starts the server as usual.
-export async function assertCompatibleServer(env, identity, { fetchImpl = fetch } = {}) {
+export async function assertCompatibleServer(env, identity, { get = httpGet } = {}) {
   const origin = `http://127.0.0.1:${env.LAVISH_AXI_PORT}`;
   const windows = probeWindows();
-  const health = await probe(fetchImpl, `${origin}/health`, "/health", windows, 1);
+  const health = await probe(get, `${origin}/health`, "/health", windows, 1);
   if (health === null) return;
   if (!health.ok) throw new Error("Port is occupied by a server without a healthy Lavish endpoint");
   if (health.body?.app !== "lavish-axi") throw new Error("Port belongs to another service");
   if (path.resolve(health.body.state_dir || "") !== path.resolve(env.LAVISH_AXI_STATE_DIR)) {
     throw new Error("Existing server uses another state directory; refusing to adopt it");
   }
-  const info = await probe(fetchImpl, `${origin}/mb-info`, "/mb-info", [windows.at(-1)]);
+  const info = await probe(get, `${origin}/mb-info`, "/mb-info", [windows.at(-1)]);
   if (!info.ok) {
     throw new Error(
       "A non-Bruvish Lavish server is already running. Use the reviewed activation procedure; it will not be restarted automatically.",
@@ -100,9 +119,9 @@ export async function assertCompatibleServer(env, identity, { fetchImpl = fetch 
 // slow instead of being taken for a free port and a second server start. The build check has
 // already passed here, so a closed port at any attempt means no server, as upstream reads it.
 // Elsewhere it is upstream's.
-export async function discoverHealth(host, baseUrl, upstreamProbe, { fetchImpl = fetch } = {}) {
+export async function discoverHealth(host, baseUrl, upstreamProbe, { get = httpGet } = {}) {
   if (!retrying || host !== LOOPBACK) return upstreamProbe();
   const windows = probeWindows();
-  const health = await probe(fetchImpl, `${baseUrl}/health`, "/health", windows, windows.length);
+  const health = await probe(get, `${baseUrl}/health`, "/health", windows, windows.length);
   return health?.ok && health.body && typeof health.body === "object" ? health.body : null;
 }
