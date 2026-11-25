@@ -133,9 +133,12 @@ test('open registers the session with a server whose every health answer takes 1
             LAVISH_AXI_STATE_DIR: state,
         },
     });
-    // Build check: 700 ms window lost, 1400 ms won, /mb-info once. Discovery on loopback: the same two.
-    assert.deepEqual(server.requests.slice(0, 5), ['/health', '/health', '/mb-info', '/health', '/health']);
+    // Every /health answer takes 1 s, past the old single 700 ms check, so the page is registered
+    // only if open asked again; the build check reads /mb-info only after a later /health answered.
     assert.deepEqual(server.openedFiles, [await realpath(file)]);
+    const firstInfo = server.requests.indexOf('/mb-info');
+    assert.ok(firstInfo >= 2, JSON.stringify(server.requests));
+    assert.ok(server.requests.slice(0, firstInfo).every((request) => request === '/health'), JSON.stringify(server.requests));
 });
 
 test('stop does not retry a slow server and says which check timed out', { timeout: 15000 }, async (t) => {
