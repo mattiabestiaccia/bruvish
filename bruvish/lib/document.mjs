@@ -364,7 +364,8 @@ function pillsOf(pills, sectionIds = []) {
 // lines (never two items on one line), or { text, tone } for a level or an outcome in its semantic colour.
 // table.nowrap lists the columns (from 0) whose header and cells keep one line on a wide screen, so the other columns
 // share the rest (Mattia, on the card «Rilievi»: «Rilievo» narrower, «Dove» wider). Only tree pages carry the rule
-// (artifact-tree.css): elsewhere the field is checked and the markup stays as without it.
+// (artifact-tree.css): elsewhere the field is checked and the markup stays as without it. In tree pages a cell of
+// several sentences also shows one sentence per line (below).
 function cardTable(card, tree = false) {
     if (card.table === undefined)
         return '';
@@ -404,7 +405,13 @@ function cardTable(card, tree = false) {
             t.rows.map(row => { const c = row[i + 1]; return '<details data-tone="' + c.tone + '"><summary><small>' + inline(row[0]) + '</small>' + inline(c.text) + '</summary><p>' + inline(c.detail) + '</p></details>'; }).join('') + '</section>').join('') + '</div>';
         return '<div class="mb-matrix" data-mb-matrix>' + table + detail + cards + '</div>';
     }
-    const cell = c => typeof c === 'string' ? c.split(' · ').map(inline).join('<br>') : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
+    // « · » makes lines in a cell. In a tree page a line of two sentences or more becomes one sentence block per sentence,
+    // as in a paragraph (Mattia, on the findings: «paragrafi più brevi e la spaziatura come te la descrivevo prima»); a
+    // short line stays as it was, and no <br> touches a column of blocks, where it would add an empty line.
+    const lines = text => text.split(' · ').map(part => { const sentences = tree ? splitSentences(part) : [];
+        return sentences.length > 1 ? { block: true, html: sentences.map(x => '<span class="sentence">' + inline(x) + '</span>').join('') } : { block: false, html: inline(part) }; });
+    const cellText = text => lines(text).map((line, i, all) => (i && !line.block && !all[i - 1].block ? '<br>' : '') + line.html).join('');
+    const cell = c => typeof c === 'string' ? cellText(c) : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
     return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map((h, i) => '<th scope="col"' + keep(i) + '>' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map((c, i) => '<td' + keep(i) + '>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 }
 // Images of a card (Mattia, 25 November 2026: screenshots taken in the VM): each a file beside the page, by name only
