@@ -1,0 +1,798 @@
+{
+ "title": "Vibe · Template di PR",
+ "id": "vibe-pr-template",
+ "intro": [
+  "Intervista a giri per decidere come deve apparire una PR: per le PR senza no-mistakes e in generale.",
+  "Alla fine c'è un intent scritto. Nulla si costruisce prima del tuo sì."
+ ],
+ "guide": [
+  "Dal giro 1 ogni carta ha la risposta consigliata per prima: «Sì» la accetta.",
+  "Un tocco sceglie, il secondo mette in coda. La nota serve per correggere o aggiungere."
+ ],
+ "state": {
+  "revision": 1,
+  "answers": {}
+ },
+ "sections": [
+  {
+   "id": "intent",
+   "title": "Intent · da confermare",
+   "cards": [
+    {
+     "id": "intent-testo",
+     "title": "L'intent, in breve",
+     "status": "waiting",
+     "metadata": "Testo intero: ~/brus/lavori/pr-template/report.md",
+     "paragraphs": [
+      [
+       "**Desiderio** · un modello per il testo delle PR su GitHub, obbligatorio per gli agenti che aprono una PR senza no-mistakes."
+      ],
+      [
+       "**Perché** · senza il gate la pagina di revisione ha 4 vuoti e si allontana dal template approvato."
+      ],
+      [
+       "**Riuscito** · una PR compilata dà la pagina senza vuoti; la prima cosa che vedi è cosa cambia; le PR di altri si leggono bene."
+      ],
+      [
+       "**Sezioni** · Cosa cambia (Dove / Prima / Dopo) · Perché · Rischio · Verifiche · Revisione (Codex) · Da decidere · Dettagli tecnici chiusi."
+      ],
+      [
+       "**PR di altri** · `##` sezione, `###` carta, testo iniziale «Descrizione»; il testo si ridistribuisce, non si riscrive."
+      ],
+      [
+       "**Ogni carta** · markup, interlinea crescente, lettura ad alta voce, «?» con aiuto: base fissa arricchita per la PR a ogni generazione."
+      ],
+      [
+       "**Immagini** · se la PR ne contiene, la pagina le mette accanto alla carta o al passaggio a cui si riferiscono (detto da te in chat)."
+      ],
+      [
+       "**Dove** · regola comune per gli agenti, più `.github/pull_request_template.md` nei tuoi repository dove gli agenti aprono PR."
+      ],
+      [
+       "**Fuori** · il testo di no-mistakes; le tue PR scritte a mano, per te è un suggerimento."
+      ]
+     ],
+     "question": {
+      "label": "Dice ciò che vuoi?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì",
+        "recommended": true
+       },
+       {
+        "value": "quasi",
+        "label": "Quasi: correggo nella nota"
+       },
+       {
+        "value": "no",
+        "label": "No: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "intent-lettore-1",
+     "title": "Ordine dei lavori",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Dubbio** · il template va dentro il round 175, ancora da applicare, o in un round a sé dopo?"
+      ],
+      [
+       "**Proposta** · il 175 si applica com'è: è provato.",
+       "Il template di PR va in un round a sé, dopo una ricerca breve su no-mistakes e sull'uscita di Codex.",
+       "Lettura ad alta voce e interlinea arrivano con il lavoro S31 su Bruvish."
+      ]
+     ],
+     "question": {
+      "label": "Va bene questo ordine?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: 175 ora, template dopo, resa con S31",
+        "recommended": true
+       },
+       {
+        "value": "unisci",
+        "label": "No: unisci il template al 175"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "intent-zone",
+     "title": "Zone grigie",
+     "status": "info",
+     "paragraphs": [
+      [
+       "1. Se no-mistakes può aggiungere «Cosa cambia» al suo testo: ricerca."
+      ],
+      [
+       "2. Come lo strumento riconosce le sezioni, italiane e inglesi: progetto."
+      ],
+      [
+       "3. Dove l'agente trova i rilievi di Codex da scrivere nella PR: ricerca."
+      ],
+      [
+       "4. Lettura ad alta voce e interlinea nella pagina di revisione: oggi mancano; lavoro S31."
+      ],
+      [
+       "5. Costo dell'aiuto arricchito su ogni carta: prova su una PR vera."
+      ]
+     ]
+    },
+    {
+     "id": "intent-passo",
+     "title": "Passo successivo",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · ricerca breve sulle zone 1 e 3, poi requisiti e round del template."
+      ]
+     ],
+     "question": {
+      "label": "Cosa facciamo dopo?",
+      "options": [
+       {
+        "value": "ricerca",
+        "label": "Ricerca breve, poi requisiti e round",
+        "recommended": true
+       },
+       {
+        "value": "requisiti",
+        "label": "Subito requisiti e round, le zone dopo"
+       },
+       {
+        "value": "fm",
+        "label": "Passalo al first mate"
+       },
+       {
+        "value": "nessuno",
+        "label": "Nessuno per ora"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "giro-2",
+   "title": "Giro 2 · PR di altri, aiuto, dove vive",
+   "cards": [
+    {
+     "id": "g2-ripasso",
+     "title": "Ho capito così",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Tuo** · le sette sezioni del giro 1 vanno bene, tutte come proposte."
+      ],
+      [
+       "**Tuo** · il sistema **non castra** le PR di altri.",
+       "Dove una parte non corrisponde alle nostre carte, la pagina usa un fallback meno strutturato.",
+       "Restano sempre **grassetto**, *corsivo* e `codice`, e l'interlinea crescente: fra righe, fra frasi, fra paragrafi.",
+       "Ogni titolo o sottotitolo diventa una carta o una sezione."
+      ],
+      [
+       "**Tuo** · ogni carta ha la lettura ad alta voce e il «?» con l'aiuto, prodotti quando si crea la pagina; per l'aiuto serve un LLM."
+      ],
+      [
+       "**Verificato** · oggi `pr-revisione-ai` ha aiuti fissi, scritti una volta, per le carte del template."
+      ],
+      [
+       "**Etichette** · le scritte in grassetto in testa ai paragrafi dicono da dove viene la frase: da te, da me, o da un controllo fatto.",
+       "Le ho corrette in tutta la pagina: prima sembravano frasi qualsiasi."
+      ]
+     ],
+     "question": {
+      "label": "Ho capito bene? Cosa è sbagliato o manca?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì, hai capito bene",
+        "recommended": true
+       },
+       {
+        "value": "altro",
+        "label": "Correggo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g2-fallback",
+     "title": "PR di altri: il fallback",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · `##` diventa una **sezione**, `###` una **carta** dentro la sezione."
+      ],
+      [
+       "Il testo prima del primo titolo è la carta «Descrizione».",
+       "Liste, tabelle e markup restano come sono."
+      ],
+      [
+       "Le parti che corrispondono a una nostra sezione (per esempio «Intent» o «What Changed») vanno nella carta giusta della Sintesi."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "tutto-carte",
+        "label": "No: anche `##` diventa una carta, niente sezioni nuove"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g2-aiuto",
+     "title": "Chi scrive l'aiuto «?»",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · le carte del template sono sempre le stesse: il loro aiuto è **fisso**, scritto una volta."
+      ],
+      [
+       "Le carte del fallback cambiano a ogni PR: il loro aiuto lo scrive l'**LLM** quando crea la pagina, una o due frasi."
+      ],
+      [
+       "La lettura ad alta voce c'è su ogni carta: la dà già il modello di Bruvish."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "sempre-llm",
+        "label": "No: l'LLM scrive l'aiuto di tutte le carte, su misura della PR"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g2-chi",
+     "title": "Chi compila il template",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · ogni agente, in **ogni profilo**, che apre una PR senza il gate."
+      ],
+      [
+       "Nelle PR che apri tu a mano, il template è un suggerimento: GitHub te lo propone già scritto."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "anche-mattia",
+        "label": "No: vale anche per le mie PR, sempre"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g2-dove",
+     "title": "Dove vive il template",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · in due posti, con un testo solo:",
+       "una **regola comune** per gli agenti;",
+       "il file che GitHub propone all'apertura di una PR (`.github/pull_request_template.md`) nei **tuoi repository**."
+      ],
+      [
+       "Nei repository di gao318 il file entra solo con il sì di Martin: sono suoi."
+      ],
+      [
+       "**Verificato** · oggi nessun tuo repository ha questo file."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "solo-regola",
+        "label": "No: solo la regola per gli agenti, niente file nei repo"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g2-verifiche",
+     "title": "Verifiche",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · una tabella **Verifica / Esito**.",
+       "Esito: ==Fatto==, ==Non verificato== o ==Fallito==, con il comando o la prova accanto."
+      ],
+      [
+       "È la carta «Verifiche già fatte» della Sintesi: oggi senza gate è un vuoto."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "elenco",
+        "label": "No: un elenco puntato basta"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g2-piccole",
+     "title": "PR piccole",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · stesse sezioni anche per un cambio di una riga.",
+       "Ma basta una riga per sezione, e «Nessuno» dove non c'è nulla."
+      ],
+      [
+       "Così la forma resta uguale per lo strumento e il costo cala."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "corta",
+        "label": "No: una versione corta, con meno sezioni"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "giro-1",
+   "title": "Giro 1 · come appare una PR",
+   "cards": [
+    {
+     "id": "g1-ripasso",
+     "title": "Ho capito così",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Tuo** · La prima cosa che si vede **non è tecnica**: dice che cosa è cambiato nel funzionamento.",
+       "Subito dopo, il **perché**."
+      ],
+      [
+       "**Tuo** · Ispirazione da no-mistakes, semplificata.",
+       "Senza no-mistakes la revisione la fa il **plugin Codex**: la PR deve riportarla."
+      ],
+      [
+       "**Tuo** · Su cosa sia una PR scritta bene non hai un metro: vuoi proposte. Sono nelle carte qui sotto."
+      ],
+      [
+       "**Proposta** · Le sezioni del template coincidono con le carte della Sintesi della pagina Lavish.",
+       "Così, con una PR compilata, i vuoti di `pr-revisione-ai` scendono a **zero**."
+      ],
+      [
+       "**Proposta** · Nessuna sezione resta vuota: se non c'è niente da dire si scrive «Nessuno»."
+      ]
+     ],
+     "question": {
+      "label": "Ho capito bene? Cosa è sbagliato o manca?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì, hai capito bene",
+        "recommended": true
+       },
+       {
+        "value": "altro",
+        "label": "Correggo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g1-ordine",
+     "title": "Ordine delle sezioni",
+     "status": "waiting",
+     "metadata": "Schizzo di una PR compilata · ispirata a Intent / What Changed / Risk Assessment di no-mistakes",
+     "paragraphs": [
+      [
+       "**Proposta** · Sette sezioni, in quest'ordine:"
+      ],
+      [
+       "1. `## Cosa cambia`: il funzionamento, a parole di chi usa."
+      ],
+      [
+       "2. `## Perché`: il bisogno, con il rimando alla voce di backlog o all'issue."
+      ],
+      [
+       "3. `## Rischio`: livello, motivo, temi toccati."
+      ],
+      [
+       "4. `## Verifiche`: cosa è stato provato, con l'esito."
+      ],
+      [
+       "5. `## Revisione`: la revisione Codex (o «gate no-mistakes»)."
+      ],
+      [
+       "6. `## Da decidere`: le domande per te; «Nessuno» se non ce ne sono."
+      ],
+      [
+       "7. `## Dettagli tecnici`: file e scelte di codice, in fondo, chiusi in una tendina."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "no",
+        "label": "No: cambio l'ordine o le sezioni nella nota"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g1-cosa",
+     "title": "«Cosa cambia» come tabella",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · Una tabella **Dove / Prima / Dopo**, una riga per ogni cambio visibile.",
+       "Parole di chi usa, non nomi di file."
+      ],
+      [
+       "Esempio: `postit -h` · ==errore «opzione sconosciuta»== · ==mostra l'aiuto==."
+      ],
+      [
+       "**Verificato** · È la carta «Cosa fa» del template Lavish approvato: oggi è sempre un vuoto, anche con no-mistakes."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "elenco",
+        "label": "No: un elenco puntato basta"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g1-rischio",
+     "title": "Rischio",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · Livello con la scala di no-mistakes: **basso**, **medio**, **alto**.",
+       "Un motivo in una frase."
+      ],
+      [
+       "Temi toccati: permessi, sandbox, segreti, dati, rete, azioni irreversibili; oppure «nessuno»."
+      ],
+      [
+       "**Verificato** · La regola del gate: rischio medio o alto, o un tema toccato, e il merge lo decidi tu."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "solo-livello",
+        "label": "No: solo livello e motivo, senza temi"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g1-codex",
+     "title": "Revisione Codex nella PR",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Tuo** · Senza no-mistakes rivede il plugin Codex."
+      ],
+      [
+       "**Proposta** · La sezione dice quale revisione (*ordinaria* o *avversariale*) e l'esito in una riga.",
+       "Poi una tabella dei rilievi: gravità, `file:riga`, cosa è stato fatto (corretto, riportato a te, scartato con il motivo)."
+      ],
+      [
+       "Così la pagina Revisione di Lavish resta piena anche senza il gate."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "esito",
+        "label": "No: basta l'esito in una riga"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g1-bene",
+     "title": "Una PR scritta bene: proposta di metro",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · sei segni controllabili:"
+      ],
+      [
+       "1. Il **titolo dice l'effetto**, non il file: «`-h` mostra l'aiuto», non «fix cli.ts»."
+      ],
+      [
+       "2. **Una cosa sola** per PR."
+      ],
+      [
+       "3. Frasi brevi, senza gergo (ITS)."
+      ],
+      [
+       "4. Rimando alla voce di backlog o all'issue."
+      ],
+      [
+       "5. Una **prova visibile** (trascrizione o immagine) quando cambia ciò che vedi o usi."
+      ],
+      [
+       "6. Nessuna sezione vuota."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "togli",
+        "label": "No: tolgo o aggiungo segni nella nota"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g1-lingua",
+     "title": "Lingua",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · Titoli e testo in italiano ITS, anche nei repository condivisi con Martin (Cortile)."
+      ],
+      [
+       "**Verificato** · no-mistakes scrive i titoli in inglese; lo strumento può leggere le due lingue."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "inglese",
+        "label": "No: titoli in inglese, testo in italiano"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    },
+    {
+     "id": "g1-gate",
+     "title": "Le PR di no-mistakes",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "**Proposta** · Le PR del gate restano come le scrive no-mistakes.",
+       "Il template vale per le PR aperte senza gate; lo strumento legge le due forme."
+      ],
+      [
+       "**Ipotesi** · Se no-mistakes può aggiungere «Cosa cambia» al suo testo. Resta una zona grigia da chiudere dopo."
+      ]
+     ],
+     "question": {
+      "label": "Va bene così?",
+      "options": [
+       {
+        "value": "si",
+        "label": "Sì: come proposto",
+        "recommended": true
+       },
+       {
+        "value": "uguali",
+        "label": "No: anche le PR del gate devono seguire il template"
+       },
+       {
+        "value": "altro",
+        "label": "Altro: lo scrivo nella nota"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "giro-0",
+   "title": "Giro 0 · il perché",
+   "cards": [
+    {
+     "id": "g0-ripasso",
+     "title": "Ho capito così",
+     "status": "waiting",
+     "metadata": "Fonti: il tuo messaggio · pr-revisione-ai · tests/dati-pr-revisione/postit-6.json",
+     "paragraphs": [
+      [
+       "**Tuo** · Vuoi un modello per la descrizione delle PR su GitHub.",
+       "Primo scopo: quando una PR non passa da no-mistakes, la pagina di revisione ha più vuoti e si allontana dal template Lavish approvato."
+      ],
+      [
+       "Secondo scopo: decidere come deve apparire una PR in sé, per chi la legge su GitHub, a prescindere da Lavish."
+      ],
+      [
+       "**Proposta** · La PR è la sorgente; la pagina Lavish ne è una vista.",
+       "Se la PR porta le informazioni in sezioni fisse, lo strumento le legge e i vuoti calano."
+      ],
+      [
+       "**Verificato** · Oggi pr-revisione-ai legge dal corpo della PR solo `## Intent` e `## What Changed`.",
+       "Rischio, verifiche e prove arrivano solo da no-mistakes: senza, restano **4 vuoti** (cosa fa, livello di rischio, motivo, verifiche).",
+       "«Cosa fa» resta vuoto anche con no-mistakes."
+      ],
+      [
+       "**Verificato** · no-mistakes scrive tre sezioni: Intent, What Changed, Risk Assessment.",
+       "Nessun progetto tuo ha oggi un `pull_request_template.md`."
+      ],
+      [
+       "Rispondi con l'annotazione di Lavish su questa carta."
+      ]
+     ]
+    },
+    {
+     "id": "g0-lettore",
+     "title": "Chi legge, e che cosa capisce subito",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "Chi deve leggere la PR su GitHub (tu, Martin, un revisore, un agente, il te stesso di fra sei mesi)?",
+       "Che cosa deve capire nei primi trenta secondi?"
+      ],
+      [
+       "Rispondi con l'annotazione di Lavish su questa carta."
+      ]
+     ]
+    },
+    {
+     "id": "g0-bene",
+     "title": "Una PR scritta bene",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "Che cosa ti fa dire «questa PR è scritta bene»?",
+       "Esempi visti, tuoi o di altri, che ti sono piaciuti o che hai odiato."
+      ],
+      [
+       "Rispondi con l'annotazione di Lavish su questa carta."
+      ]
+     ]
+    },
+    {
+     "id": "g0-gate",
+     "title": "Con e senza no-mistakes",
+     "status": "waiting",
+     "paragraphs": [
+      [
+       "Le PR che apre no-mistakes devono avere la stessa forma di quelle aperte senza?",
+       "Oppure va bene che restino diverse?"
+      ],
+      [
+       "Rispondi con l'annotazione di Lavish su questa carta."
+      ]
+     ]
+    }
+   ]
+  }
+ ]
+}

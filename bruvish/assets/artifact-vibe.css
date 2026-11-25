@@ -1,0 +1,112 @@
+/* Theme «vibe» (Mattia, 25 novembre 2026: «approvato b2 arricchito»): values from
+   laboratorio-stile/lavish/consolidamento/vibe-B2-arricchito.html. Embedded only in pages with "theme": "vibe". */
+:root[data-mb-family=vibe]{--card:rgba(5,40,44,0.5);--line:#245156;--ink:#d1e9eb;--muted:#95babe;--title:#4ed1de;--field:rgba(0,0,0,.18);--highlight:rgba(236,214,120,.30);--mb-orange:#f3a972;--mb-wait:#ffd84a;--mb-lilac:#c7abfa;--mb-cyan:78,209,222}
+[data-mb-family=vibe] main{width:min(1180px,100% - 32px);padding:28px 0 80px}
+[data-mb-family=vibe] h1{font-size:32px;margin:0 0 8px}
+:where([data-mb-family=vibe]) p{margin:0 0 .6em}
+:where([data-mb-family=vibe]) .sentence+.sentence{margin-top:.25em}
+:where([data-mb-family=vibe]) mark{border-radius:3px;padding:0 .15em}
+/* Header: the live status and the legend of the colours. */
+.mb-vibe-status{margin:12px 0 0;font-size:15px;color:var(--muted)}
+.mb-vibe-colours{display:flex;flex-wrap:wrap;gap:4px 16px;margin:10px 0 0;font-size:14px;color:var(--muted);text-align:left}
+.mb-vibe-colours span::before{content:"";display:inline-block;width:.7em;height:.7em;border-radius:50%;margin-right:6px;background:var(--mb-dot)}
+[data-mb-colour=giallo]{--mb-dot:var(--mb-wait)}[data-mb-colour=verde]{--mb-dot:var(--mb-green)}[data-mb-colour=blu]{--mb-dot:var(--mb-blue)}[data-mb-colour=viola]{--mb-dot:var(--mb-lilac)}[data-mb-colour=arancione]{--mb-dot:var(--mb-orange)}
+/* The bar of the rounds stays at the top (S9): one tab per round, the open one current. */
+nav.mb-vibe-tabs{position:sticky;top:0;z-index:3;display:flex;flex-wrap:wrap;gap:4px;padding:6px 0;margin:0 0 24px;border-bottom:1px solid var(--line);background:color-mix(in srgb,#1f2023 92%,transparent);backdrop-filter:blur(12px)}
+.mb-vibe-tab{display:flex;align-items:baseline;gap:8px;padding:8px 10px;border-radius:8px 8px 0 0;border-bottom:3px solid transparent;color:var(--ink);text-decoration:none;font-size:16px}
+.mb-vibe-tab:hover{background:var(--field)}
+.mb-vibe-tab[aria-current=page]{font-weight:650;color:var(--title);border-bottom-color:var(--title)}
+.mb-vibe-tab small{color:var(--muted);font-weight:400;font-size:14px}
+.mb-vibe-phone{display:none}
+/* Rounds on the left, the intent on the right, always visible, still while the cards scroll. */
+.mb-vibe{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px 28px;align-items:start}
+.mb-vibe-round h2{font-size:26px;margin:0 0 12px}
+.mb-vibe-intent{position:sticky;top:64px;max-height:calc(100vh - 80px);overflow:auto;padding:4px}
+.mb-vibe-intent-box{position:relative;border:1px solid var(--title);border-radius:12px;padding:18px 56px 18px 20px;background:rgba(var(--mb-cyan),.06);box-shadow:0 0 0 1.5px rgba(var(--mb-cyan),.55),0 0 22px rgba(var(--mb-cyan),.30)}
+.mb-vibe-intent-box .mb-card-head{margin:0 0 8px}
+.mb-vibe-intent-box h2{font-size:22px;margin:0}
+/* 🔊 and «?» of the intent: the same round buttons, in a column at the top right, inside the box (no gutter there). */
+.mb-vibe-intent-box>.voice,.mb-vibe-intent-box .mb-help-toggle{position:absolute;left:auto;right:10px;width:32px;height:32px;padding:0;display:grid;place-items:center;border:1px solid var(--line);border-radius:50%;font:600 16px/1 system-ui,sans-serif;color:var(--muted);background:var(--field);opacity:.55;transition:opacity .2s}
+.mb-vibe-intent-box>.voice{top:10px}
+.mb-vibe-intent-box .mb-help-toggle{top:50px}
+.mb-vibe-intent-box:hover>.voice,.mb-vibe-intent-box:focus-within>.voice,.mb-vibe-intent-box:hover .mb-help-toggle,.mb-vibe-intent-box:focus-within .mb-help-toggle,.mb-vibe-intent-box .mb-help-toggle[aria-expanded=true]{opacity:1;color:var(--title);border-color:var(--title)}
+/* Rows of the intent: confirmed green (with the round), open yellow (leads to its card), hypothesis orange. */
+.mb-vibe-row{display:grid;gap:4px;padding:8px 6px;margin:0 -6px;border-top:1px solid var(--line);border-radius:6px;font-size:16px;color:var(--ink);text-decoration:none}
+.mb-vibe-row:first-child{border-top:0}
+a.mb-vibe-row{cursor:pointer}
+a.mb-vibe-row:hover,a.mb-vibe-row:focus-visible{background:rgba(255,216,74,.08)}
+.mb-vibe-key{color:var(--title);font-weight:650}
+.mb-vibe-text,.mb-vibe-where{display:block}
+.mb-vibe-text[hidden],.mb-vibe-where[hidden]{display:none}
+.mb-vibe-where{font-size:13px;color:var(--muted);margin-top:2px}
+[data-mb-row-state=open] .mb-vibe-where{color:var(--mb-wait)}
+[data-mb-row-state=hypothesis] .mb-vibe-where{color:var(--mb-orange)}
+[data-mb-row-state=queued] .mb-vibe-where{color:var(--mb-green)}
+.mb-vibe-dot{display:inline-block;width:.7em;height:.7em;border-radius:50%;margin-right:6px;vertical-align:.05em}
+[data-mb-row-state=confirmed] .mb-vibe-dot,[data-mb-row-state=queued] .mb-vibe-dot,.mb-vibe-dot[data-mb-dot=confirmed]{background:var(--mb-green)}
+[data-mb-row-state=open] .mb-vibe-dot,.mb-vibe-dot[data-mb-dot=open]{background:var(--mb-wait);animation:mb-vibe-blink 2s ease-in-out infinite}
+[data-mb-row-state=hypothesis] .mb-vibe-dot,.mb-vibe-dot[data-mb-dot=hypothesis]{background:var(--mb-orange)}
+@keyframes mb-vibe-blink{50%{opacity:.35}}
+/* A row that has just changed pulses green three times (S15). */
+.mb-vibe-changed{animation:mb-vibe-changed 2s ease-in-out 3}
+@keyframes mb-vibe-changed{50%{background:rgba(99,202,132,.18)}}
+.mb-vibe-legend,.mb-vibe-output{font-size:14px;color:var(--muted);margin:8px 0 0;text-align:left}
+.mb-vibe-close,.mb-vibe-grey{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.mb-vibe-close .mb-vibe-q{margin:0 0 4px}
+.mb-vibe-grey{font-size:15px;color:var(--muted)}
+.mb-vibe-grey b{display:block;color:var(--title);margin-bottom:4px}
+/* Cards: the genre gives the colour; yellow only for the cards that wait for an answer, pulsing in 3 s. */
+[data-mb-family=vibe] .card{margin:0 48px 16px 0;padding:18px 20px;scroll-margin-top:72px;border-color:color-mix(in srgb,var(--mb-state-color) 55%,transparent);background:linear-gradient(color-mix(in srgb,var(--mb-state-color) 7%,transparent),color-mix(in srgb,var(--mb-state-color) 7%,transparent)),var(--card);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--mb-state-color) 65%,transparent),0 0 22px color-mix(in srgb,var(--mb-state-color) 40%,transparent)}
+.card[data-mb-state=info][data-mb-genre=ipotesi]{--mb-state-color:var(--mb-orange)}
+.card[data-mb-state=info][data-mb-genre=schizzo]{--mb-state-color:var(--mb-lilac)}
+.card[data-mb-state=info][data-mb-genre=chiuso]{--mb-state-color:var(--mb-green)}
+[data-mb-family=vibe] .card[data-mb-state=waiting]{--mb-state-color:var(--mb-wait);border-color:var(--mb-wait);box-shadow:0 0 0 2px var(--mb-wait),0 0 28px rgba(255,216,74,.65);animation:mb-vibe-wait 3s ease-in-out infinite}
+@keyframes mb-vibe-wait{50%{box-shadow:0 0 0 2px rgba(255,216,74,.55),0 0 12px rgba(255,216,74,.25)}}
+/* An answer in the queue turns its card green until the page reloads with the answer applied. */
+[data-mb-family=vibe] .card.mb-vibe-queued{--mb-state-color:var(--mb-green);border-color:color-mix(in srgb,var(--mb-green) 55%,transparent);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--mb-green) 65%,transparent),0 0 22px color-mix(in srgb,var(--mb-green) 40%,transparent);animation:none}
+/* The flash of a card reached from its intent row, on its own layer so the pulse of the card stays. */
+.card.mb-vibe-flash::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;animation:mb-vibe-flash 1.6s ease-out 1 forwards}
+@keyframes mb-vibe-flash{0%{background:rgba(255,216,74,.35)}100%{background:transparent}}
+/* Who speaks (S13): a two-column table, one colour per speaker; the question is a row of the same table. */
+[data-mb-family=vibe] .mb-vibe-speakers{margin:0 0 .6em;border-top:0}
+.mb-vibe-speakers th{min-width:110px;font-size:15px;padding:8px 16px 8px 0}
+.mb-vibe-speakers td{padding:8px 0}
+.mb-vibe-speakers td p{margin:0 0 .4em}
+[data-mb-who=tuo] th{color:var(--mb-blue)}
+[data-mb-who=proposta] th{color:var(--mb-lilac)}
+[data-mb-who=verificato] th{color:var(--mb-green)}
+[data-mb-who=ipotesi] th{color:var(--mb-orange)}
+[data-mb-who=dubbio] th{color:var(--mb-red)}
+[data-mb-who=domanda] th{color:var(--mb-wait)}
+.mb-vibe-q{font-weight:650;margin:0}
+.mb-vibe-differ{font-size:15px;color:var(--muted);margin:.3em 0 0}
+/* Answers: tiles under the table, the recommended first and highlighted, with no label. The radio stays in the page
+   for the keyboard (Space chooses, Space again queues), out of sight. */
+.mb-vibe-answers fieldset{margin:10px 0 0}
+.mb-vibe-options{position:relative;display:grid;gap:8px}
+.mb-vibe-cols-1{grid-template-columns:minmax(0,1fr)}
+.mb-vibe-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.mb-vibe-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+[data-mb-family=vibe] label.option{position:relative;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;padding:9px 12px;font-size:16px;text-align:center;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+[data-mb-family=vibe] label.option input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+[data-mb-family=vibe] label.option:has(input:focus-visible){outline:3px solid var(--title);outline-offset:2px}
+[data-mb-family=vibe] label.option.mb-recommended{border-color:var(--title);background:rgba(var(--mb-cyan),.16);color:#e8fbfd;font-weight:400}
+[data-mb-family=vibe] label.option:has(input:checked){outline:2px solid var(--title);box-shadow:inset 0 -3px 0 var(--title)}
+[data-mb-family=vibe] label.option.mb-armed::after{margin:0;font-size:13px}
+[data-mb-family=vibe] label.option.mb-queued,[data-mb-family=vibe] label.option.mb-sent{background:var(--title);border-color:var(--title);color:#05282c;font-weight:650}
+[data-mb-family=vibe] label.option .mb-queued-mark,[data-mb-family=vibe] label.option .mb-sent-mark{margin:0;font-size:13px;color:inherit}
+/* The reason of the recommended answer: a bubble over the answers, only on hover, keyboard focus or long press. */
+.mb-vibe-tip{position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:4;pointer-events:none;padding:12px 14px;border:1px solid var(--title);border-radius:8px;background:#0b1114;color:var(--ink);font-size:16px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.mb-vibe-tip[hidden]{display:none}
+.mb-vibe-tip b{display:block;margin-bottom:4px;color:var(--title);font-family:STIXLocal,serif;font-variant-caps:small-caps;font-weight:650}
+.mb-vibe-tip p{margin:0 0 .5em;text-align:left}
+.mb-vibe-tip p:last-child{margin:0}
+/* A closed round opens with the list of its cards and their answers. */
+.mb-vibe-closed-list{border:1px solid var(--line);border-radius:10px;padding:6px 16px;background:var(--field);margin:0 48px 16px 0}
+.mb-vibe-closed-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:16px}
+.mb-vibe-closed-item:first-child{border-top:0}
+.mb-vibe-closed-answer{color:var(--mb-green);font-weight:650;text-align:right}
+@media (prefers-reduced-motion:reduce){[data-mb-family=vibe] .card[data-mb-state=waiting],.mb-vibe-changed,.card.mb-vibe-flash::before,[data-mb-row-state=open] .mb-vibe-dot,.mb-vibe-dot[data-mb-dot=open]{animation:none}}
+/* Under 900 px one column: the intent is the first tab, «Intent», before the rounds (S11); one of the two shows. */
+@media(max-width:900px){.mb-vibe{grid-template-columns:minmax(0,1fr)}.mb-vibe-intent{order:-1;position:static;max-height:none;overflow:visible}nav.mb-vibe-tabs{position:static;flex-wrap:nowrap;overflow-x:auto}.mb-vibe-tab{white-space:nowrap}.mb-vibe-phone{display:flex}.mb-vibe[data-mb-vibe-view=intent] .mb-vibe-rounds{display:none}.mb-vibe[data-mb-vibe-view=round] .mb-vibe-intent{display:none}}
+@media(max-width:600px){[data-mb-family=vibe] .card{margin:0 0 16px;padding:16px 56px 16px 16px}.mb-vibe-closed-list{margin-right:0}.mb-vibe-options.mb-vibe-cols-2,.mb-vibe-options.mb-vibe-cols-3{grid-template-columns:minmax(0,1fr)}}

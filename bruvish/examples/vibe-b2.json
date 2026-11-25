@@ -1,0 +1,344 @@
+{
+  "title": "Vibe · Il traguardo del prossimo drydock",
+  "id": "vibe-drydock-traguardo",
+  "theme": "vibe",
+  "header": {
+    "badge": {
+      "text": "Passo 0 · traguardo",
+      "tone": "giallo"
+    },
+    "meta": ["skill `drydock`", "giro lungo", "24 novembre 2026"]
+  },
+  "intro": "Ho capito che vuoi rifare la revisione del sistema senza il difetto di novembre: allora il traguardo mancava, e il lavoro è cresciuto da una fase a sette. Per questo non ti chiedo un brief: rispondi a quattro domande e il brief lo scrivo io.",
+  "guide": "Ogni domanda ha la consigliata per prima. La riga dell'intent a destra cambia appena metti in coda una risposta. Passa il mouse sulla risposta evidenziata per leggere perché la consiglio; sul telefono tienila premuta. Se non rispondi a una domanda, vale la consigliata. Per una nota usa l'annotazione di Lavish. Il «?» dice a che cosa serve la carta; il 🔊 legge un testo scritto per l'ascolto.",
+  "state": {
+    "revision": 1,
+    "answers": {}
+  },
+  "sections": [
+    {
+      "id": "giro-1",
+      "title": "Giro 1 · il traguardo",
+      "open": true,
+      "cards": [
+        {
+          "id": "g1-ripasso",
+          "genre": "ripasso",
+          "title": "Ho capito così",
+          "speakers": [
+            {
+              "who": "Tuo",
+              "text": "«io non conosco i criteri con cui effettuare una tale analisi»."
+            },
+            {
+              "who": "Verificato",
+              "text": "Le quattro cifre sotto vengono dal capitolo 30 del libro."
+            },
+            {
+              "who": "Ipotesi",
+              "text": "In `~/brus/lavori/drydock/` non c'è ancora una linea di base: il prossimo è un **giro lungo**, come dice la skill."
+            }
+          ],
+          "paragraphs": [
+            "Fasi del lavoro: 7, una sola chiesta all'inizio. Giri di controllo: 4, nessuno nel piano iniziale. Carte del libro: 1.442, sette commentate da te. Quota usata: 35 punti, dal 59% al 24%."
+          ],
+          "summary": "Ogni cifra è un buco di novembre che una domanda chiude: le **sette fasi** il «fatto quando», le carte la lettura, i punti il bilancio.",
+          "voice": "A novembre il lavoro è cresciuto in sette fasi, e solo la prima era chiesta. Quattro giri di controllo hanno cambiato numeri e giudizi portanti. Il libro ha millequattrocentoquarantadue carte, e tu ne hai commentate sette. Non c'è ancora una linea di base, quindi il prossimo è un giro lungo."
+        },
+        {
+          "id": "g1-decisioni",
+          "genre": "domanda",
+          "title": "Quali decisioni vuoi prendere, ed entro quando",
+          "speakers": [
+            {
+              "who": "Tuo",
+              "text": "«L'obiettivo è stabilire dove potrei migliorare nell'interazione con gli agenti, in come avvio i lavori e in come li concludo.»"
+            },
+            {
+              "text": "«Dobbiamo capire se sia uno strumento su cui puntare oppure no.»"
+            },
+            {
+              "who": "Proposta",
+              "text": "Un'analisi senza decisioni produce inventario. Ogni rapporto dirà a quale decisione serve; ciò che non serve a nessuna resta fuori."
+            }
+          ],
+          "question": {
+            "label": "Su che cosa vuoi decidere?",
+            "differ": "quanto è largo l'oggetto delle decisioni.",
+            "reason": "Sono le tre decisioni del prompt che avrei voluto ricevere (carta 30.19), e il giro lungo guarda tutto il sistema. Il solo seguito è il lavoro del giro breve.",
+            "options": [
+              {
+                "value": "tre-temi",
+                "recommended": true,
+                "label": "Le tre di novembre: avvio e chiusura dei lavori, strumenti su cui puntare, rischi di sicurezza",
+                "intent": "Avvio e chiusura dei lavori; strumenti su cui puntare; rischi di sicurezza da chiudere. Entro due settimane dal via."
+              },
+              {
+                "value": "seguito",
+                "label": "Solo il seguito di novembre: che cosa hai applicato e che cosa ha mosso",
+                "intent": "Solo il seguito di novembre: che cosa hai applicato e che cosa ha mosso. Entro due settimane dal via."
+              },
+              {
+                "value": "strumenti",
+                "label": "Una sola: su quali strumenti puntare",
+                "intent": "Una sola: su quali strumenti puntare. Entro due settimane dal via."
+              }
+            ]
+          },
+          "summary": "La prima opzione riprende le **tre decisioni** della carta 30.19, scritte con le tue parole di novembre.",
+          "voice": "Un'analisi senza decisioni produce soltanto inventario. Ti propongo le tre decisioni di novembre: come avvii e chiudi i lavori, su quali strumenti puntare, quali rischi chiudere. Se non scrivi una scadenza, vale due settimane dal via."
+        },
+        {
+          "id": "g1-lettura",
+          "genre": "domanda",
+          "title": "Quanto vuoi leggere, e quante decisioni ricevere",
+          "speakers": [
+            {
+              "who": "Verificato",
+              "text": "Il libro di novembre non riassume: **1.442 carte**, circa 24 ore a un minuto per carta. Le decisioni sono sparse fra le carte 21.19 e 29.19."
+            }
+          ],
+          "question": {
+            "label": "Che cosa ricevi alla fine?",
+            "differ": "il tetto di decisioni sulla pagina in alto.",
+            "reason": "Sette è il tetto della skill e della carta 30.15. Le decisioni ti arrivano comunque tre alla volta, con il template delle risposte.",
+            "options": [
+              {
+                "value": "sette",
+                "recommended": true,
+                "label": "Una pagina, fino a sette decisioni",
+                "intent": "Una pagina, fino a sette decisioni, tre alla volta."
+              },
+              {
+                "value": "cinque",
+                "label": "Una pagina, fino a cinque decisioni",
+                "intent": "Una pagina, fino a cinque decisioni, tre alla volta."
+              },
+              {
+                "value": "tre",
+                "label": "Una pagina, fino a tre decisioni",
+                "intent": "Una pagina, fino a tre decisioni."
+              }
+            ]
+          },
+          "summary": "In ogni caso la pagina è **una sola**: i capitoli stanno sotto, solo per ciò che vuoi approfondire.",
+          "voice": "Il libro di novembre ha millequattrocentoquarantadue carte, circa ventiquattro ore di lettura. Ti propongo una pagina sola, con al massimo sette decisioni. I capitoli restano sotto, per ciò che vuoi approfondire."
+        },
+        {
+          "id": "g1-bilancio",
+          "genre": "domanda",
+          "title": "Quale bilancio di quota e di tempo",
+          "speakers": [
+            {
+              "who": "Tuo",
+              "text": "«Cerca di non superare la soglia del risultato: 20% residuo»."
+            },
+            {
+              "who": "Verificato",
+              "text": "A novembre la quota è scesa di 35 punti in 18 ore. Le cifre per fase sono letture della quota prima e dopo: **il resto è calcolato** per differenza."
+            }
+          ],
+          "paragraphs": [
+            "Dove sono andati i 35 punti: lettura delle sessioni 8, worker e campione cieco 5, accusa e difesa con Codex 6, il resto della sessione 16 (calcolato per differenza)."
+          ],
+          "question": {
+            "label": "Quanto spendi, e dove tagli?",
+            "differ": "dove si taglia, se il bilancio è più stretto.",
+            "reason": "Trenta punti è la stima della skill per il giro lungo. I controlli costano undici punti e hanno cambiato i numeri portanti: sono l'ultima cosa da tagliare.",
+            "options": [
+              {
+                "value": "trenta",
+                "recommended": true,
+                "label": "30 punti e mezza giornata tua, con tutti i controlli",
+                "intent": "30 punti di quota, mai sotto il 20% di residuo; mezza giornata tua."
+              },
+              {
+                "value": "meno-lettura",
+                "label": "20 punti: meno sessioni lette, controlli tutti",
+                "intent": "20 punti di quota, mai sotto il 20% di residuo: meno sessioni lette, controlli tutti."
+              },
+              {
+                "value": "meno-controlli",
+                "label": "20 punti: tutte le sessioni, solo campione cieco e Codex",
+                "intent": "20 punti di quota, mai sotto il 20% di residuo: tutte le sessioni, solo campione cieco e Codex."
+              }
+            ]
+          },
+          "summary": "Accusa e difesa più Codex sono costati **sei punti**: meno della lettura delle sessioni, che ne ha presi otto in tre quarti d'ora.",
+          "voice": "A novembre il giro è costato trentacinque punti di quota in diciotto ore. La lettura delle sessioni ne ha presi otto, i controlli undici in due fasi. Ti propongo trenta punti, la soglia del venti per cento e mezza giornata tua."
+        },
+        {
+          "id": "g1-fine",
+          "genre": "domanda",
+          "title": "Quando il giro è finito",
+          "speakers": [
+            {
+              "who": "Tuo",
+              "text": "Il lavoro «diverge senza richiudersi in un lavoro concluso»."
+            },
+            {
+              "who": "Verificato",
+              "text": "La voce di backlog del giro di novembre è ancora aperta."
+            },
+            {
+              "who": "Proposta",
+              "text": "In ogni caso, ogni lavoro che nasce dal giro diventa una voce di backlog sua, non una fase in più."
+            }
+          ],
+          "question": {
+            "label": "Quando chiudo la voce del giro?",
+            "differ": "chi chiude il giro: l'agente con le prove, o tu con le decisioni.",
+            "reason": "Dipende solo da cose che si provano. Se il giro aspetta le tue decisioni resta aperto finché non hai tempo; la linea di base serve al giro breve del mese dopo.",
+            "options": [
+              {
+                "value": "prove",
+                "recommended": true,
+                "label": "Pagina consegnata, controlli passati, linea di base salvata",
+                "intent": "Pagina consegnata, controlli passati, linea di base salvata."
+              },
+              {
+                "value": "decisioni",
+                "label": "Quando hai preso tutte le decisioni della pagina",
+                "intent": "Quando hai preso tutte le decisioni della pagina."
+              },
+              {
+                "value": "solo-pagina",
+                "label": "Pagina consegnata; la linea di base al giro dopo",
+                "intent": "Pagina consegnata; la linea di base al giro dopo."
+              }
+            ]
+          },
+          "summary": "La differenza fra le opzioni è **chi chiude**: con la prima chiude l'agente, quando le tre prove ci sono.",
+          "voice": "A novembre il traguardo non era scritto, e la voce del giro è ancora aperta. Ti propongo di chiudere quando la pagina è consegnata, i controlli sono passati e la linea di base è salvata. Ogni lavoro nuovo va nel backlog come voce sua."
+        },
+        {
+          "id": "g1-perimetro",
+          "genre": "ipotesi",
+          "title": "Il perimetro si sceglie al passo 1",
+          "speakers": [
+            {
+              "who": "Ipotesi",
+              "text": "Non te lo chiedo adesso: la skill rimanda questa domanda al passo 1, quando le fonti sono contate e hanno un costo."
+            },
+            {
+              "text": "Parto da queste: sessioni per profilo, worker e corse del gate, backlog di Brus e del first mate, repository, regole e skill, round, memoria comune."
+            },
+            {
+              "text": "**Work resta fuori.**"
+            },
+            {
+              "who": "Verificato",
+              "text": "A novembre i numeri sono arrivati a rate: 207 sessioni all'01:00, 264 worker e 440 corse del gate alle 02:49."
+            }
+          ],
+          "summary": "È il quinto punto della skill: un'**ipotesi dichiarata**, non una domanda. Lo correggi al passo 1, con le quantità davanti.",
+          "voice": "Il perimetro non te lo chiedo adesso. Lo sceglierai al passo uno, davanti alle fonti contate, ognuna con il suo costo. Work resta fuori."
+        },
+        {
+          "id": "g1-dopo",
+          "genre": "schizzo",
+          "title": "Schizzo · che cosa succede dopo le tue risposte",
+          "speakers": [
+            {
+              "who": "Proposta",
+              "text": "Scrivo `traguardo.md` con le tue risposte, e con le ipotesi dove hai saltato. Sul traguardo non ti chiedo altro."
+            },
+            {
+              "text": "Ti fermo ancora due volte: al passo 1 per spuntare le fonti, al passo 2 per il **sì al piano**. I passi 3 e 4 girano da soli."
+            }
+          ],
+          "paragraphs": ["Ogni risposta lega un passo del giro; nei passi 1 e 2 ti fermo di nuovo."],
+          "summary": "Il disegno mostra dove agisce ogni risposta. I due passi in evidenza sono quelli in cui torni tu.",
+          "voice": "Con le tue risposte scrivo il traguardo, e non ti chiedo altro su di esso. Ti richiamo due volte: per scegliere le fonti e per dire sì al piano. Raccolta e controlli girano da soli."
+        }
+      ]
+    },
+    {
+      "id": "giro-0",
+      "title": "Giro 0 · il perché",
+      "cards": [
+        {
+          "id": "g0-perche",
+          "genre": "chiuso",
+          "title": "Perché rifare la revisione",
+          "outcome": "risposta nella nota",
+          "speakers": [
+            {
+              "who": "Tuo",
+              "text": "Vuoi rifare la revisione del sistema, senza il difetto di novembre."
+            },
+            {
+              "who": "Verificato",
+              "text": "A novembre il traguardo mancava, e il lavoro è cresciuto da una fase a sette."
+            },
+            {
+              "who": "Proposta",
+              "text": "Non ti chiedo un brief: rispondi a quattro domande e il brief lo scrivo io."
+            }
+          ],
+          "summary": "Questo giro serve a mostrare una scheda di giro chiuso.",
+          "voice": "Vuoi rifare la revisione del sistema senza il difetto di novembre. Allora il traguardo mancava, e il lavoro è cresciuto da una fase a sette."
+        }
+      ]
+    }
+  ],
+  "intent": {
+    "summary": "Ogni riga cambia con la tua risposta; dove salti resta l'**ipotesi** della carta.",
+    "voice": "Se accetti tutte le consigliate, il traguardo dice: tre decisioni entro due settimane, una pagina con al massimo sette decisioni, trenta punti di quota, e la chiusura quando pagina, controlli e linea di base ci sono.",
+    "output": "Uscita del passo 0: `~/brus/lavori/drydock/<AAAA-MM-GG>/traguardo.md`",
+    "rows": [
+      {
+        "key": "Perché",
+        "state": "confirmed",
+        "round": "giro 0",
+        "text": "Rifare la revisione del sistema senza il difetto di novembre: allora il traguardo mancava."
+      },
+      {
+        "key": "Decisioni",
+        "state": "open",
+        "card": "g1-decisioni"
+      },
+      {
+        "key": "Uscita",
+        "state": "open",
+        "card": "g1-lettura"
+      },
+      {
+        "key": "Bilancio",
+        "state": "open",
+        "card": "g1-bilancio"
+      },
+      {
+        "key": "Fatto quando",
+        "state": "open",
+        "card": "g1-fine"
+      },
+      {
+        "key": "Perimetro",
+        "state": "hypothesis",
+        "card": "g1-perimetro",
+        "note": "si sceglie al passo 1",
+        "text": "Da spuntare al passo 1. Work fuori."
+      }
+    ],
+    "question": {
+      "label": "Dice ciò che vuoi?",
+      "options": [
+        {
+          "value": "si",
+          "label": "Sì",
+          "recommended": true
+        },
+        {
+          "value": "quasi",
+          "label": "Quasi: correggo con l'annotazione"
+        },
+        {
+          "value": "no",
+          "label": "No: lo scrivo con l'annotazione"
+        }
+      ]
+    },
+    "grey": ["Quante sessioni per profilo leggere al passo 1: dipende dal costo di ognuna."]
+  }
+}

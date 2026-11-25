@@ -141,15 +141,16 @@ function taggedList(list, where) {
     return list;
 }
 // Title row of a card: the title, then its labels on the same line, then the «?» that opens the help panel in the flow.
-function cardHead(card, helpId) {
-    const title = '<h3>' + inline(card.title) + '</h3>';
+// The theme «vibe» names the fixed half after the genre of the card and titles the intent column with an h2.
+function cardHead(card, helpId, { meaning: meaningTitle = 'A cosa ti serve', tag = 'h3' } = {}) {
+    const title = '<' + tag + '>' + inline(card.title) + '</' + tag + '>';
     const labels = card.labels === undefined ? [] : taggedList(card.labels, 'Card ' + card.id + ': labels');
     if (!labels.length && card.help === undefined && card.summary === undefined)
         return title;
     let toggle = '', help = '';
     // The bubble has a fixed part (what the card means, the same on every page) and a summary written for this card.
     if (card.help !== undefined || card.summary !== undefined) {
-        const meaning = card.help === undefined ? '' : '<b class="mb-help-title">A cosa ti serve</b>' + filledParagraphs(card.help, 'Card ' + card.id + ': help is a text of one or more sentences, like "Serve a decidere se unire il ramo."');
+        const meaning = card.help === undefined ? '' : '<b class="mb-help-title">' + escape(meaningTitle) + '</b>' + filledParagraphs(card.help, 'Card ' + card.id + ': help is a text of one or more sentences, like "Serve a decidere se unire il ramo."');
         const summary = card.summary === undefined ? '' : '<div class="mb-help-summary"><b class="mb-help-title">Cosa notare qui</b>' + filledParagraphs(card.summary, 'Card ' + card.id + ': summary is a text of one or more sentences, like "Un solo file cambia: la riga 46 di src/cli.ts."') + '</div>';
         toggle = '<button class="mb-help-toggle" type="button" data-mb-help aria-expanded="false" aria-controls="' + helpId + '" aria-label="A cosa serve questa carta">?</button>';
         help = '<div class="mb-help" id="' + helpId + '" hidden>' + meaning + summary + '</div>';
@@ -692,6 +693,238 @@ function treeIndex(input) {
             input.sections.filter(x => x.group === g.id).map(item).join('') + '</div></div>';
     }).join('') + '</nav>';
 }
+// Theme «vibe» (Mattia, 25 novembre 2026: «approvato b2 arricchito»; laboratorio-stile/lavish/consolidamento/
+// vibe-B2-arricchito.html): the scaffold of the round interview. Rounds are the sections, shown as tabs, one at a time;
+// the intent is a column on the right, always visible, whose rows change while the reader answers; who speaks is a
+// two-column table, the question is a row of that table; the reason of the recommended answer shows on hover, long
+// press or keyboard focus, never in the card; there is no note field (a note is a Lavish annotation).
+// Every text goes through the escape above: no HTML from the JSON reaches the page.
+const VIBE = 'vibe';
+// Who speaks (S13 of 22 novembre 2026): one word each, a colour each (Ipotesi orange: yellow stays for the cards that
+// wait for an answer).
+const SPEAKERS = ['Tuo', 'Proposta', 'Verificato', 'Ipotesi', 'Dubbio'];
+// Genre of a card: its colour and the fixed upper half of its «?» (texts of the approved mockup). A card help replaces
+// the fixed text; the lower half, «Cosa notare qui», is the summary written for the card.
+const GENRES = {
+    ripasso: { name: 'Ripasso', help: 'Dice che cosa ho capito finora, e da dove viene ogni frase. Se una riga è sbagliata, correggila con l\'annotazione prima di rispondere alle domande.' },
+    domanda: { name: 'Domanda', help: 'Aspetta una tua scelta. La consigliata è la prima, evidenziata: un tocco sceglie, il secondo mette in coda. Per leggere perché la consiglio passa il mouse sulla risposta evidenziata; sul telefono tienila premuta. Se non rispondi, vale la consigliata. Una nota si scrive con l\'annotazione di Lavish.' },
+    ipotesi: { name: 'Ipotesi', help: 'Non è una domanda: è una cosa che do per buona senza la tua conferma. Resta arancione finché non la confermi o la correggi.' },
+    schizzo: { name: 'Schizzo', help: 'Mostra con un disegno una cosa che ha una forma. Non chiede niente.' },
+    chiuso: { name: 'Giro chiuso', help: 'È una carta di un giro già chiuso. La rileggi; per cambiarla usa l\'annotazione.' },
+};
+const INTENT_HELP = 'È il riassunto che si scrive mentre rispondi, sempre visibile. Verde: confermato. Giallo: in discussione nel giro aperto. Arancione: ipotesi.';
+// Card and page fields that exist only in this theme; elsewhere they stop the render.
+const VIBE_CARD_FIELDS = ['speakers', 'genre', 'outcome'];
+const onlyHere = where => where + ' exists only in the theme "vibe"; add "theme": "vibe" to the page or drop it';
+function rejectOutsideVibe(input) {
+    if (input.intent !== undefined)
+        throw new Error(onlyHere('intent'));
+    for (const section of input.sections || []) {
+        if (section && section.open !== undefined)
+            throw new Error(onlyHere('Section ' + section.id + ': open'));
+        for (const card of section?.cards || [])
+            for (const key of VIBE_CARD_FIELDS)
+                if (card && card[key] !== undefined)
+                    throw new Error(onlyHere('Card ' + card.id + ': ' + key));
+    }
+}
+// The tab of a round names it with the part of its title before « · » (Giro 1 · il traguardo → Giro 1).
+const roundName = title => String(title ?? '').split(' · ')[0].trim();
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+// Checks the page and returns what the renderer needs: the open round, card genres and statuses.
+function prepareVibe(input) {
+    if (input.tabs !== undefined)
+        throw new Error('The theme "vibe" always shows the rounds as tabs: drop tabs');
+    if (!input.intent || typeof input.intent !== 'object' || Array.isArray(input.intent))
+        throw new Error('The theme "vibe" needs an intent: { "rows": [{ "key": "Decisioni", "state": "open", "card": "<id of a card with a question>" }], "question": { ... } }');
+    const sections = input.sections || [];
+    const opened = sections.filter(s => s && s.open !== undefined);
+    if (opened.some(s => s.open !== true))
+        throw new Error('Section open must be true or absent');
+    if (opened.length > 1)
+        throw new Error('In the theme "vibe" only one section may be open (the round in progress): ' + opened.map(s => s.id).join(', '));
+    const open = opened[0] || sections[0] || null;
+    const cards = new Map();
+    for (const section of sections)
+        for (const card of section.cards || [])
+            if (card && typeof card.id === 'string')
+                cards.set(card.id, { card, section });
+    return { open, cards };
+}
+const genreOf = card => {
+    const genre = card.genre ?? (card.question ? 'domanda' : 'ripasso');
+    if (!Object.hasOwn(GENRES, genre))
+        throw new Error('Card ' + card.id + ': genre must be one of ' + Object.keys(GENRES).join(', ') + ' (got ' + JSON.stringify(card.genre) + ')');
+    return genre;
+};
+// A card of the theme: the checks of the fields the theme changes, before the shared rendering.
+function checkVibeCard(card) {
+    if (card.tone !== undefined)
+        throw new Error('Card ' + card.id + ': in the theme "vibe" the genre gives the colour: drop tone and use genre');
+    if (card.outcome !== undefined && (typeof card.outcome !== 'string' || !card.outcome.trim()))
+        throw new Error('Card ' + card.id + ': outcome is a short text for the list of a closed round, like "risposta nella nota"');
+    const q = card.question;
+    if (q) {
+        if (q.text !== undefined)
+            throw new Error('Card ' + card.id + ': the theme "vibe" has no note field: drop question.text (a note is a Lavish annotation)');
+        checkOptions(q, 'Card ' + card.id);
+        if (q.differ !== undefined && (typeof q.differ !== 'string' || !q.differ.trim()))
+            throw new Error('Card ' + card.id + ': question.differ says in a few words what the options differ in, like "quanto è largo l\'oggetto."');
+    }
+}
+function checkOptions(q, where) {
+    const shape = where + ': question.options is a list of { "value": "a", "label": "Risposta", "intent": "Text for the intent row" }; the first option is the recommended one, with "recommended": true, and no other';
+    if (!Array.isArray(q.options) || !q.options.length || q.options.some(o => !o || typeof o !== 'object' || typeof o.label !== 'string' || !o.label.trim() || (typeof o.value !== 'string' && typeof o.value !== 'number')
+        || (o.intent !== undefined && (typeof o.intent !== 'string' || !o.intent.trim()))))
+        throw new Error(shape);
+    if (q.options[0].recommended !== true || q.options.slice(1).some(o => o.recommended !== undefined && o.recommended !== false))
+        throw new Error(shape);
+    if (q.label !== undefined && typeof q.label !== 'string')
+        throw new Error(where + ': question.label is the question, a text');
+}
+// Who speaks, as a two-column table: an entry without who continues the cell above with a new paragraph.
+function speakerRows(card) {
+    if (card.speakers === undefined)
+        return [];
+    const shape = 'Card ' + card.id + ': speakers must be a list of { "who": "Tuo", "text": "Una frase." }, who one of ' + SPEAKERS.join(', ') + '; an entry without who continues the cell above';
+    if (!Array.isArray(card.speakers) || card.speakers.some(s => !s || typeof s !== 'object' || Array.isArray(s)))
+        throw new Error(shape);
+    const rows = [];
+    card.speakers.forEach((s, i) => {
+        if (s.who === undefined && i === 0)
+            throw new Error('Card ' + card.id + ': the first entry of speakers needs who (' + SPEAKERS.join(', ') + ')');
+        if (s.who !== undefined && !SPEAKERS.includes(s.who))
+            throw new Error('Card ' + card.id + ': who must be one of ' + SPEAKERS.join(', ') + ' (got ' + JSON.stringify(s.who) + ')');
+        const paragraph = filledParagraphs([s.text], shape);
+        if (s.who === undefined)
+            rows.at(-1).content += paragraph;
+        else
+            rows.push({ who: s.who, content: paragraph });
+    });
+    return rows;
+}
+const speakersTable = rows => '<table class="mb-fields mb-vibe-speakers"><tbody>' + rows.map(r => '<tr' + (r.question ? ' class="mb-vibe-question"' : '') + ' data-mb-who="' + r.who.toLowerCase() + '"><th scope="row">' + r.who + '</th><td>' + r.content + '</td></tr>').join('') + '</tbody></table>';
+// The answers under the table: tiles, the recommended first and highlighted, with no label. The markup of the options
+// is the one of every Bruvish question (radio, two taps and queue in artifact.js, marks, drafts), so the queue works as
+// on every page; the reason is a hidden tooltip that artifact-vibe.js shows on hover, keyboard focus or long press.
+function answers(id, q, answer, labelId, tipId, columns = q.options.some(o => o.label.length > 34) ? 1 : Math.min(q.options.length, 3)) {
+    const tip = tipId ? '<div class="mb-vibe-tip" id="' + tipId + '" role="tooltip" hidden><b>Perché la consiglio</b>' + filledParagraphs(q.reason, 'Card ' + id + ': question.reason is the reason of the recommended answer, one or two sentences') + paragraphs(['Se non rispondi, vale questa.']) + '</div>' : '';
+    return '<form data-mb-question="' + id + '" class="mb-vibe-answers"><fieldset aria-labelledby="' + labelId + '"><div class="mb-vibe-options mb-vibe-cols-' + columns + '">' +
+        q.options.map((o, i) => '<label class="option' + (i === 0 ? ' mb-recommended' : '') + '"><input data-mb-field="' + id + ':choice" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + (i === 0 && tipId ? ' aria-describedby="' + tipId + '"' : '') + '><span>' + inline(o.label) + '</span>' + QUEUED_MARK + '</label>').join('') +
+        tip + '</div><span class="queue-status" role="status"></span></fieldset></form>';
+}
+// The body of a card in the theme, after the title row: speakers table, the card paragraphs (where a figure placeholder
+// of artefatto-ai stays a plain sentence: the drawing replaces it after the render), then the question as a row of the
+// same table (of a second table when paragraphs came between), the answers and the remaining shared blocks.
+function vibeCardBody(card, answer, unique) {
+    const rows = speakerRows(card);
+    const body = paragraphs(card.paragraphs);
+    let question = '';
+    if (card.question) {
+        const q = card.question, labelId = unique('mb-q-' + card.id), tipId = q.reason !== undefined ? unique('mb-tip-' + card.id) : null;
+        const row = { who: 'Domanda', question: true, content: '<p class="mb-vibe-q" id="' + labelId + '">' + inline(q.label || 'La tua risposta') + '</p>' + (q.differ ? '<p class="mb-vibe-differ">Le opzioni differiscono per: ' + inline(q.differ) + '</p>' : '') };
+        if (body || !rows.length)
+            question = speakersTable([row]);
+        else
+            rows.push(row);
+        question += answers(card.id, q, answer, labelId, tipId);
+    }
+    return (rows.length ? speakersTable(rows) : '') + body + question;
+}
+// The list at the top of a closed round: each card with its answer (the chosen option, or the outcome written for it).
+function closedList(section, state) {
+    return '<div class="mb-vibe-closed-list">' + (section.cards || []).map(card => {
+        const choice = state.answers?.[card.id]?.choice, option = card.question?.options?.find(o => o.value === choice);
+        const answer = option ? inline(option.label) : card.outcome ? inline(card.outcome) : '';
+        return '<div class="mb-vibe-closed-item"><span>' + inline(card.title) + '</span><span class="mb-vibe-closed-answer">' + answer + '</span></div>';
+    }).join('') + '</div>';
+}
+// The bar of the rounds: on a phone the intent is the first tab; the open round is the current one; its counter says
+// how many questions still wait (artifact-vibe.js keeps it in step with the queue).
+function roundTabs(input, open, state) {
+    const waiting = open ? waitingIn(open, state) : 0;
+    return '<nav class="mb-vibe-tabs" aria-label="Giri"><a href="#intent" class="mb-vibe-tab mb-vibe-phone" data-mb-round="intent" data-lavish-action>Intent <small>in costruzione</small></a>' +
+        (input.sections || []).map(s => '<a href="#' + s.id + '" class="mb-vibe-tab" data-mb-round="' + s.id + '" data-lavish-action' + (s === open ? ' aria-current="page"' : '') + '>' + escape(roundName(s.title)) + ' ' +
+            (s === open ? '<small data-mb-round-count>' + (waiting ? plural(waiting, 'aperta', 'aperte') : 'nessuna aperta') + '</small>' : '<small>chiuso</small>') + '</a>').join('') + '</nav>';
+}
+const waitingIn = (section, state) => (section.cards || []).filter(c => c?.question && !state.answers?.[c.id]).length;
+// Header additions: the live status line and the legend of the colours.
+function headerStatus(open, state) {
+    const waiting = open ? waitingIn(open, state) : 0;
+    return '<p class="mb-vibe-status">' + (open ? '<span>' + escape(roundName(open.title)) + ' aperto · </span>' : '') + '<span data-mb-vibe-status>' + plural(waiting, 'domanda', 'domande') + ' in attesa · 0 risposte in coda</span></p>' +
+        '<p class="mb-vibe-colours" aria-label="Che cosa dicono i colori"><span data-mb-colour="giallo">aspetta te</span><span data-mb-colour="verde">risposta o confermato</span><span data-mb-colour="blu">fatti e ripasso</span><span data-mb-colour="viola">proposta o schizzo</span><span data-mb-colour="arancione">ipotesi, non verificato</span></p>';
+}
+// The intent column: rows in three states, the legend, the output, «Dice ciò che vuoi?», the grey zones. A row linked
+// to a card is a plain link, not a Lavish action, so the reader can still annotate it to correct the intent.
+function intentColumn(input, prep, state, unique) {
+    const it = input.intent;
+    for (const key of ['title', 'output'])
+        if (it[key] !== undefined && (typeof it[key] !== 'string' || !it[key].trim()))
+            throw new Error('intent.' + key + ' must be a non-empty text');
+    if (it.voice !== undefined && (typeof it.voice !== 'string' || !it.voice.trim()))
+        throw new Error('intent.voice must be a non-empty text to read aloud');
+    if (!Array.isArray(it.rows))
+        throw new Error('intent.rows must be a list of { "key": "Decisioni", "state": "confirmed" | "open" | "hypothesis", ... }');
+    if (it.grey !== undefined && (!Array.isArray(it.grey) || it.grey.some(g => typeof g !== 'string' || !g.trim())))
+        throw new Error('intent.grey must be a list of texts, one per grey zone');
+    const linked = card => {
+        if (card === undefined)
+            return null;
+        if (!prep.cards.has(card))
+            throw new Error('intent.rows: card must be the id of a card of this page (got ' + JSON.stringify(card) + ')');
+        return prep.cards.get(card);
+    };
+    const rowHtml = (r, attrs, href, value) => (href ? '<a class="mb-vibe-row" href="#' + href + '"' : '<div class="mb-vibe-row"') + attrs + '><span class="mb-vibe-key"><span class="mb-vibe-dot"></span>' + inline(r.key) + '</span><span class="mb-vibe-value">' + value + '</span>' + (href ? '</a>' : '</div>');
+    const rows = it.rows.map(r => {
+        if (!r || typeof r !== 'object' || typeof r.key !== 'string' || !r.key.trim())
+            throw new Error('intent.rows: every row needs a key, like { "key": "Decisioni", "state": "open", "card": "g1-decisioni" }');
+        if (!['confirmed', 'open', 'hypothesis'].includes(r.state))
+            throw new Error('intent.rows: state must be confirmed, open or hypothesis (row ' + JSON.stringify(r.key) + ')');
+        const text = t => '<span class="mb-vibe-text">' + inline(t) + '</span>';
+        const where = t => '<small class="mb-vibe-where">' + t + '</small>';
+        if (r.state === 'open') {
+            const found = linked(r.card);
+            if (!found || !found.card.question)
+                throw new Error('intent.rows: an open row needs the id of a card with a question, like { "key": "Decisioni", "state": "open", "card": "g1-decisioni" } (row ' + JSON.stringify(r.key) + ')');
+            const { card, section } = found, options = card.question.options, round = escape(roundName(section.title));
+            const say = o => o.intent ?? o.label;
+            const answer = state.answers?.[card.id], chosen = answer && options.find(o => o.value === answer.choice);
+            if (chosen)
+                return rowHtml(r, ' data-mb-row-state="confirmed"', card.id, text(say(chosen)) + where('confermato · ' + round));
+            return rowHtml(r, ' data-mb-row-state="open" data-mb-row-card="' + card.id + '" data-mb-row-round="' + round + '"', card.id,
+                options.map((o, i) => '<span class="mb-vibe-text" data-mb-option="' + escape(o.value) + '"' + (i ? ' hidden' : '') + '>' + inline(say(o)) + '</span>').join('') +
+                '<small class="mb-vibe-where" data-mb-where="open">in discussione · se non rispondi vale questa · vai alla carta ›</small><small class="mb-vibe-where" data-mb-where="queued" hidden>risposta in coda · ' + round + '</small><small class="mb-vibe-where" data-mb-where="sent" hidden>risposta inviata · ' + round + '</small>');
+        }
+        const found = linked(r.card);
+        if (r.state === 'confirmed') {
+            if (typeof r.text !== 'string' || !r.text.trim() || typeof r.round !== 'string' || !r.round.trim())
+                throw new Error('intent.rows: a confirmed row needs text and round, like { "key": "Perché", "state": "confirmed", "round": "giro 0", "text": "..." }');
+            return rowHtml(r, ' data-mb-row-state="confirmed"', found?.card.id, text(r.text) + where('confermato · ' + inline(r.round)));
+        }
+        if (typeof r.text !== 'string' || !r.text.trim() || (r.note !== undefined && (typeof r.note !== 'string' || !r.note.trim())))
+            throw new Error('intent.rows: a hypothesis row needs text (and may have a note), like { "key": "Perimetro", "state": "hypothesis", "text": "...", "note": "si sceglie al passo 1" }');
+        return rowHtml(r, ' data-mb-row-state="hypothesis"', found?.card.id, text(r.text) + where(['ipotesi', r.note ? inline(r.note) : '', found ? 'vai alla carta ›' : ''].filter(Boolean).join(' · ')));
+    }).join('');
+    const helpId = unique('mb-help-intent');
+    const head = cardHead({ id: 'intent', title: it.title || 'Intent in costruzione', help: it.help ?? INTENT_HELP, summary: it.summary }, helpId, { meaning: 'Intent · a cosa serve', tag: 'h2' });
+    const spoken = it.voice ? it.voice.trim() : [it.title || 'Intent in costruzione', ...it.rows.map(r => r.key + ': ' + (r.text ?? ''))].join('. ');
+    let close = '';
+    if (it.question !== undefined) {
+        const q = it.question;
+        if (!q || typeof q !== 'object' || Array.isArray(q))
+            throw new Error('intent.question must be { "label": "Dice ciò che vuoi?", "options": [{ "value": "si", "label": "Sì", "recommended": true }] }');
+        if (q.text !== undefined)
+            throw new Error('intent.question: the theme "vibe" has no note field: drop text (a note is a Lavish annotation)');
+        checkOptions(q, 'intent');
+        const labelId = unique('mb-q-intent'), tipId = q.reason !== undefined ? unique('mb-tip-intent') : null;
+        close = '<div class="mb-vibe-close"><p class="mb-vibe-q" id="' + labelId + '">' + inline(q.label || 'Dice ciò che vuoi?') + '</p>' + answers('intent', q, state.answers?.intent, labelId, tipId, 1) + '</div>';
+    }
+    return '<aside class="mb-vibe-intent" id="intent" aria-label="Intent"><div class="mb-vibe-intent-box"><button class="voice" type="button" data-mb-voice data-mb-voice-text="' + escape(spoken) + '" aria-label="Leggi l&#39;intent">🔊</button>' + head +
+        '<div class="mb-vibe-rows">' + rows + '</div>' +
+        '<p class="mb-vibe-legend"><span class="mb-vibe-dot" data-mb-dot="confirmed"></span>confermato · <span class="mb-vibe-dot" data-mb-dot="open"></span>in discussione · <span class="mb-vibe-dot" data-mb-dot="hypothesis"></span>ipotesi</p>' +
+        (it.output ? '<p class="mb-vibe-output">' + inline(it.output) + '</p>' : '') + close +
+        (it.grey?.length ? '<div class="mb-vibe-grey"><b>Zone grigie</b>' + it.grey.map(g => filledParagraphs([g], 'intent.grey')).join('') + '</div>' : '') + '</div></aside>';
+}
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action', 'variant', 'images'];
@@ -699,14 +932,15 @@ const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions', 'diagnostics', 'group
 const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || section.group !== undefined || section.dot !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
-// Themes asked by name only, never drawn: «revisione» is the look of the approved review page (S53, 22 novembre 2026).
-export const NAMED_THEMES = ['revisione'];
+// Themes asked by name only, never drawn: «revisione» is the look of the approved review page (S53, 22 novembre 2026);
+// «vibe» the scaffold of the round interview («B2 arricchito», 25 novembre 2026; see «Theme vibe» above).
+export const NAMED_THEMES = ['revisione', VIBE];
 export function familyFor(seed) { return FAMILIES[createHash('sha256').update(String(seed)).digest().readUInt32BE(0) % FAMILIES.length]; }
 // Canonical JSON: key order in input.json never changes a fingerprint.
 const canonical = value => Array.isArray(value) ? '[' + value.map(canonical).join(',') + ']' : value && typeof value === 'object' ? '{' + Object.keys(value).sort().filter(k => value[k] !== undefined).map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}' : JSON.stringify(value ?? null);
 // What the reader sees as written by the agent. The reader's own answers and unanswered comments are excluded.
 export function cardFingerprint(card, comments = []) {
-    const content = { title: card.title, status: card.status || 'info', paragraphs: card.paragraphs || [], fields: card.fields, metadata: card.metadata, clarification: card.clarification, question: card.question, ...Object.fromEntries(CARD_BLOCKS.map(k => [k, card[k]])), comments: comments.filter(c => c.response).map(c => ({ id: c.id, text: c.text, response: c.response })) };
+    const content = { title: card.title, status: card.status || 'info', paragraphs: card.paragraphs || [], fields: card.fields, metadata: card.metadata, clarification: card.clarification, question: card.question, ...Object.fromEntries([...CARD_BLOCKS, ...VIBE_CARD_FIELDS].map(k => [k, card[k]])), comments: comments.filter(c => c.response).map(c => ({ id: c.id, text: c.text, response: c.response })) };
     return createHash('sha256').update(canonical(content)).digest('hex').slice(0, 16);
 }
 // Reads the render record embedded by a previous render of the same artifact; null when absent or unreadable.
@@ -741,6 +975,11 @@ export async function renderDocument(input, options = {}) {
     const guided = family !== 'revisione';
     if (guided && !input.guide)
         throw new Error('title and a collapsible usage guide are required');
+    // The theme «vibe»: rounds as tabs and the intent column; its fields stop the render on any other page.
+    const vibe = family === VIBE;
+    if (!vibe)
+        rejectOutsideVibe(input);
+    const prep = vibe ? prepareVibe(input) : null;
     const fingerprints = {};
     for (const section of input.sections || [])
         for (const card of section.cards || [])
@@ -752,7 +991,7 @@ export async function renderDocument(input, options = {}) {
     const repeated = previous && sameCards(previous.cards, fingerprints) && previous.revision === revision;
     const base = previous ? (repeated ? (previous.base ?? null) : previous.cards) : null;
     const novelty = id => !base ? '' : !(id in base) ? 'new' : base[id] !== fingerprints[id] ? 'changed' : '';
-    const ids = new Set(['usage-guide', 'mb-state', 'mb-render']);
+    const ids = new Set(['usage-guide', 'mb-state', 'mb-render', ...(vibe ? ['intent'] : [])]);
     const unique = id => { if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(id || '') || ids.has(id))
         throw new Error('Every section/card needs a unique stable id: ' + id); ids.add(id); return id; };
     for (const section of input.sections || []) {
@@ -764,7 +1003,12 @@ export async function renderDocument(input, options = {}) {
     // In the theme «revisione» with tabs, the tab names the section: no heading repeats it.
     const review = family === 'revisione', tabTitled = review && (input.tabs === true || input.tabs === 'tree');
     const sections = (input.sections || []).map(section => {
-        return '<section id="' + section.id + '"' + (tabTitled ? ' aria-label="' + escape(section.title) + '">' : '><h2>' + escape(section.title) + '</h2>') + section.cards.map(card => {
+        const closed = vibe && section !== prep.open;
+        const opening = vibe ? '<section id="' + section.id + '" class="mb-vibe-round"' + (closed ? ' data-mb-closed' : '') + '><h2>' + escape(section.title) + '</h2>' + (closed ? closedList(section, state) : '')
+            : '<section id="' + section.id + '"' + (tabTitled ? ' aria-label="' + escape(section.title) + '">' : '><h2>' + escape(section.title) + '</h2>');
+        return opening + section.cards.map(card => {
+            if (vibe)
+                return vibeCard(card, section);
             let helpId;
             if (card.help !== undefined || card.summary !== undefined) {
                 helpId = 'mb-help-' + card.id;
@@ -795,6 +1039,28 @@ export async function renderDocument(input, options = {}) {
             return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
+    // A card of the theme «vibe»: colour and fixed help from its genre, who speaks in a table with the question as a row,
+    // the answers under it; the comments and the shared text blocks keep their rendering.
+    function vibeCard(card) {
+        for (const key of ['diff', 'action', 'variant'])
+            if (card[key] !== undefined)
+                throw new Error('Card ' + card.id + ': ' + key + ' is not part of the theme "vibe"');
+        checkVibeCard(card);
+        const genre = genreOf(card), answer = state.answers?.[card.id];
+        const status = answer ? 'answered' : (card.status || (card.question ? 'waiting' : 'info'));
+        if (!['waiting', 'answered', 'info', 'blocked'].includes(status))
+            throw new Error('Unknown card status');
+        let helpId = 'mb-help-' + card.id;
+        while (ids.has(helpId))
+            helpId += '-';
+        unique(helpId);
+        const context = (card.metadata || card.clarification) ? '<details class="context" data-mb-field="' + card.id + ':context"><summary>Contesto e chiarimenti</summary>' + (card.metadata ? '<div class="meta">' + inline(card.metadata) + '</div>' : '') + paragraphs(card.clarification ? [card.clarification] : []) + '</details>' : '';
+        const comments = (state.comments || []).filter(c => c.card === card.id);
+        const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
+        const fresh = novelty(card.id);
+        return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '" data-mb-genre="' + genre + '"' + (fresh ? ' data-mb-new="' + fresh + '"' : '') + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' +
+            cardHead({ ...card, help: card.help ?? GENRES[genre].help }, helpId, { meaning: GENRES[genre].name + ' · a cosa serve' }) + vibeCardBody(card, answer, unique) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + context + cardNotes(card) + follow + '</article>';
+    }
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));
     const blocks = usesBlocks(input, family), head = headerParts(input.header), actions = headerActions(input.actions);
     // A page with diagnostics is operated by an executor: after sending, the page says where the outcome will appear
@@ -807,12 +1073,13 @@ export async function renderDocument(input, options = {}) {
     const title = number ? escape(input.title.slice(0, number.index)) + ' <span class="mb-number">' + escape(number[0].slice(1)) + '</span>' : escape(input.title);
     // Header D (header.facts): the title is the first thing, without the PR number, which the facts table carries; the
     // operations and the state sit top right, in a fixed place that a long title does not move; the facts follow.
-    const intro = paragraphs(input.intro ? [input.intro] : []), pills = pillsOf(input.pills, (input.sections || []).map(section => section.id));
+    const intro = paragraphs(input.intro ? [input.intro] : []) + (vibe ? headerStatus(prep.open, state) : ''), pills = pillsOf(input.pills, (input.sections || []).map(section => section.id));
     const factsHeader = () => { const plain = / #\d+$/.exec(input.title), side = actions + head.badge;
         return '<header class="mb-header-facts"><div class="mb-header-top"><h1>' + escape(plain ? input.title.slice(0, plain.index) : input.title) + '</h1>' + (side ? '<div class="mb-header-side">' + side + '</div>' : '') + '</div>' + head.facts + intro + pills + '</header>'; };
     const classicHeader = () => (actions ? '<header class="mb-header-actions"><div class="mb-header-main">' : '<header>') + head.before + '<h1>' + title + '</h1>' + head.after + intro + pills + (actions ? '</div>' + actions : '') + '</header>';
-    const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
-    const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
+    const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : []), ...(vibe ? ['artifact-vibe.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
+    const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : []), ...(vibe ? ['artifact-vibe.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
+    const intent = vibe ? intentColumn(input, prep, state, unique) : '';
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + executor + nav + '>' + head.notice + (head.facts ? factsHeader() : classicHeader()) + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + executor + nav + (vibe ? ' data-mb-vibe' : '') + '>' + head.notice + (head.facts ? factsHeader() : classicHeader()) + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + (vibe ? roundTabs(input, prep.open, state) + '<div class="mb-vibe"' + (prep.open ? ' data-mb-vibe-open="' + prep.open.id + '"' : '') + '><div class="mb-vibe-rounds">' + sections + '</div>' + intent + '</div>' : sectionIndex(input) + sections) + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }
