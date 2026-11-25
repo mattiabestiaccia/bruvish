@@ -1,6 +1,19 @@
 # This fork runs no CI on GitHub, so the gate must not wait for checks.
 no_ci: true
 
+# Il passo lint del gate lancia i controlli del progetto. Il gate legge questi comandi solo
+# dalla copia di questo file sul ramo predefinito (carry) e li esegue nella copia del run,
+# fuori da ogni sandbox, sul codice del ramo spinto.
+# - prepare: installa le dipendenze dal lockfile, senza gli script di installazione. Così non
+#   lancia lo script `prepare` del ramo (`npm run build`): la build la fa già `check`.
+# - lint: build, lint, formattazione, tipi, tutte le prove e le verifiche di skill e plugin.
+#   Le prove di test/server-discovery.test.js aprono server sull'IPv4 non loopback della
+#   macchina: il processo del gate deve poterlo raggiungere (su macOS 15, permesso
+#   «Rete locale»), altrimenti 11 di quelle prove falliscono per l'ambiente.
+commands:
+  prepare: pnpm install --frozen-lockfile --ignore-scripts
+  lint: pnpm run check
+
 # Mattia, 25 novembre 2026 (S91): i testi che il gate scrive per una persona sono in
 # italiano. Il gate legge queste due istruzioni solo dalla copia di questo file sul ramo
 # predefinito del fork (carry), mai dal ramo spinto.
