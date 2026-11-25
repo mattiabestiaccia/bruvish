@@ -182,4 +182,16 @@ pnpm run check
 node --test bruvish/test/*.test.mjs app/test/*.test.mjs
 ```
 
+Il gate no-mistakes, nel passo lint, lancia i controlli di `pnpm run check` tranne `test/server-discovery.test.js` (`commands.prepare` e `commands.lint` in `.no-mistakes.yaml`).
+
+Quel file è escluso perché le sue prove aprono server sull'IPv4 non loopback della macchina e li interrogano dallo stesso processo. Su una macchina che non raggiunge il proprio IP locale, 11 di quelle prove falliscono con «other side closed» o `ECONNRESET`: è l'ambiente, non il codice. In una sandbox degli agenti ne falliscono di più, perché la sandbox limita anche processi, segnali e DNS.
+
+Il file si lancia a mano su una macchina dove questa verifica stampa `ok`:
+
+```sh
+node -e 'const http=require("http"),os=require("os");const ip=Object.values(os.networkInterfaces()).flat().find(a=>a&&a.family==="IPv4"&&!a.internal)?.address;if(!ip){console.log("nessun IPv4 non loopback");process.exit(1)}const s=http.createServer((q,r)=>r.end("ok")).listen(0,ip,()=>{fetch(`http://${ip}:${s.address().port}/`).then(r=>r.text()).then(t=>console.log(t),e=>console.log(String(e.cause||e))).finally(()=>s.close())})'
+```
+
+Se stampa `ok`: `node --test test/server-discovery.test.js`.
+
 `pnpm test` include anche le prove di Bruvish. Opzionali: `LAVISH_MB_TEST_CHROME` (Chrome for Testing) per le prove nel browser; `LAVISH_MB_TEST_DEDICATED=1` con `LAVISH_APP_BUNDLE` per la prova Electron; `BRUVISH_PARITY_CACHE=<voce della cache dello strato precedente>` per la parità con lo strato `lavish-mb`.

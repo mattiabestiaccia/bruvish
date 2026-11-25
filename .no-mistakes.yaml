@@ -1,6 +1,21 @@
 # This fork runs no CI on GitHub, so the gate must not wait for checks.
 no_ci: true
 
+# Il passo lint del gate lancia i controlli del progetto. Il gate legge questi comandi solo
+# dalla copia di questo file sul ramo predefinito (carry) e li esegue nella copia del run,
+# fuori da ogni sandbox, sul codice del ramo spinto.
+# - prepare: installa le dipendenze dal lockfile, senza gli script di installazione. Così non
+#   lancia lo script `prepare` del ramo (`npm run build`): la build la fa già `check`.
+# - lint: gli stessi passi dello script `check` di package.json, nello stesso ordine, ma le
+#   prove escludono test/server-discovery.test.js. Le sue prove aprono server sull'IPv4 non
+#   loopback della macchina, e su alcune macchine quelle connessioni si chiudono senza
+#   risposta: è l'ambiente, non il codice. Il file resta identico all'originale; si lancia a
+#   mano come dice la sezione «Prove» di BRUVISH.md.
+#   Se cambia lo script `check`, va aggiornato anche questo comando.
+commands:
+  prepare: pnpm install --frozen-lockfile --ignore-scripts
+  lint: pnpm run build && pnpm run lint && pnpm run format:check && pnpm run typecheck && node --test $(git ls-files -- '*.test.js' '*.test.mjs' '*.test.cjs' | grep -vx 'test/server-discovery.test.js') && node scripts/build-skill.js --check && node scripts/build-plugin.js --check
+
 # Mattia, 25 novembre 2026 (S91): i testi che il gate scrive per una persona sono in
 # italiano. Il gate legge queste due istruzioni solo dalla copia di questo file sul ramo
 # predefinito del fork (carry), mai dal ramo spinto.
