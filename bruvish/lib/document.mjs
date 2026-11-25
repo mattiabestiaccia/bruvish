@@ -362,7 +362,10 @@ function pillsOf(pills, sectionIds = []) {
 }
 // A table of several columns. A cell is a string with inline marks, where « · » separates two items that go on two
 // lines (never two items on one line), or { text, tone } for a level or an outcome in its semantic colour.
-function cardTable(card) {
+// table.nowrap lists the columns (from 0) whose header and cells keep one line on a wide screen, so the other columns
+// share the rest (Mattia, on the card «Rilievi»: «Rilievo» narrower, «Dove» wider). Only tree pages carry the rule
+// (artifact-tree.css): elsewhere the field is checked and the markup stays as without it.
+function cardTable(card, tree = false) {
     if (card.table === undefined)
         return '';
     const t = card.table, matrixShape = 'Card ' + card.id + ': a matrix needs column headers, row labels and cells with text, tone and detail, like { "variant": "matrix", "headers": ["Criterio", "Opzione A"], "rows": [["Costo", { "text": "+ basso", "tone": "verde", "detail": "perché" }]] }, with as many cells per row as headers';
@@ -373,6 +376,12 @@ function cardTable(card) {
         throw new Error(shape);
     if (t.variant !== undefined && t.variant !== 'matrix')
         throw new Error('Card ' + card.id + ': table.variant must be "matrix" or absent (got ' + JSON.stringify(t.variant) + ')');
+    const columns = t.headers ? t.headers.length : Math.max(0, ...t.rows.map(row => row.length));
+    if (t.nowrap !== undefined && (!Array.isArray(t.nowrap) || t.nowrap.some((n, i) => !Number.isInteger(n) || n < 0 || n >= columns || t.nowrap.indexOf(n) !== i)))
+        throw new Error('Card ' + card.id + ': table.nowrap must be a list of column numbers from 0, like [3] for the fourth column, each once and below ' + columns + ' (got ' + JSON.stringify(t.nowrap) + ')');
+    if (t.nowrap !== undefined && t.variant === 'matrix')
+        throw new Error('Card ' + card.id + ': table.nowrap is for plain tables, not for the matrix');
+    const keep = i => tree && t.nowrap?.includes(i) ? ' data-mb-nowrap' : '';
     if (t.variant === 'matrix') {
         if (!t.headers || t.headers.length < 2 || t.headers.some(h => !h.trim()) || t.rows.length === 0 || t.rows.some(row =>
             typeof row[0] !== 'string' || !row[0].trim() || row.slice(1).some(c => typeof c === 'string' ||
@@ -396,7 +405,7 @@ function cardTable(card) {
         return '<div class="mb-matrix" data-mb-matrix>' + table + detail + cards + '</div>';
     }
     const cell = c => typeof c === 'string' ? c.split(' · ').map(inline).join('<br>') : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
-    return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map(h => '<th scope="col">' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map(c => '<td>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+    return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map((h, i) => '<th scope="col"' + keep(i) + '>' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map((c, i) => '<td' + keep(i) + '>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 }
 // Images of a card (Mattia, 25 November 2026: screenshots taken in the VM): each a file beside the page, by name only
 // (png, jpg, jpeg, webp; no URL, no path, no ..), with a one-line caption. A grid of figures, the caption under each,
@@ -1046,7 +1055,7 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage, filesPage && input.tabs === 'tree') + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card, input.tabs === 'tree') + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage, filesPage && input.tabs === 'tree') + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     // A card of the theme «vibe»: colour and fixed help from its genre, who speaks in a table with the question as a row,

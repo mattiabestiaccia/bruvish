@@ -38,3 +38,7 @@ main[data-mb-nav=tree] .mb-diff-tools{display:flex;flex-wrap:wrap;gap:8px}
 .mb-diff-wrap[aria-pressed=true]{color:var(--ink);border-color:var(--title);background:color-mix(in srgb,var(--title) 14%,var(--card))}
 main[data-mb-nav=tree] .mb-diff-lines td.mb-code{white-space:pre-wrap;overflow-wrap:anywhere}
 main[data-mb-nav=tree][data-mb-wrap=off] .mb-diff-lines td.mb-code{white-space:pre;overflow-wrap:normal}
+/* table.nowrap: the listed columns keep one line, so the others share the rest; on a phone, where the table scrolls
+   sideways, they wrap again so no text runs off the screen. */
+main[data-mb-nav=tree] .mb-table [data-mb-nowrap]{white-space:nowrap}
+@media(max-width:600px){main[data-mb-nav=tree] .mb-table [data-mb-nowrap]{white-space:normal}}

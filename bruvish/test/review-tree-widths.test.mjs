@@ -205,7 +205,7 @@ test('the examples revisione-albero render with the tree assets, one card width 
 // di così, mentre dove deve essere un po' più larga»): table.nowrap lists the columns, from 0, whose header and cells keep
 // one line on a wide screen; the other columns share the rest. Only tree pages carry the rule (artifact-tree.css).
 const findings = (extra = {}) => ({ id: 'c-rilievi', title: 'Rilievi', table: { headers: ['#', 'Rilievo', 'Gravità', 'Dove'], rows: [['1', 'Un rilievo lungo che va a capo.', { text: 'alta', tone: 'rosso' }, '`tests/pr_revisione_test.py:1186`']], ...extra } });
-const withFindings = (table, page = treePage) => page({ sections: [{ id: 'rilievi', title: 'Rilievi', cards: [findings(table)] }] });
+const withFindings = table => treePage({ groups: undefined, sections: [{ id: 'rilievi', title: 'Rilievi', cards: [findings(table)] }] });
 
 test('table.nowrap: the listed columns keep one line on a wide tree page, header included; on a phone they wrap again', async () => {
     const html = await render(withFindings({ nowrap: [0, 3] })), css = styleOf(html);
@@ -228,8 +228,10 @@ test('table.nowrap: a wrong shape stops the render with the right one; a page wi
     await assert.rejects(render(withFindings({ nowrap: [0], variant: 'matrix', headers: ['Criterio', 'A'], rows: [['Costo', { text: 'basso', tone: 'verde', detail: 'perché' }]] })), /table\.nowrap is for plain tables, not for the matrix/);
     // Without headers the columns are counted on the widest row.
     assert.match(body(await render(withFindings({ headers: undefined, nowrap: [3] }))), /<td data-mb-nowrap><code>/);
-    // A page without the tree has no rule for it: the field is checked and the markup stays as without it.
+    // A page without the tree has no rule for it: the field is checked and the page stays as without it, but for the card
+    // fingerprint of the render record, which covers the whole table as for any other table field.
     const plainPage = extra => ({ ...tabsPage, sections: [{ id: 'rilievi', title: 'Rilievi', cards: [findings(extra)] }] });
-    assert.equal(await render(plainPage({ nowrap: [3] })), await render(plainPage()));
+    const withoutRecord = html => html.replace(/<script type="application\/json" id="mb-render">[\s\S]*?<\/script>/, '');
+    assert.equal(withoutRecord(await render(plainPage({ nowrap: [3] }))), withoutRecord(await render(plainPage())));
     await assert.rejects(render(plainPage({ nowrap: [9] })), shape);
 });
