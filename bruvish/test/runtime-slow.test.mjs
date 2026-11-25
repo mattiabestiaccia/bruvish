@@ -294,6 +294,26 @@ test('open discovery takes a free loopback port as free after one attempt', asyn
     assert.equal(requests, 1);
 });
 
+test('open discovery takes a port that closes after a late answer as free', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const refused = new TypeError('fetch failed', { cause: { code: 'ECONNREFUSED' } });
+    let requests = 0;
+    const result = discoverHealth('127.0.0.1', LOOPBACK_URL, () => assert.fail('upstream probe used'), {
+        fetchImpl: (url, { signal }) => {
+            requests += 1;
+            if (requests === 1) {
+                return new Promise((_resolve, reject) => {
+                    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+                });
+            }
+            return Promise.reject(refused);
+        },
+    });
+    t.mock.timers.tick(700);
+    assert.equal(await result, null);
+    assert.equal(requests, 2);
+});
+
 test('discovery keeps the upstream probe for other addresses and outside open', async () => {
     const upstreamAnswer = { app: 'lavish-axi', state_dir: STATE };
     const noFetch = () => assert.fail('Bruvish probe used');

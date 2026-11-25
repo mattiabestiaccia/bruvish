@@ -36,7 +36,7 @@ async function probeOnce(fetchImpl, url, timeoutMs) {
   try {
     let response;
     try {
-      response = await fetchImpl(url, { signal: controller.signal, redirect: "manual" });
+      response = await fetchImpl(url, { signal: controller.signal });
     } catch (error) {
       return error.name === "AbortError" ? TIMED_OUT : { unreachable: error };
     }
@@ -50,14 +50,14 @@ async function probeOnce(fetchImpl, url, timeoutMs) {
   }
 }
 
-// Asks once per window while the answer is late. Only a first /health attempt that finds nothing
-// listening means "no server" (null): a connection failure after a late answer proves nothing.
-async function probe(fetchImpl, url, endpoint, windows) {
+// Asks once per window while the answer is late. A closed port means "no server" (null) only in the
+// first `freeAttempts` attempts; past them, a connection failure rejects.
+async function probe(fetchImpl, url, endpoint, windows, freeAttempts = 0) {
   for (const [attempt, windowMs] of windows.entries()) {
     const result = await probeOnce(fetchImpl, url, windowMs);
     if (result === TIMED_OUT) continue;
     if (result.unreachable) {
-      if (endpoint === "/health" && attempt === 0) return null;
+      if (attempt < freeAttempts) return null;
       throw result.unreachable;
     }
     return result;
@@ -74,7 +74,7 @@ async function probe(fetchImpl, url, endpoint, windows) {
 export async function assertCompatibleServer(env, identity, { fetchImpl = fetch } = {}) {
   const origin = `http://127.0.0.1:${env.LAVISH_AXI_PORT}`;
   const windows = probeWindows();
-  const health = await probe(fetchImpl, `${origin}/health`, "/health", windows);
+  const health = await probe(fetchImpl, `${origin}/health`, "/health", windows, 1);
   if (health === null) return;
   if (!health.ok) throw new Error("Port is occupied by a server without a healthy Lavish endpoint");
   if (health.body?.app !== "lavish-axi") throw new Error("Port belongs to another service");
@@ -97,9 +97,12 @@ export async function assertCompatibleServer(env, identity, { fetchImpl = fetch 
 // Upstream discovery (`BRUVISH:hook open-discovery`) decides whether to adopt or start a server
 // from one short /health read per candidate address. For `open`, loopback, where the Bruvish
 // server listens, gets the same growing waits as the check above, so a late answer is reported as
-// slow instead of being taken for a free port and a second server start. Elsewhere it is upstream's.
+// slow instead of being taken for a free port and a second server start. The build check has
+// already passed here, so a closed port at any attempt means no server, as upstream reads it.
+// Elsewhere it is upstream's.
 export async function discoverHealth(host, baseUrl, upstreamProbe, { fetchImpl = fetch } = {}) {
   if (!retrying || host !== LOOPBACK) return upstreamProbe();
-  const health = await probe(fetchImpl, `${baseUrl}/health`, "/health", probeWindows());
+  const windows = probeWindows();
+  const health = await probe(fetchImpl, `${baseUrl}/health`, "/health", windows, windows.length);
   return health?.ok && health.body && typeof health.body === "object" ? health.body : null;
 }
