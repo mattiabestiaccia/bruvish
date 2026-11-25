@@ -299,3 +299,37 @@ textarea.mb-op-text{min-height:90px}
 .mb-actions-icons .mb-actions-menu>summary.mb-icon-button{padding:0;font-size:inherit;border-radius:9px}
 .mb-icon-button[data-mb-icon=chiudi]{border-color:var(--mb-red);color:var(--mb-red)}
 .mb-icon-button:hover,.mb-icon-button:focus-visible{border-color:var(--title)}
+
+/* Tree navigation bar (tabs: "tree", Mattia, 25 novembre 2026, laboratorio-stile/lavish/revisione-pr/
+   barra-di-navigazione-albero.html). Wide: vertical on the left, kept in view while the cards scroll; a group opens on
+   its parts. Phone: the same tree as a horizontal bar on two rows. */
+.mb-tree-dot{width:.6em;height:.6em;border-radius:50%;flex:none;background:var(--mb-green)}
+.mb-tree-dot[data-dot=giallo]{background:#e8c35a}
+.mb-tree-dot[data-dot=rosso]{background:var(--mb-red)}
+.mb-tree-dot[data-dot=vuoto]{background:transparent;border:1px solid var(--muted)}
+main[data-mb-nav=tree] nav.mb-tree a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{display:flex;align-items:center;gap:8px;line-height:1.25}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{width:100%;font:inherit;text-align:left;background:none;border:1px solid transparent;border-radius:7px;color:var(--muted);cursor:pointer}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch:hover,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch:focus-visible{color:var(--ink);border-color:var(--line)}
+main[data-mb-nav=tree] nav.mb-tree .mb-count{margin-left:auto;padding:0;border:0;background:none;font-size:13px;color:var(--muted);white-space:nowrap}
+.mb-tree-arrow{display:inline-block;width:1em;flex:none;font-size:12px;color:var(--muted);transition:transform .15s}
+.mb-tree-branch[aria-expanded=true] .mb-tree-arrow{transform:rotate(90deg)}
+@media (prefers-reduced-motion:reduce){.mb-tree-arrow{transition:none}}
+@media(min-width:761px){main[data-mb-nav=tree]{display:grid;grid-template-columns:236px minmax(0,1fr);column-gap:28px;align-items:start}
+main[data-mb-nav=tree]>*{grid-column:1/-1}
+main[data-mb-nav=tree]>nav.mb-tree{grid-column:1;position:sticky;top:12px;align-self:start;display:flex;flex-direction:column;flex-wrap:nowrap;justify-content:flex-start;gap:2px;margin:14px 0 0;padding:10px 8px 10px 0;border:0;border-right:1px solid var(--line);backdrop-filter:none;max-height:calc(100vh - 24px);overflow-y:auto}
+main[data-mb-nav=tree]>section{grid-column:2;margin-top:14px}
+main[data-mb-nav=tree] .card{scroll-margin-top:24px}
+main[data-mb-nav=tree] nav.mb-tree a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{font-size:16px;padding:6px 10px}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{display:flex;flex-direction:column;gap:1px;margin:0 0 4px 17px;padding-left:8px;border-left:1px solid var(--line)}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{font-size:15px;padding:4px 8px}}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children[hidden]{display:none}
+@media(max-width:760px){main[data-mb-nav=tree] nav.mb-tree{display:flex;flex-wrap:wrap;gap:2px;padding-bottom:0}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-group{display:contents}
+main[data-mb-nav=tree] nav.mb-tree>a,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch{order:0;flex:1 1 0;width:auto;flex-wrap:wrap;justify-content:center;gap:1px 5px;padding:6px 2px 5px;border:0;border-bottom:3px solid transparent;border-radius:0;background:none;font-size:14.5px;white-space:nowrap}
+main[data-mb-nav=tree] nav.mb-tree>a[aria-current=page],main[data-mb-nav=tree] nav.mb-tree .mb-tree-group:has(a[aria-current]) .mb-tree-branch{color:var(--ink);background:none;border-color:transparent;border-bottom-color:var(--title);font-weight:650}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-arrow{display:none}
+main[data-mb-nav=tree] nav.mb-tree>a .mb-count,main[data-mb-nav=tree] nav.mb-tree .mb-tree-branch .mb-count{flex-basis:100%;margin:0;text-align:center;font-size:12px}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{order:1;flex:1 0 100%;display:none;gap:6px;overflow-x:auto;padding:8px 2px;border-top:1px solid var(--line);scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-group:has(a[aria-current])>.mb-tree-children{display:flex}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{flex:none;font-size:14px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
+main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a .mb-count{margin-left:4px}}

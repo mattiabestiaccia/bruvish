@@ -104,6 +104,12 @@
                 new ResizeObserver(() => document.documentElement.style.setProperty('--mb-tabs-height', bar.offsetHeight + 'px')).observe(bar);
             const links = [...bar.querySelectorAll('a[data-mb-tab]')];
             const panels = links.map(link => document.getElementById(link.dataset.mbTab)).filter(Boolean);
+            // Tree bar (tabs: "tree"): the group of the page shown is open, the others close; a branch opens or closes its
+            // parts without changing the page, and on a phone it opens the first part of its group.
+            const groups = bar.classList.contains('mb-tree') ? [...bar.querySelectorAll('.mb-tree-group')] : [];
+            const branchOf = group => group.querySelector('.mb-tree-branch'), partsOf = group => group.querySelector('.mb-tree-children');
+            const linksOf = group => links.filter(link => group.contains(link));
+            const setOpen = (group, open) => { partsOf(group).hidden = !open; branchOf(group).setAttribute('aria-expanded', String(open)); };
             const show = id => {
                 if (!panels.some(panel => panel.id === id))
                     return;
@@ -112,6 +118,7 @@
                     link.setAttribute('aria-current', 'page');
                 else
                     link.removeAttribute('aria-current'); });
+                groups.forEach(group => setOpen(group, linksOf(group).some(link => link.dataset.mbTab === id)));
             };
             const panelOf = el => panels.find(panel => panel === el || panel.contains(el)) || null;
             const target = () => { let id = ''; try {
@@ -129,6 +136,15 @@
                 catch { }
             };
             links.forEach(link => link.addEventListener('click', event => go(event, link.dataset.mbTab)));
+            groups.forEach(group => branchOf(group).addEventListener('click', event => {
+                const own = linksOf(group);
+                if (window.matchMedia?.('(max-width: 760px)').matches) {
+                    if (own[0] && !own.some(link => link.getAttribute('aria-current') === 'page'))
+                        go(event, own[0].dataset.mbTab);
+                    return;
+                }
+                setOpen(group, partsOf(group).hidden);
+            }));
             document.querySelectorAll('a[data-mb-goto]').forEach(link => link.addEventListener('click', event => {
                 if (!panels.some(panel => panel.id === link.dataset.mbGoto))
                     return;

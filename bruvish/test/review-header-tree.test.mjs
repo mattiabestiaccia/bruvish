@@ -194,3 +194,103 @@ const treePage = (extra = {}) => ({
     ],
     ...extra,
 });
+
+test('tabs "tree": a vertical tree of top items and groups, in JSON order, with status dots and counts', async () => {
+    const html = await render(treePage());
+    const b = body(html);
+    assert.match(b, /<main data-mb-nav="tree"><header>/);
+    assert.match(b, /<nav class="mb-tabs mb-tree" aria-label="Schede"><a href="#sintesi" data-mb-tab="sintesi" data-lavish-action><span class="mb-tree-name">Sintesi<\/span><\/a><div class="mb-tree-group" data-mb-group="gate"><button type="button" class="mb-tree-branch" data-mb-branch aria-expanded="true" aria-controls="mb-group-gate" data-lavish-action><span class="mb-tree-arrow" aria-hidden="true">▸<\/span><span class="mb-tree-dot" data-dot="verde" aria-hidden="true"><\/span><span class="mb-tree-name">Gate<\/span><span class="mb-count">9 su 9<\/span><\/button><div class="mb-tree-children" id="mb-group-gate" role="group" aria-label="Gate"><a href="#intent" data-mb-tab="intent" data-lavish-action><span class="mb-tree-dot" data-dot="verde" aria-hidden="true"><\/span><span class="mb-tree-name">Intent<\/span><\/a><a href="#revisione" data-mb-tab="revisione" data-lavish-action><span class="mb-tree-dot" data-dot="giallo" aria-hidden="true"><\/span><span class="mb-tree-name">Revisione<\/span><span class="mb-count">4 corretti<\/span><\/a>/);
+    const { document } = boot(html);
+    const nav = document.querySelector('nav.mb-tree');
+    assert.deepEqual(nav.elements.map(e => e.tagName === 'a' ? e.dataset.mbTab : e.dataset.mbGroup), ['sintesi', 'gate', 'modifiche', 'storia']);
+    assert.deepEqual(document.querySelectorAll('#mb-group-modifiche a').map(a => a.dataset.mbTab), ['file', 'commit']);
+    // The tab names the section, as with tabs: true.
+    assert.equal(document.querySelectorAll('section h2').length, 0);
+    assert.equal(document.getElementById('intent').getAttribute('aria-label'), 'Intent');
+    // A group sits where its first section is: here a top item after a group keeps its place.
+    const late = treePage();
+    late.sections = [late.sections[1], late.sections[0], ...late.sections.slice(2)];
+    const order = boot(await render(late)).document.querySelector('nav.mb-tree').elements.map(e => e.tagName === 'a' ? e.dataset.mbTab : e.dataset.mbGroup);
+    assert.deepEqual(order, ['gate', 'sintesi', 'modifiche', 'storia']);
+});
+
+test('the tree shows one page at a time: a child opens its group, a branch opens or closes, the hash and a reveal still work', async () => {
+    const html = await render(treePage());
+    const { document, window } = boot(html);
+    const section = id => document.getElementById(id), link = id => document.querySelector('a[data-mb-tab="' + id + '"]');
+    const branch = id => document.querySelector('[data-mb-group="' + id + '"] .mb-tree-branch'), children = id => document.getElementById('mb-group-' + id);
+    const visible = () => document.querySelectorAll('main > section').filter(s => !s.hidden).map(s => s.id);
+    assert.deepEqual(visible(), ['sintesi']);
+    assert.equal(link('sintesi').getAttribute('aria-current'), 'page');
+    for (const g of ['gate', 'modifiche', 'storia']) {
+        assert.equal(children(g).hidden, true, g + ' starts closed: Sintesi is open');
+        assert.equal(branch(g).getAttribute('aria-expanded'), 'false');
+    }
+    // A branch opens and closes its parts without changing the page.
+    branch('gate').click();
+    assert.equal(children('gate').hidden, false);
+    assert.equal(branch('gate').getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(visible(), ['sintesi']);
+    branch('gate').click();
+    assert.equal(children('gate').hidden, true);
+    // A part shows its page and opens its group; the other groups close.
+    assert(document.dispatch(link('commit'), 'click').defaultPrevented);
+    assert.deepEqual(visible(), ['commit']);
+    assert.equal(link('commit').getAttribute('aria-current'), 'page');
+    assert.equal(link('sintesi').getAttribute('aria-current'), null);
+    assert.equal(children('modifiche').hidden, false);
+    assert.equal(window.location.hash, '#commit');
+    // A link to a card in another page opens that page and its group.
+    window.location.hash = '#c-rev';
+    window.fire('hashchange');
+    assert.deepEqual(visible(), ['revisione']);
+    assert.equal(children('gate').hidden, false);
+    assert.equal(children('modifiche').hidden, true);
+    window.post({ type: 'lavish:revealElement', selector: '#c-cron' });
+    assert.deepEqual(visible(), ['cronologia']);
+    assert.equal(branch('storia').getAttribute('aria-expanded'), 'true');
+    // Opening on a hash shows that page with its group open.
+    const deep = boot(html, { hash: '#c-file' }).document;
+    assert.equal(deep.getElementById('file').hidden, false);
+    assert.equal(deep.getElementById('mb-group-modifiche').hidden, false);
+});
+
+test('on a phone a branch opens the first part of its group, and the bar is a two-row horizontal bar', async () => {
+    const html = await render(treePage());
+    const { document } = boot(html, { matchMedia: query => ({ matches: /max-width:\s*760px/.test(query) }) });
+    const visible = () => document.querySelectorAll('main > section').filter(s => !s.hidden).map(s => s.id);
+    document.querySelector('[data-mb-group="gate"] .mb-tree-branch').click();
+    assert.deepEqual(visible(), ['intent']);
+    document.querySelector('a[data-mb-tab="ci"]').click();
+    document.querySelector('[data-mb-group="gate"] .mb-tree-branch').click();
+    assert.deepEqual(visible(), ['ci'], 'the open group stays on its page');
+    const css = styleOf(html);
+    // Wide: a grid of the bar on the left, kept in view, and the page; the files page takes all the width that is left.
+    assert.match(css, /@media\(min-width:761px\)\{main\[data-mb-nav=tree\]\{display:grid;grid-template-columns:236px minmax\(0,1fr\)/);
+    assert.match(css, /main\[data-mb-nav=tree\]>nav\.mb-tree\{[^}]*position:sticky/);
+    // Phone: top items on the first row, the parts of the open group on a second row that scrolls sideways.
+    assert.match(css, /@media\(max-width:760px\)\{[^@]*nav\.mb-tree \.mb-tree-group\{display:contents\}[^@]*nav\.mb-tree \.mb-tree-group:has\(a\[aria-current\]\)>\.mb-tree-children\{display:flex\}/);
+    assert.match(css, /nav\.mb-tree \.mb-tree-children\{[^}]*overflow-x:auto/);
+});
+
+test('tree fields: a wrong group, dot or tabs value stops the render; groups need tabs "tree"; a page with tabs: true is unchanged', async () => {
+    await assert.rejects(render(treePage({ tabs: 'albero' })), /tabs must be true or false, or "tree" for the tree bar/);
+    await assert.rejects(render(treePage({ tabs: true })), /groups and section groups need "tabs": "tree"/);
+    await assert.rejects(render(treePage({ groups: [{ id: 'gate', title: 'Gate', dot: 'blu' }] })), /dot must be one of verde, giallo, rosso, vuoto/);
+    const unknown = treePage();
+    unknown.sections[1] = { ...unknown.sections[1], group: 'nessuno' };
+    await assert.rejects(render(unknown), /Section intent: group must be the id of one of the groups/);
+    await assert.rejects(render(treePage({ groups: [{ id: 'gate' }] })), /groups must be an array of/);
+    await assert.rejects(render(treePage({ groups: [{ id: 'gate', title: 'Gate' }, { id: 'gate', title: 'Gate' }] })), /unique stable id/);
+    const dot = treePage();
+    dot.sections[0] = { ...dot.sections[0], dot: 'blu' };
+    await assert.rejects(render(dot), /Section sintesi: dot must be one of/);
+    const empty = treePage();
+    empty.groups = [...empty.groups, { id: 'vuoto', title: 'Vuoto' }];
+    await assert.rejects(render(empty), /Group vuoto has no section/);
+    // Escape: titles and counts of groups and sections are plain text.
+    const evil = treePage({ groups: [{ id: 'gate', title: '<i>Gate</i>', count: '<b>9</b>' }, ...treePage().groups.slice(1)] });
+    const b = body(await render(evil));
+    assert.match(b, /<span class="mb-tree-name">&lt;i&gt;Gate&lt;\/i&gt;<\/span><span class="mb-count">&lt;b&gt;9&lt;\/b&gt;<\/span>/);
+});
+

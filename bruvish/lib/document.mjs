@@ -590,8 +590,10 @@ function withDiagnostics(input) {
 // section at a time; without JS every section stays visible, one under the other. A section count shows beside its title.
 const countOk = n => (Number.isInteger(n) && n >= 0) || (typeof n === 'string' && n.trim());
 function sectionIndex(input) {
-    if (input.tabs !== undefined && typeof input.tabs !== 'boolean')
-        throw new Error('tabs must be true or false');
+    if (input.tabs !== undefined && typeof input.tabs !== 'boolean' && input.tabs !== 'tree')
+        throw new Error('tabs must be true or false, or "tree" for the tree bar');
+    if (input.tabs === 'tree')
+        return treeIndex(input);
     const tabs = input.tabs === true;
     return '<nav' + (tabs ? ' class="mb-tabs" aria-label="Schede"' : '') + '>' + input.sections.map(s => {
         if (s.count !== undefined && !countOk(s.count))
@@ -599,11 +601,69 @@ function sectionIndex(input) {
         return '<a href="#' + s.id + '"' + (tabs ? ' data-mb-tab="' + s.id + '" data-lavish-action' : '') + '>' + escape(s.title) + (s.count === undefined ? '' : '<span class="mb-count">' + escape(s.count) + '</span>') + '</a>';
     }).join('') + '</nav>';
 }
+// Tree navigation bar (tabs: "tree", Mattia, 25 November 2026, laboratorio-stile/lavish/revisione-pr/
+// barra-di-navigazione-albero.html): top items and groups, in the order of the JSON; a group sits where its first section
+// is and lists its sections as its parts. Beside an item: a status dot and a count or a short note. Wide, the bar is
+// vertical on the left and stays put while the cards scroll; on a phone it is horizontal on two rows (top items, then the
+// parts of the open group). The renderer knows nothing of a gate: groups, dots and counts come from the JSON.
+export const DOTS = ['verde', 'giallo', 'rosso', 'vuoto'];
+function checkTree(input, unique) {
+    if (input.tabs !== undefined && typeof input.tabs !== 'boolean' && input.tabs !== 'tree')
+        throw new Error('tabs must be true or false, or "tree" for the tree bar');
+    const tree = input.tabs === 'tree', sections = input.sections || [];
+    if (!tree && (input.groups !== undefined || sections.some(s => s && (s.group !== undefined || s.dot !== undefined))))
+        throw new Error('groups and section groups need "tabs": "tree"; so does a section dot');
+    if (!tree)
+        return;
+    const groups = input.groups ?? [];
+    const shape = 'groups must be an array of { "id": "gate", "title": "Gate", "dot": "verde", "count": "9 su 9" }, with dot and count optional';
+    if (!Array.isArray(groups) || groups.some(g => !g || typeof g !== 'object' || Array.isArray(g) || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(g.id || '') || typeof g.title !== 'string' || !g.title.trim()))
+        throw new Error(shape);
+    const dotOf = (dot, where) => { if (dot !== undefined && !DOTS.includes(dot))
+        throw new Error(where + ': dot must be one of ' + DOTS.join(', ') + ' (got ' + JSON.stringify(dot) + ')'); };
+    for (const g of groups) {
+        unique('mb-group-' + g.id);
+        dotOf(g.dot, 'Group ' + g.id);
+        if (g.count !== undefined && !countOk(g.count))
+            throw new Error('Group ' + g.id + ': count must be a whole number or a short text, like 3 or "9 su 9"');
+    }
+    const ids = groups.map(g => g.id);
+    for (const s of sections) {
+        dotOf(s.dot, 'Section ' + s.id);
+        if (s.group !== undefined && !ids.includes(s.group))
+            throw new Error('Section ' + s.id + ': group must be the id of one of the groups, like ' + JSON.stringify(ids[0] || 'gate') + ' (got ' + JSON.stringify(s.group) + ')');
+    }
+    const empty = groups.find(g => !sections.some(s => s.group === g.id));
+    if (empty)
+        throw new Error('Group ' + empty.id + ' has no section: give it at least one section with "group": ' + JSON.stringify(empty.id) + ', or drop it');
+}
+function treeIndex(input) {
+    const dot = d => d === undefined ? '' : '<span class="mb-tree-dot" data-dot="' + d + '" aria-hidden="true"></span>';
+    const count = n => n === undefined ? '' : '<span class="mb-count">' + escape(n) + '</span>';
+    const item = s => {
+        if (s.count !== undefined && !countOk(s.count))
+            throw new Error('Section ' + s.id + ': count must be a whole number or a short text, like 3 or "2 nuove"');
+        return '<a href="#' + s.id + '" data-mb-tab="' + s.id + '" data-lavish-action>' + dot(s.dot) + '<span class="mb-tree-name">' + escape(s.title) + '</span>' + count(s.count) + '</a>';
+    };
+    const groups = new Map((input.groups || []).map(g => [g.id, g])), done = new Set();
+    // Groups start open: without the script every part stays reachable; the script closes the ones not in use.
+    return '<nav class="mb-tabs mb-tree" aria-label="Schede">' + input.sections.map(s => {
+        if (s.group === undefined)
+            return item(s);
+        if (done.has(s.group))
+            return '';
+        done.add(s.group);
+        const g = groups.get(s.group);
+        return '<div class="mb-tree-group" data-mb-group="' + g.id + '"><button type="button" class="mb-tree-branch" data-mb-branch aria-expanded="true" aria-controls="mb-group-' + g.id + '" data-lavish-action><span class="mb-tree-arrow" aria-hidden="true">▸</span>' +
+            dot(g.dot) + '<span class="mb-tree-name">' + escape(g.title) + '</span>' + count(g.count) + '</button><div class="mb-tree-children" id="mb-group-' + g.id + '" role="group" aria-label="' + escape(g.title) + '">' +
+            input.sections.filter(x => x.group === g.id).map(item).join('') + '</div></div>';
+    }).join('') + '</nav>';
+}
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
 const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action', 'variant'];
-const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions', 'diagnostics'];
-const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
+const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions', 'diagnostics', 'groups'];
+const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || section.group !== undefined || section.dot !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
 export const FAMILIES = ['B', 'F', 'E2', 'G2', 'D3'];
 // Themes asked by name only, never drawn: «revisione» is the look of the approved review page (S53, 22 novembre 2026).
@@ -667,8 +727,9 @@ export async function renderDocument(input, options = {}) {
         for (const card of section.cards)
             unique(card.id);
     }
+    checkTree(input, unique);
     // In the theme «revisione» with tabs, the tab names the section: no heading repeats it.
-    const review = family === 'revisione', tabTitled = review && input.tabs === true;
+    const review = family === 'revisione', tabTitled = review && (input.tabs === true || input.tabs === 'tree');
     const sections = (input.sections || []).map(section => {
         return '<section id="' + section.id + '"' + (tabTitled ? ' aria-label="' + escape(section.title) + '">' : '><h2>' + escape(section.title) + '</h2>') + section.cards.map(card => {
             let helpId;
@@ -706,6 +767,8 @@ export async function renderDocument(input, options = {}) {
     // A page with diagnostics is operated by an executor: after sending, the page says where the outcome will appear
     // instead of claiming the agent received it.
     const executor = input.diagnostics !== undefined ? ' data-mb-executor' : '';
+    // The tree bar lays the page out in two columns (bar, then the page); main says so to the stylesheet.
+    const nav = input.tabs === 'tree' ? ' data-mb-nav="tree"' : '';
     // In the theme «revisione» a title ending in « #<number> » (the PR) shows the number muted, as on the review page.
     const number = review ? / #\d+$/.exec(input.title) : null;
     const title = number ? escape(input.title.slice(0, number.index)) + ' <span class="mb-number">' + escape(number[0].slice(1)) + '</span>' : escape(input.title);
@@ -718,5 +781,5 @@ export async function renderDocument(input, options = {}) {
     const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
-    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + executor + '>' + head.notice + (head.facts ? factsHeader() : classicHeader()) + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
+    return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + executor + nav + '>' + head.notice + (head.facts ? factsHeader() : classicHeader()) + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + sectionIndex(input) + sections + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';
 }
