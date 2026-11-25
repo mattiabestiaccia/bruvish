@@ -4,7 +4,7 @@ import { runtimeEnvironment } from "./env.mjs";
 import { runtimeIdentity } from "./identity.mjs";
 import { requestMetadata, requestRemote, sessionFromUrl } from "./control-client.mjs";
 import { printRemoteStatus } from "./remote.mjs";
-import { assertCompatibleServer } from "./runtime.mjs";
+import { assertCompatibleServer, retrySlowServer } from "./runtime.mjs";
 
 export const HELP = `Bruvish: Lavish (upstream lavish-axi) with a personal delta; the command stays lavish-axi.
 The Bruvish server opens the review and verifies the phone link: the command sends it only the session key, so open and remote also work inside an agent sandbox, provided the server runs outside it (started by the LaunchAgent service or from a normal terminal). The server picks the surface from its own configuration (~/.config/lavish-mb/opening.json: app or Chrome; without it, Chrome); a call cannot override it. If no server is running, a sandboxed open starts one inside the sandbox: the opening then fails with a clear error and that caller's environment pins the surface until the server stops. --no-open only creates the session.
@@ -116,6 +116,7 @@ export async function runBruvish(argv, { run, normalizeArgv, env = process.env }
     const [command, ...args] = normalizeArgv(argv);
     if (!command || SERVER_COMMANDS.has(command)) {
       const port = command === "stop" ? portFlag(args) : null;
+      retrySlowServer(command === "open");
       await assertCompatibleServer(port ? { ...env, LAVISH_AXI_PORT: port } : env, runtimeIdentity());
     }
   } catch (error) {

@@ -1,6 +1,8 @@
 import { isBruvishRuntime } from "./env.mjs";
 import { requestOpening, requestRemote, sessionFromReviewUrl } from "./control-client.mjs";
 
+export { discoverHealth } from "./runtime.mjs";
+
 // The upstream next_step starts the review loop with "Do not respond to the user just yet". The
 // phone needs to see the link first, so Bruvish prefixes one exception instead of rewriting the
 // upstream sentence: if upstream rewords it, this prefix still reads correctly.

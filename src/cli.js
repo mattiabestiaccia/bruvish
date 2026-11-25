@@ -63,7 +63,7 @@ import { isHtmlPath } from "./artifact-path.js";
 import { canonicalFile, sessionKey, SessionStore } from "./session-store.js";
 import { generateSharePassword } from "./share-password.js";
 import { initDefaultTelemetry } from "./telemetry.js";
-import { presentBruvishOpen } from "../bruvish/lib/open.mjs"; // BRUVISH:hook open-import
+import { discoverHealth, presentBruvishOpen } from "../bruvish/lib/open.mjs"; // BRUVISH:hook open-import
 import { excalidrawLibrariesDir, loadExcalidrawLibraries } from "./whiteboard-library-store.js";
 
 const SHARE_VALUE_FLAGS = ["--password", "--token", "--site", "--update-key"];
@@ -1816,7 +1816,9 @@ async function findRunningServer(port, { reconcileNetwork = false } = {}) {
   const probed = await Promise.all(
     serverCandidateHosts().map(async (host) => {
       const baseUrl = serverBaseUrl(host, port);
-      const health = await probeHealth(baseUrl, { reconcileNetwork: false, timeoutMs: HEALTH_PROBE_TIMEOUT_MS });
+      const health = await discoverHealth(host, baseUrl, () =>
+        probeHealth(baseUrl, { reconcileNetwork: false, timeoutMs: HEALTH_PROBE_TIMEOUT_MS }),
+      ); // BRUVISH:hook open-discovery
       return health ? { host, baseUrl, health } : null;
     }),
   );
