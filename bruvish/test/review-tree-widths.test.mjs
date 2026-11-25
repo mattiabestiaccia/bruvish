@@ -18,6 +18,10 @@ const styleOf = html => /<style>([\s\S]*?)<\/style>/.exec(html)[1];
 const scriptOf = html => /<\/style><script>([\s\S]*?)<\/script>/.exec(html)[1];
 const body = html => html.slice(html.indexOf('<body>'));
 const render = (input, options = {}) => renderDocument(input, { id: 'fixture', ...options });
+const near = (actual, expected, label) => assert(Math.abs(actual - expected) < 1e-6, label + ': ' + actual + ' ≠ ' + expected);
+// Mattia, after the preview: «Rendi un po' più strette queste card, del 20% rispetto a ora». One card width: 80% of the
+// column right of the bar less the gutter of 🔊 and «?»; the cards stay left, beside the bar (a choice of the coordinator).
+const cardWidth = column => (column - 48) * .8;
 const readJson = async path => JSON.parse(await readFile(new URL(path, import.meta.url), 'utf8'));
 function boot(html, { hash = '' } = {}) {
     const document = createDocument(html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''));
@@ -87,12 +91,16 @@ test('wide: header D above, as wide as bar, gap and cards; under it a narrower b
     assert.equal(at(name).hyphens, 'auto');
     assert.equal(at(name)['overflow-wrap'], 'break-word');
     assert.equal(at(document.querySelector('nav.mb-tree .mb-count'))['white-space'], 'nowrap');
-    // ...and its right edge is the right edge of the cards: the cards end 48px before the end of their column (the column
-    // of 🔊 and «?»), so does the header, before the end of the grid.
-    assert.equal(at(header)['margin-right'], '48px');
-    assert.equal(layoutBox(css, header, 1280).width, layoutBox(css, main, 1280).inner - 48);
+    // ...and its right edge is the right edge of the cards: bar (200px), gap (24px), then a card of 80% of the column less
+    // the gutter of 🔊 and «?»; the column is the grid less bar and gap.
+    const margin = 'calc((100% - 224px) * .2 + 38.4px)';
+    assert.equal(at(header)['margin-right'], margin);
+    for (const viewport of [1440, 1280, 900]) {
+        const grid = layoutBox(css, main, viewport).inner;
+        near(layoutBox(css, header, viewport).width, 224 + cardWidth(grid - 224), viewport + ': the header ends where the cards end');
+    }
     const notice = boot(await render(treePage({ header: { notice: 'Prova.' } }))).document.querySelector('.mb-notice');
-    assert.deepEqual([at(notice)['grid-column'], at(notice)['margin-right']], ['1/-1', '48px'], 'the notice, above the header, too');
+    assert.deepEqual([at(notice)['grid-column'], at(notice)['margin-right']], ['1/-1', margin], 'the notice, above the header, too');
     // A facts value wraps only when the narrower column cannot hold the table on one line.
     // (Table layout auto: a cell that fits stays on one line whatever white-space says.)
     const facts = boot(await render(treePage({ header: { facts: [{ label: 'Unisce', text: '`un-ramo-lungo` → `main`' }] } }))).document.querySelector('.mb-facts td');
@@ -103,7 +111,7 @@ test('wide: header D above, as wide as bar, gap and cards; under it a narrower b
     assert.equal(at(name, 800).hyphens, undefined);
 });
 
-test('every card of a tree page has one width: the column right of the bar, less the gutter of 🔊 and «?»', async () => {
+test('every card of a tree page has one width: 80% of the column right of the bar less the gutter of 🔊 and «?», on the left', async () => {
     const html = await render(treePage()), css = styleOf(html);
     const { document } = boot(html);
     const cards = document.querySelectorAll('article.card');
@@ -113,7 +121,7 @@ test('every card of a tree page has one width: the column right of the bar, less
             const section = card.parent, s = layoutBox(css, section, viewport), c = layoutBox(css, card, viewport);
             assert.equal(computed(css, section, viewport)['max-width'], 'none', viewport + ': ' + section.id + ' has no 907px cap');
             assert.equal(c.left, 0, viewport + ': ' + card.id + ' starts at the left edge of the column');
-            assert.equal(c.width, s.inner - 48, viewport + ': ' + card.id + ' is as wide as the others');
+            near(c.width, cardWidth(s.inner), viewport + ': ' + card.id + ' is as wide as the others');
         }
     }
     // «Righe per file» was centred at 80% of a page without cap (the rule meant for the full-width files page), so it stood
@@ -148,7 +156,7 @@ test('the files page of a tree page: the diff never widens its card, and «A cap
     assert.equal(computed(css, long, 1280)['white-space'], 'pre');
     assert.equal(computed(css, code, 1280)['white-space'], 'pre');
     const card = document.getElementById('carta-diff'), section = card.parent;
-    assert.equal(layoutBox(css, card, 1280).width, layoutBox(css, section, 1280).inner - 48);
+    near(layoutBox(css, card, 1280).width, cardWidth(layoutBox(css, section, 1280).inner), 'the files card keeps its width');
     button.click();
     assert.equal(button.getAttribute('aria-pressed'), 'true');
     assert.equal(main.hasAttribute('data-mb-wrap'), false);
