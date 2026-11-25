@@ -294,3 +294,26 @@ test('tree fields: a wrong group, dot or tabs value stops the render; groups nee
     assert.match(b, /<span class="mb-tree-name">&lt;i&gt;Gate&lt;\/i&gt;<\/span><span class="mb-count">&lt;b&gt;9&lt;\/b&gt;<\/span>/);
 });
 
+test('the examples revisione-albero (with and without the gate) render through the CLI with header D and the tree bar', async () => {
+    const { spawnSync } = await import('node:child_process');
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const os = await import('node:os'), path = await import('node:path');
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'bruvish-albero-'));
+    try {
+        for (const name of ['revisione-albero', 'revisione-albero-senza-gate']) {
+            const input = await readJson('../examples/' + name + '.json');
+            assert.equal(input.tabs, 'tree', name);
+            assert(input.header.facts.length && input.actions.primary.every(o => o.icon), name);
+            const output = path.join(dir, name + '.html');
+            const cli = new URL('../bin/bruvish.mjs', import.meta.url).pathname, file = new URL('../examples/' + name + '.json', import.meta.url).pathname;
+            const r = spawnSync(process.execPath, [cli, 'render', file, '--output', output], { encoding: 'utf8' });
+            assert.equal(r.status, 0, r.stderr);
+            const html = await readFile(output, 'utf8');
+            for (const needle of ['class="mb-header-facts"', 'class="mb-facts"', 'mb-icon-button', 'nav class="mb-tabs mb-tree"', 'data-mb-nav="tree"']) assert(html.includes(needle), name + ': ' + needle);
+            const second = input.groups[0].title;
+            assert.equal(second, name === 'revisione-albero' ? 'Gate' : 'Verifiche', name);
+        }
+        const gate = await readJson('../examples/revisione-albero.json');
+        assert.deepEqual(gate.sections.filter(s => s.group === 'gate').map(s => s.title), ['Intent', 'Rebase', 'Revisione', 'Prove', 'Documenti', 'Lint', 'Push', 'PR', 'CI'], 'the nine steps of no-mistakes, in order');
+    } finally { await rm(dir, { recursive: true, force: true }); }
+});

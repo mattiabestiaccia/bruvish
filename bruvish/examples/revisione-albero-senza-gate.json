@@ -1,0 +1,245 @@
+{
+  "id": "revisione-albero-senza-gate",
+  "theme": "revisione",
+  "tabs": "tree",
+  "title": "Tipo lettura come cruscotto leggero, otto forme e variante fuori repertorio #17",
+  "header": {
+    "notice": "Esempio: dati inventati, per mostrare la testata D e la barra ad albero.",
+    "badge": {
+      "text": "Bozza",
+      "tone": "blu",
+      "icon": "draft"
+    },
+    "facts": [
+      {
+        "label": "PR",
+        "text": "#17",
+        "type": "link",
+        "href": "https://github.com/mattiabestiaccia/agents-kit/pull/17"
+      },
+      {
+        "label": "Repository",
+        "text": "`mattiabestiaccia/agents-kit`"
+      },
+      {
+        "label": "Aperta da",
+        "text": "mattiabestiaccia"
+      },
+      {
+        "label": "Quando",
+        "text": "25 nov 2026, 02:40"
+      },
+      {
+        "label": "Head",
+        "text": "`414b82d`"
+      },
+      {
+        "label": "Unisce",
+        "text": "`cruscotto-leggero` → `main`"
+      },
+      {
+        "label": "Modifiche",
+        "text": "4 commit · 10 file",
+        "type": "delta",
+        "added": 1180,
+        "removed": 92
+      }
+    ]
+  },
+  "actions": {
+    "view": "esempio0000000000000000000000001",
+    "primary": [
+      {
+        "operation": "pronta-unisci",
+        "label": "Pronta e unisci",
+        "icon": "unisci",
+        "confirm": "Toglie la bozza e unisce subito in `main` come un commit solo (squash)."
+      },
+      {
+        "operation": "pronta",
+        "label": "Segna come pronta",
+        "icon": "pronta",
+        "confirm": "Toglie la PR dalla bozza. Non la unisce."
+      }
+    ],
+    "fixed": [
+      {
+        "operation": "revisore",
+        "label": "Assegna un revisore",
+        "icon": "revisore",
+        "field": "line",
+        "required": true,
+        "placeholder": "Login GitHub, per esempio octocat",
+        "confirm": "Chiede la revisione della PR a una persona. Scrivi il suo login GitHub, poi Conferma."
+      }
+    ],
+    "menu": [
+      {
+        "operation": "aggiorna",
+        "label": "Aggiorna il ramo",
+        "hint": "novità di main",
+        "confirm": "Porta nel ramo `cruscotto-leggero` le novità arrivate in `main`."
+      },
+      {
+        "operation": "chiudi",
+        "label": "Chiudi la PR",
+        "icon": "chiudi",
+        "danger": true,
+        "confirm": "Chiude la PR senza unirla. Si può riaprire."
+      }
+    ]
+  },
+  "pills": [
+    {
+      "text": "rischio **medio**",
+      "tone": "giallo",
+      "level": true
+    }
+  ],
+  "groups": [
+    {
+      "id": "verifiche",
+      "title": "Verifiche",
+      "dot": "giallo",
+      "count": "senza gate"
+    },
+    {
+      "id": "modifiche",
+      "title": "Modifiche",
+      "count": "10 file"
+    },
+    {
+      "id": "storia",
+      "title": "Storia"
+    }
+  ],
+  "sections": [
+    {
+      "id": "sintesi",
+      "title": "Sintesi",
+      "cards": [
+        {
+          "id": "cosa-cambia",
+          "title": "Cosa cambia",
+          "paragraphs": [
+            "Il tipo lettura diventa un cruscotto leggero, con otto forme.",
+            "Una variante resta fuori dal repertorio, per prova."
+          ],
+          "tone": "blu",
+          "help": "Riassume la PR in poche frasi. Leggila per prima.",
+          "summary": "Dieci file, quasi tutti nuovi: il rischio sta nella variante fuori repertorio."
+        },
+        {
+          "id": "prima-di-unire",
+          "title": "Prima di unire",
+          "paragraphs": ["La PR è ancora in bozza.", "Manca una CI: il gate ha trattato il passo come superato."],
+          "tone": "giallo",
+          "help": "Ciò che blocca o frena l’unione. Le operazioni stanno in alto a destra."
+        }
+      ]
+    },
+    {
+      "id": "revisione",
+      "title": "Revisione",
+      "group": "verifiche",
+      "dot": "giallo",
+      "count": "Codex",
+      "cards": [
+        {
+          "id": "carta-revisione",
+          "title": "Revisione di Codex",
+          "paragraphs": ["Due rilievi minori, nessuno bloccante."],
+          "tone": "giallo"
+        }
+      ]
+    },
+    {
+      "id": "ci",
+      "title": "CI",
+      "group": "verifiche",
+      "dot": "vuoto",
+      "count": "nessuna",
+      "cards": [
+        {
+          "id": "carta-ci",
+          "title": "CI",
+          "paragraphs": ["Il repository non ha una CI."],
+          "tone": "blu"
+        }
+      ]
+    },
+    {
+      "id": "file",
+      "title": "File modificati",
+      "group": "modifiche",
+      "count": 10,
+      "cards": [
+        {
+          "id": "carta-diff",
+          "title": "File modificati",
+          "help": "Apri o chiudi il diff di un file toccando il suo nome.",
+          "diff": {
+            "text": "diff --git a/tipi/lettura.md b/tipi/lettura.md\n--- a/tipi/lettura.md\n+++ b/tipi/lettura.md\n@@ -1,3 +1,4 @@\n # Tipo lettura\n-Una pagina da leggere.\n+Una pagina da leggere, come un cruscotto leggero.\n+Otto forme e una variante fuori repertorio.\n Fine.\n"
+          }
+        }
+      ]
+    },
+    {
+      "id": "commit",
+      "title": "Commit",
+      "group": "modifiche",
+      "count": 4,
+      "cards": [
+        {
+          "id": "carta-commit",
+          "title": "Commit",
+          "table": {
+            "headers": ["Commit", "Messaggio"],
+            "rows": [
+              ["`414b82d`", "Variante fuori repertorio"],
+              ["`2c1f0aa`", "Otto forme del tipo lettura"]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "conversazione",
+      "title": "Conversazione",
+      "group": "storia",
+      "cards": [
+        {
+          "id": "carta-conversazione",
+          "title": "Conversazione",
+          "paragraphs": ["Nessun commento sulla PR."]
+        }
+      ]
+    },
+    {
+      "id": "cronologia",
+      "title": "Cronologia",
+      "group": "storia",
+      "cards": [
+        {
+          "id": "carta-cronologia",
+          "title": "Cronologia",
+          "events": [
+            {
+              "text": "Aperta da **mattiabestiaccia**",
+              "tone": "verde"
+            },
+            {
+              "text": "Gate passato",
+              "tone": "blu"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "state": {
+    "revision": 1,
+    "answers": {},
+    "comments": []
+  }
+}
