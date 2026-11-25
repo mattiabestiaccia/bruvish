@@ -71,7 +71,7 @@ test('a tree page adds the tree stylesheet and script after the blocks; main kee
     assert.doesNotMatch(html, /--mb-tree-rows/);
 });
 
-test('wide: header D above, as wide as bar, gap and cards; under it a narrower bar on the left and the cards on the right', async () => {
+test('wide: header D above, at the whole width of the page; under it a narrower bar on the left and the cards on the right', async () => {
     const html = await render(treePage()), css = styleOf(html);
     const { document } = boot(html);
     const main = document.querySelector('main'), nav = document.querySelector('nav.mb-tree'), header = document.querySelector('header');
@@ -91,28 +91,24 @@ test('wide: header D above, as wide as bar, gap and cards; under it a narrower b
     assert.equal(at(name).hyphens, 'auto');
     assert.equal(at(name)['overflow-wrap'], 'break-word');
     assert.equal(at(document.querySelector('nav.mb-tree .mb-count'))['white-space'], 'nowrap');
-    // ...and its right edge is the right edge of the cards: bar (200px), gap (24px), then a card of 80% of the column less
-    // the gutter of 🔊 and «?»; the column is the grid less bar and gap.
-    const margin = 'calc((100% - 224px) * .2 + 38.4px)';
-    assert.equal(at(header)['margin-right'], margin);
-    for (const viewport of [1440, 1280, 900]) {
-        const grid = layoutBox(css, main, viewport).inner;
-        near(layoutBox(css, header, viewport).width, 224 + cardWidth(grid - 224), viewport + ': the header ends where the cards end');
-    }
+    // ...and its right edge is the right edge of the page, not of the cards (Mattia, 25 novembre 2026: «L'intestazione deve
+    // continuare ad essere a tutta larghezza non allineata con la card»): no margin on its right, at any width, also
+    // from 601px to 820px, where the bar is horizontal above the page. The cards are narrower and end before it.
     const notice = boot(await render(treePage({ header: { notice: 'Prova.' } }))).document.querySelector('.mb-notice');
-    assert.deepEqual([at(notice)['grid-column'], at(notice)['margin-right']], ['1/-1', margin], 'the notice, above the header, too');
-    // From 601px to 820px the bar is horizontal, above the page: the header and the notice still end where the cards end,
-    // measured on the cards themselves.
+    assert.equal(at(notice)['grid-column'], '1/-1', 'the notice, above the header, spans the grid too');
     const card = document.getElementById('c-sintesi'), section = card.parent;
-    for (const viewport of [820, 700, 601]) {
-        const s = layoutBox(css, section, viewport), c = layoutBox(css, card, viewport), cardRight = s.innerLeft + c.left + c.width;
+    for (const viewport of [1440, 1280, 900, 820, 700, 601, 500]) {
+        const grid = layoutBox(css, main, viewport).inner;
         for (const [label, el] of [['header', header], ['notice', notice]]) {
-            const h = layoutBox(css, el, viewport);
-            near(h.left + h.width, cardRight, viewport + ': the ' + label + ' ends where the cards end');
+            assert.equal(at(el, viewport)['margin-right'], undefined, viewport + ': the ' + label + ' has no margin on its right');
+            near(layoutBox(css, el, viewport).width, grid, viewport + ': the ' + label + ' is as wide as the page');
+        }
+        if (viewport > 600) {
+            const s = layoutBox(css, section, viewport), c = layoutBox(css, card, viewport), h = layoutBox(css, header, viewport);
+            assert(s.innerLeft + c.left + c.width < h.left + h.width - 1, viewport + ': the cards end before the header');
         }
     }
-    near(layoutBox(css, header, 500).width, layoutBox(css, main, 500).inner, 'on a phone the header keeps the whole width');
-    // A facts value wraps only when the narrower column cannot hold the table on one line.
+    // A facts value wraps only when the column cannot hold the table on one line.
     // (Table layout auto: a cell that fits stays on one line whatever white-space says.)
     const facts = boot(await render(treePage({ header: { facts: [{ label: 'Unisce', text: '`un-ramo-lungo` → `main`' }] } }))).document.querySelector('.mb-facts td');
     assert.equal(at(facts)['white-space'], 'normal');
