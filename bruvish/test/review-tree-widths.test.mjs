@@ -200,3 +200,36 @@ test('the examples revisione-albero render with the tree assets, one card width 
         assert.match(body(html), /data-mb-diff-wrap aria-pressed="true"/, name);
     }
 });
+
+// A column that does not wrap (Mattia, on the card «Rilievi» of the preview: «la colonna "rilievo" deve essere più stretta
+// di così, mentre dove deve essere un po' più larga»): table.nowrap lists the columns, from 0, whose header and cells keep
+// one line on a wide screen; the other columns share the rest. Only tree pages carry the rule (artifact-tree.css).
+const findings = (extra = {}) => ({ id: 'c-rilievi', title: 'Rilievi', table: { headers: ['#', 'Rilievo', 'Gravità', 'Dove'], rows: [['1', 'Un rilievo lungo che va a capo.', { text: 'alta', tone: 'rosso' }, '`tests/pr_revisione_test.py:1186`']], ...extra } });
+const withFindings = (table, page = treePage) => page({ sections: [{ id: 'rilievi', title: 'Rilievi', cards: [findings(table)] }] });
+
+test('table.nowrap: the listed columns keep one line on a wide tree page, header included; on a phone they wrap again', async () => {
+    const html = await render(withFindings({ nowrap: [0, 3] })), css = styleOf(html);
+    assert.match(body(html), /<table class="mb-table"><thead><tr><th scope="col" data-mb-nowrap>#<\/th><th scope="col">Rilievo<\/th><th scope="col">Gravità<\/th><th scope="col" data-mb-nowrap>Dove<\/th><\/tr><\/thead><tbody><tr><td data-mb-nowrap>1<\/td><td>Un rilievo lungo che va a capo\.<\/td><td><span class="mb-level" data-tone="rosso">alta<\/span><\/td><td data-mb-nowrap><code>tests\/pr_revisione_test\.py:1186<\/code><\/td><\/tr><\/tbody><\/table>/);
+    const { document } = boot(html);
+    const [num, finding, , where] = document.querySelectorAll('td'), whereHead = document.querySelectorAll('th')[3];
+    for (const el of [num, where, whereHead])
+        assert.equal(computed(css, el, 1280)['white-space'], 'nowrap');
+    assert.equal(computed(css, finding, 1280)['white-space'], undefined, 'the other columns wrap as always');
+    // On a phone the table scrolls sideways already; the column wraps again so the text does not run off the screen.
+    assert.equal(computed(css, where, 500)['white-space'], 'normal');
+    // Without nowrap the table is as before, also on a tree page.
+    assert.doesNotMatch(body(await render(withFindings())), /data-mb-nowrap/);
+});
+
+test('table.nowrap: a wrong shape stops the render with the right one; a page without the tree accepts it and keeps its markup', async () => {
+    const shape = /table\.nowrap must be a list of column numbers from 0, like \[3\]/;
+    for (const bad of ['3', 3, [4], [-1], [1.5], ['1'], [1, 1], null])
+        await assert.rejects(render(withFindings({ nowrap: bad })), shape, JSON.stringify(bad));
+    await assert.rejects(render(withFindings({ nowrap: [0], variant: 'matrix', headers: ['Criterio', 'A'], rows: [['Costo', { text: 'basso', tone: 'verde', detail: 'perché' }]] })), /table\.nowrap is for plain tables, not for the matrix/);
+    // Without headers the columns are counted on the widest row.
+    assert.match(body(await render(withFindings({ headers: undefined, nowrap: [3] }))), /<td data-mb-nowrap><code>/);
+    // A page without the tree has no rule for it: the field is checked and the markup stays as without it.
+    const plainPage = extra => ({ ...tabsPage, sections: [{ id: 'rilievi', title: 'Rilievi', cards: [findings(extra)] }] });
+    assert.equal(await render(plainPage({ nowrap: [3] })), await render(plainPage()));
+    await assert.rejects(render(plainPage({ nowrap: [9] })), shape);
+});
