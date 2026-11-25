@@ -108,6 +108,28 @@ test('the theme «vibe» is asked by name, never drawn, kept by a later render, 
   await assert.rejects(render(vibe({ intent: undefined })), /theme "vibe" needs an intent/);
   await assert.rejects(render(vibe({ tabs: true })), /tabs/);
   await assert.rejects(render(vibe({ guide: undefined })), /usage guide/);
+  // Blocks that the approved mockup does not show stop the render instead of being dropped.
+  for (const [key, value] of [['diff', { files: [] }], ['action', { label: 'x' }], ['variant', 'x'], ['images', [{ file: 'a.png', caption: 'cap' }]]]) {
+    const page = vibe(); page.sections[0].cards[0][key] = value;
+    await assert.rejects(render(page), new RegExp('g1-ripasso: ' + key + ' is not part of the theme "vibe"'), key);
+  }
+});
+
+test('a numeric option value matches the answer the page queues, which is always a string', async () => {
+  // artifact.js queues choice: String(input.value); the option may be written as a number in the JSON.
+  const numeric = question({ options: [{ value: 1, label: 'Uno', recommended: true, intent: 'Una cosa.' }, { value: 2, label: 'Due', intent: 'Due cose.' }] });
+  const page = vibe({ state: { revision: 2, answers: { 'g1-q': { choice: '2' }, 'g0-perche': { choice: '2' } }, comments: [] } });
+  page.sections[0].cards[1].question = numeric;
+  page.sections[1].cards[0] = { id: 'g0-perche', genre: 'chiuso', title: 'Perché', speakers: [{ who: 'Tuo', text: 'Il perché.' }], question: numeric };
+  const html = await render(page);
+  assert.match(cardHtml(html, 'g1-q'), /<input data-mb-field="g1-q:choice" name="choice" type="radio" value="2" checked>/);
+  assert.match(html, /<span class="mb-vibe-closed-answer">Due<\/span>/);
+  assert.match(html, /<div class="mb-vibe-row" data-mb-row-state="confirmed"><span class="mb-vibe-key"><span class="mb-vibe-dot"><\/span>Decisioni<\/span><span class="mb-vibe-value"><span class="mb-vibe-text">Due cose\.<\/span>/);
+  // An answer that matches no option still confirms the row: never «se non rispondi vale questa» on an answered card.
+  const stray = vibe({ state: { revision: 2, answers: { 'g1-q': { choice: 'altro' } }, comments: [] } });
+  const strayHtml = await render(stray);
+  assert.match(strayHtml, /<div class="mb-vibe-row" data-mb-row-state="confirmed"><span class="mb-vibe-key"><span class="mb-vibe-dot"><\/span>Decisioni<\/span><span class="mb-vibe-value"><small class="mb-vibe-where">confermato · Giro 1<\/small>/);
+  assert.doesNotMatch(strayHtml, /se non rispondi vale questa/);
 });
 
 test('the scaffold: header, the bar of the rounds with the open one current, the rounds column and the intent on the right', async () => {

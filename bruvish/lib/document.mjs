@@ -810,7 +810,7 @@ const speakersTable = rows => '<table class="mb-fields mb-vibe-speakers"><tbody>
 function answers(id, q, answer, labelId, tipId, columns = q.options.some(o => o.label.length > 34) ? 1 : Math.min(q.options.length, 3)) {
     const tip = tipId ? '<div class="mb-vibe-tip" id="' + tipId + '" role="tooltip" hidden><b>Perché la consiglio</b>' + filledParagraphs(q.reason, 'Card ' + id + ': question.reason is the reason of the recommended answer, one or two sentences') + paragraphs(['Se non rispondi, vale questa.']) + '</div>' : '';
     return '<form data-mb-question="' + id + '" class="mb-vibe-answers"><fieldset aria-labelledby="' + labelId + '"><div class="mb-vibe-options mb-vibe-cols-' + columns + '">' +
-        q.options.map((o, i) => '<label class="option' + (i === 0 ? ' mb-recommended' : '') + '"><input data-mb-field="' + id + ':choice" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer?.choice === o.value ? ' checked' : '') + (i === 0 && tipId ? ' aria-describedby="' + tipId + '"' : '') + '><span>' + inline(o.label) + '</span>' + QUEUED_MARK + '</label>').join('') +
+        q.options.map((o, i) => '<label class="option' + (i === 0 ? ' mb-recommended' : '') + '"><input data-mb-field="' + id + ':choice" name="choice" type="radio" value="' + escape(o.value) + '"' + (answer && String(answer.choice) === String(o.value) ? ' checked' : '') + (i === 0 && tipId ? ' aria-describedby="' + tipId + '"' : '') + '><span>' + inline(o.label) + '</span>' + QUEUED_MARK + '</label>').join('') +
         tip + '</div><span class="queue-status" role="status"></span></fieldset></form>';
 }
 // The body of a card in the theme, after the title row: speakers table, the card paragraphs (where a figure placeholder
@@ -834,7 +834,7 @@ function vibeCardBody(card, answer, unique) {
 // The list at the top of a closed round: each card with its answer (the chosen option, or the outcome written for it).
 function closedList(section, state) {
     return '<div class="mb-vibe-closed-list">' + (section.cards || []).map(card => {
-        const choice = state.answers?.[card.id]?.choice, option = card.question?.options?.find(o => o.value === choice);
+        const given = state.answers?.[card.id], option = given && card.question?.options?.find(o => String(o.value) === String(given.choice));
         const answer = option ? inline(option.label) : card.outcome ? inline(card.outcome) : '';
         return '<div class="mb-vibe-closed-item"><span>' + inline(card.title) + '</span><span class="mb-vibe-closed-answer">' + answer + '</span></div>';
     }).join('') + '</div>';
@@ -891,9 +891,11 @@ function intentColumn(input, prep, state, unique) {
                 throw new Error('intent.rows: an open row needs the id of a card with a question, like { "key": "Decisioni", "state": "open", "card": "g1-decisioni" } (row ' + JSON.stringify(r.key) + ')');
             const { card, section } = found, options = card.question.options, round = escape(roundName(section.title));
             const say = o => o.intent ?? o.label;
-            const answer = state.answers?.[card.id], chosen = answer && options.find(o => o.value === answer.choice);
-            if (chosen)
-                return [rowHtml(r, ' data-mb-row-state="confirmed"', null, text(say(chosen)) + where('confermato · ' + round)), say(chosen)];
+            const answer = state.answers?.[card.id], chosen = answer && options.find(o => String(o.value) === String(answer.choice));
+            if (vibeStatus(card, state) === 'answered') {
+                const said = chosen ? say(chosen) : card.outcome;
+                return [rowHtml(r, ' data-mb-row-state="confirmed"', null, (said ? text(said) : '') + where('confermato · ' + round)), said ?? 'confermato'];
+            }
             const go = goTo(found);
             return [rowHtml(r, ' data-mb-row-state="open" data-mb-row-card="' + card.id + '" data-mb-row-round="' + round + '"', go,
                 options.map((o, i) => '<span class="mb-vibe-text" data-mb-option="' + escape(o.value) + '"' + (i ? ' hidden' : '') + '>' + inline(say(o)) + '</span>').join('') +
@@ -1048,7 +1050,7 @@ export async function renderDocument(input, options = {}) {
     // A card of the theme «vibe»: colour and fixed help from its genre, who speaks in a table with the question as a row,
     // the answers under it; the comments and the shared text blocks keep their rendering.
     function vibeCard(card) {
-        for (const key of ['diff', 'action', 'variant'])
+        for (const key of ['diff', 'action', 'variant', 'images'])
             if (card[key] !== undefined)
                 throw new Error('Card ' + card.id + ': ' + key + ' is not part of the theme "vibe"');
         checkVibeCard(card);
