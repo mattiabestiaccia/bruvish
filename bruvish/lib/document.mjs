@@ -396,6 +396,25 @@ function cardTable(card) {
     const cell = c => typeof c === 'string' ? c.split(' · ').map(inline).join('<br>') : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
     return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map(h => '<th scope="col">' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map(c => '<td>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
 }
+// Images of a card (Mattia, 25 November 2026: screenshots taken in the VM): each a file beside the page, by name only
+// (png, jpg, jpeg, webp; no URL, no path, no ..), with a one-line caption. A grid of figures, the caption under each,
+// lazy loading, alt from the caption; a click opens the image large in the page (artifact-blocks.js).
+const IMAGE_FILE = /^[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*\.(?:png|jpe?g|webp)$/i;
+function cardImages(card) {
+    if (card.images === undefined)
+        return '';
+    const where = 'Card ' + card.id + ': images';
+    if (!Array.isArray(card.images) || !card.images.length || card.images.some(i => !i || typeof i !== 'object' || Array.isArray(i) || Object.keys(i).some(k => k !== 'file' && k !== 'caption')))
+        throw new Error(where + ' must be a non-empty array of { "file": "cattura-1.png", "caption": "…" }, with no other field');
+    card.images.forEach((image, n) => {
+        if (typeof image.file !== 'string' || !IMAGE_FILE.test(image.file))
+            throw new Error(where + '[' + n + '].file ' + JSON.stringify(image.file ?? null) + ' is not the name of an image beside the page: write only the file name of a png, jpg, jpeg or webp in the same folder as the page, like "cattura-1.png"');
+        if (typeof image.caption !== 'string' || !image.caption.trim() || /[\r\n]/.test(image.caption))
+            throw new Error(where + '[' + n + '].caption is missing or not one line: write one line that says what the image shows');
+    });
+    return '<div class="mb-images">' + card.images.map(i => { const alt = escape(i.caption.trim());
+        return '<figure class="mb-image"><button type="button" class="mb-image-open" data-mb-image data-lavish-action aria-label="' + escape('Apri l\'immagine grande: ') + alt + '"><img src="' + escape(i.file) + '" alt="' + alt + '" loading="lazy" decoding="async"></button><figcaption>' + inline(i.caption.trim()) + '</figcaption></figure>'; }).join('') + '</div>';
+}
 // Secondary notes of a card: grey italics under a dashed line, at the end of the card body.
 function cardNotes(card) {
     if (card.notes === undefined)
@@ -674,7 +693,7 @@ function treeIndex(input) {
 }
 // Optional fields of a card and of a page that need the building-block assets. A page without any of them keeps the
 // base assets only, so its bytes do not change.
-const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action', 'variant'];
+const CARD_BLOCKS = ['tone', 'labels', 'help', 'summary', 'voice', 'table', 'notes', 'diff', 'events', 'transcript', 'action', 'variant', 'images'];
 const PAGE_BLOCKS = ['tabs', 'header', 'pills', 'actions', 'diagnostics', 'groups'];
 const usesBlocks = (input, family) => NAMED_THEMES.includes(family) || PAGE_BLOCKS.some(k => input[k] !== undefined) || (input.sections || []).some(section => section.count !== undefined || section.group !== undefined || section.dot !== undefined || (section.cards || []).some(card => card && (CARD_BLOCKS.some(k => card[k] !== undefined) || card.question?.text !== undefined)));
 // Theme family (laboratorio-stile/lavish/DESIGN.md): drawn once per artifact and kept in every revision.
@@ -772,7 +791,7 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     const asks = (input.sections || []).some(section => (section.cards || []).some(card => card?.question));

@@ -338,3 +338,17 @@ main[data-mb-nav=tree] nav.mb-tree .mb-tree-children{order:1;flex:1 0 100%;displ
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-group:has(a[aria-current])>.mb-tree-children{display:flex}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a{flex:none;font-size:14px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
 main[data-mb-nav=tree] nav.mb-tree .mb-tree-children a .mb-count{margin-left:4px}}
+
+/* Images of a card (screenshots from the VM): a grid of figures, the caption under each; a click opens the image large in
+   the page. Every theme: only the variables of the page. */
+.mb-images{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin:0 0 1.8em}
+.mb-image{margin:0}
+.mb-image-open{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--field);overflow:hidden;cursor:zoom-in}
+.mb-image-open:hover,.mb-image-open:focus-visible{border-color:var(--title)}
+.mb-image-open img{display:block;width:100%;height:auto;aspect-ratio:16/10;object-fit:cover}
+.mb-image figcaption{margin-top:6px;font-size:15px;line-height:1.35;color:var(--muted)}
+.mb-lightbox{position:fixed;inset:0;z-index:50;display:grid;place-items:center;align-content:center;gap:10px;padding:48px 24px 24px;background:rgba(0,0,0,.82);cursor:zoom-out}
+.mb-lightbox[hidden]{display:none}
+.mb-lightbox img{max-width:min(1400px,100%);max-height:calc(100vh - 140px);object-fit:contain;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6);cursor:default}
+.mb-lightbox-caption{margin:0;max-width:min(1100px,100%);color:#eef;font-size:16px;text-align:center}
+.mb-lightbox-close{position:absolute;top:12px;right:16px;width:36px;height:36px;padding:0;border-radius:50%;font-size:22px;line-height:1;background:#0b1114;color:#fff;border:1px solid var(--line)}

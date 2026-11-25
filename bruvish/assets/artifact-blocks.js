@@ -265,6 +265,34 @@
             lastQueued = null;
         };
         document.querySelectorAll('[data-mb-question]').forEach(form => { form.addEventListener('click', rearm, true); form.addEventListener('keyup', rearm, true); });
+        // Images of a card: a click opens the image large in the page, in one box for the page, without libraries. The close
+        // button, a click on the backdrop or Esc closes it, and the focus goes back to the image.
+        let lightbox = null, opener = null;
+        const closeImage = () => { if (!lightbox || lightbox.hidden)
+            return; lightbox.hidden = true; opener?.focus?.(); };
+        document.querySelectorAll('[data-mb-image]').forEach(button => button.addEventListener('click', () => {
+            const source = button.querySelector('img');
+            if (!source)
+                return;
+            if (!lightbox) {
+                lightbox = make('div', { class: 'mb-lightbox', role: 'dialog', 'aria-modal': 'true' });
+                lightbox.append(make('button', { type: 'button', class: 'mb-lightbox-close', 'aria-label': 'Chiudi l\'immagine' }, '×'), make('img', {}), make('p', { class: 'mb-lightbox-caption' }));
+                lightbox.addEventListener('click', event => { if (event.target === lightbox)
+                    closeImage(); });
+                lightbox.querySelector('.mb-lightbox-close').addEventListener('click', closeImage);
+                (document.body || document.querySelector('body')).append(lightbox);
+            }
+            const alt = source.getAttribute('alt') || '', large = lightbox.querySelector('img');
+            large.setAttribute('src', source.getAttribute('src'));
+            large.setAttribute('alt', alt);
+            lightbox.setAttribute('aria-label', alt);
+            lightbox.querySelector('.mb-lightbox-caption').textContent = alt;
+            opener = button;
+            lightbox.hidden = false;
+            lightbox.querySelector('.mb-lightbox-close').focus();
+        }));
+        document.addEventListener('keydown', event => { if (event && event.key === 'Escape')
+            closeImage(); });
         // Files of a diff in the theme «revisione»: one button above them closes them all when every file is open, and
         // opens them all otherwise; its words follow the files also when one is opened or closed by its own name.
         document.querySelectorAll('[data-mb-diff-all]').forEach(button => {
