@@ -362,7 +362,12 @@ function pillsOf(pills, sectionIds = []) {
 }
 // A table of several columns. A cell is a string with inline marks, where « · » separates two items that go on two
 // lines (never two items on one line), or { text, tone } for a level or an outcome in its semantic colour.
-function cardTable(card) {
+// table.nowrap lists the columns (from 0) whose header and cells keep one line on a wide screen, so the other columns
+// share the rest (Mattia, on the card «Rilievi»: «Rilievo» narrower, «Dove» wider). Only tree pages carry the rule
+// (artifact-tree.css): elsewhere the field is checked and the markup stays as without it. In tree pages a cell of
+// several sentences also shows one sentence per line (below), and the table sits in a box that scrolls sideways, so a
+// table wider than its card stays inside the card instead of running over the round column of 🔊 and «?».
+function cardTable(card, tree = false) {
     if (card.table === undefined)
         return '';
     const t = card.table, matrixShape = 'Card ' + card.id + ': a matrix needs column headers, row labels and cells with text, tone and detail, like { "variant": "matrix", "headers": ["Criterio", "Opzione A"], "rows": [["Costo", { "text": "+ basso", "tone": "verde", "detail": "perché" }]] }, with as many cells per row as headers';
@@ -373,6 +378,12 @@ function cardTable(card) {
         throw new Error(shape);
     if (t.variant !== undefined && t.variant !== 'matrix')
         throw new Error('Card ' + card.id + ': table.variant must be "matrix" or absent (got ' + JSON.stringify(t.variant) + ')');
+    const columns = t.headers ? t.headers.length : Math.max(0, ...t.rows.map(row => row.length));
+    if (t.nowrap !== undefined && (!Array.isArray(t.nowrap) || t.nowrap.some((n, i) => !Number.isInteger(n) || n < 0 || n >= columns || t.nowrap.indexOf(n) !== i)))
+        throw new Error('Card ' + card.id + ': table.nowrap must be a list of column numbers from 0, like [3] for the fourth column, each once and below ' + columns + ' (got ' + JSON.stringify(t.nowrap) + ')');
+    if (t.nowrap !== undefined && t.variant === 'matrix')
+        throw new Error('Card ' + card.id + ': table.nowrap is for plain tables, not for the matrix');
+    const keep = i => tree && t.nowrap?.includes(i) ? ' data-mb-nowrap' : '';
     if (t.variant === 'matrix') {
         if (!t.headers || t.headers.length < 2 || t.headers.some(h => !h.trim()) || t.rows.length === 0 || t.rows.some(row =>
             typeof row[0] !== 'string' || !row[0].trim() || row.slice(1).some(c => typeof c === 'string' ||
@@ -395,8 +406,15 @@ function cardTable(card) {
             t.rows.map(row => { const c = row[i + 1]; return '<details data-tone="' + c.tone + '"><summary><small>' + inline(row[0]) + '</small>' + inline(c.text) + '</summary><p>' + inline(c.detail) + '</p></details>'; }).join('') + '</section>').join('') + '</div>';
         return '<div class="mb-matrix" data-mb-matrix>' + table + detail + cards + '</div>';
     }
-    const cell = c => typeof c === 'string' ? c.split(' · ').map(inline).join('<br>') : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
-    return '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map(h => '<th scope="col">' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map(c => '<td>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+    // « · » makes lines in a cell. In a tree page a line of two sentences or more becomes one sentence block per sentence,
+    // as in a paragraph (Mattia, on the findings: «paragrafi più brevi e la spaziatura come te la descrivevo prima»); a
+    // short line stays as it was, and no <br> touches a column of blocks, where it would add an empty line.
+    const lines = text => text.split(' · ').map(part => { const sentences = tree ? splitSentences(part) : [];
+        return sentences.length > 1 ? { block: true, html: sentences.map(x => '<span class="sentence">' + inline(x) + '</span>').join('') } : { block: false, html: inline(part) }; });
+    const cellText = text => lines(text).map((line, i, all) => (i && !line.block && !all[i - 1].block ? '<br>' : '') + line.html).join('');
+    const cell = c => typeof c === 'string' ? cellText(c) : '<span class="mb-level" data-tone="' + c.tone + '">' + inline(c.text) + '</span>';
+    const table = '<table class="mb-table">' + (t.headers?.length ? '<thead><tr>' + t.headers.map((h, i) => '<th scope="col"' + keep(i) + '>' + inline(h) + '</th>').join('') + '</tr></thead>' : '') + '<tbody>' + t.rows.map(row => '<tr>' + row.map((c, i) => '<td' + keep(i) + '>' + cell(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+    return tree ? '<div class="mb-table-scroll">' + table + '</div>' : table;
 }
 // Images of a card (Mattia, 25 November 2026: screenshots taken in the VM): each a file beside the page, by name only
 // (png, jpg, jpeg, webp; no URL, no path, no ..), with a one-line caption. A grid of figures, the caption under each,
@@ -532,7 +550,9 @@ const DIFF_STATUS = { added: 'nuovo', deleted: 'cancellato', renamed: 'rinominat
 // A diff in a card: one collapsible block per file (open), coloured lines, numbers of both sides, the reviewer's notes
 // under the line they name ("<file>:<line of the new side>"). Every character of the diff is escaped. In the theme
 // «revisione» the files sit in the column without a card around them, under one button that closes or opens them all.
-function cardDiff(card, filesPage = false) {
+// On a page with the tree bar a second button, «A capo», switches the wrap of every diff line of the page
+// (artifact-tree.js); a plain click on it is not a Lavish annotation.
+function cardDiff(card, filesPage = false, wrapSwitch = false) {
     if (card.diff === undefined)
         return '';
     const d = card.diff, where = 'Card ' + card.id + ': diff';
@@ -561,7 +581,7 @@ function cardDiff(card, filesPage = false) {
     const unmatched = Object.keys(notes)[0];
     if (unmatched !== undefined)
         throw new Error(where + ' note ' + JSON.stringify(unmatched) + ' matches no line of the new side; keys are "<file>:<line of the new side>"');
-    return '<div class="mb-diff">' + (filesPage ? '<div class="mb-diff-tools"><button class="mb-diff-all" type="button" data-mb-diff-all>Chiudi tutti</button></div>' : '') + html + '</div>';
+    return '<div class="mb-diff">' + (filesPage ? '<div class="mb-diff-tools"><button class="mb-diff-all" type="button" data-mb-diff-all>Chiudi tutti</button>' + (wrapSwitch ? '<button class="mb-diff-wrap" type="button" data-mb-diff-wrap aria-pressed="true" data-lavish-action>A capo</button>' : '') + '</div>' : '') + html + '</div>';
 }
 // A text field in an answer, under the options: always there, or only for the options listed in "for". A saved
 // answer fills it back. artifact-blocks.js shows it, checks it and queues { choice, text }.
@@ -1044,7 +1064,7 @@ export async function renderDocument(input, options = {}) {
             const comments = (state.comments || []).filter(c => c.card === card.id);
             const follow = comments.length ? '<details class="followup"><summary>Commenti e seguito (' + comments.length + ')</summary>' + comments.map(c => fieldsTable([['Commento', '<p><span class="sentence">' + escape(c.text) + '</span></p>'], ...(c.response ? [['Risposta', paragraphs(c.response)]] : [])], 'mb-fields mb-comment')).join('') + '</details>' : '';
             const fresh = novelty(card.id), filesPage = review && card.diff !== undefined;
-            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card) + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage) + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
+            return '<article class="card" id="' + card.id + '" data-mb-state="' + status + '"' + (card.tone !== undefined ? ' data-mb-tone="' + toneOf(card.tone, 'Card ' + card.id) + '"' : '') + (fresh ? ' data-mb-new="' + fresh + '"' : '') + (filesPage ? ' data-mb-files' : '') + cardVariant(card) + '><button class="voice" type="button" data-mb-voice' + voiceText(card) + ' aria-label="Leggi questa scheda">🔊</button>' + cardHead(card, helpId) + paragraphs(card.paragraphs) + cardFields(card) + cardTable(card, input.tabs === 'tree') + cardImages(card) + cardEvents(card) + cardTranscript(card) + cardDiff(card, filesPage, filesPage && input.tabs === 'tree') + context + question + cardAction(card) + cardNotes(card) + follow + '</article>';
         }).join('') + '</section>';
     }).join('');
     // A card of the theme «vibe»: colour and fixed help from its genre, who speaks in a table with the question as a row,
@@ -1075,7 +1095,8 @@ export async function renderDocument(input, options = {}) {
     // instead of claiming the agent received it.
     const executor = input.diagnostics !== undefined ? ' data-mb-executor' : '';
     // The tree bar lays the page out in two columns (bar, then the page); main says so to the stylesheet.
-    const nav = input.tabs === 'tree' ? ' data-mb-nav="tree"' : '';
+    const tree = input.tabs === 'tree';
+    const nav = tree ? ' data-mb-nav="tree"' : '';
     // In the theme «revisione» a title ending in « #<number> » (the PR) shows the number muted, as on the review page.
     const number = review ? / #\d+$/.exec(input.title) : null;
     const title = number ? escape(input.title.slice(0, number.index)) + ' <span class="mb-number">' + escape(number[0].slice(1)) + '</span>' : escape(input.title);
@@ -1085,8 +1106,8 @@ export async function renderDocument(input, options = {}) {
     const factsHeader = () => { const plain = / #\d+$/.exec(input.title), side = actions + head.badge;
         return '<header class="mb-header-facts"><div class="mb-header-top"><h1>' + escape(plain ? input.title.slice(0, plain.index) : input.title) + '</h1>' + (side ? '<div class="mb-header-side">' + side + '</div>' : '') + '</div>' + head.facts + intro + pills + '</header>'; };
     const classicHeader = () => (actions ? '<header class="mb-header-actions"><div class="mb-header-main">' : '<header>') + head.before + '<h1>' + title + '</h1>' + head.after + intro + pills + (actions ? '</div>' + actions : '') + '</header>';
-    const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : []), ...(vibe ? ['artifact-vibe.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
-    const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : []), ...(vibe ? ['artifact-vibe.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
+    const css = (await Promise.all(['fonts.css', 'artifact.css', ...(blocks ? ['artifact-blocks.css'] : []), ...(tree ? ['artifact-tree.css'] : []), ...(vibe ? ['artifact-vibe.css'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
+    const js = (await Promise.all(['artifact.js', ...(blocks ? ['artifact-blocks.js'] : []), ...(tree ? ['artifact-tree.js'] : []), ...(vibe ? ['artifact-vibe.js'] : [])].map(n => readFile(asset(n), 'utf8')))).join('\n');
     const intent = vibe ? intentColumn(input, prep, state, unique) : '';
     const record = { version: 1, theme: family, revision, cards: fingerprints, base };
     return '<!doctype html>\n<html lang="it" data-mb-theme="dark" data-mb-family="' + family + '" data-mb-state-version="' + Number(state.revision || 0) + '" data-lavish-annotate="on"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escape(input.title) + '</title><style>' + css + '</style><script>' + js + '</script></head><body><main' + (actions ? ' data-mb-view="' + escape(input.actions.view) + '"' : '') + executor + nav + (vibe ? ' data-mb-vibe' : '') + '>' + head.notice + (head.facts ? factsHeader() : classicHeader()) + (guided ? '<details class="guide" id="usage-guide"><summary>Come usare questa pagina</summary>' + filledParagraphs([input.guide], 'title and a collapsible usage guide are required') + (asks ? paragraphs([ANSWER_HELP]).replace('<p>', '<p class="mb-answer-help">') : '') + '</details>' : '') + (vibe ? roundTabs(input, prep.open, state) + '<div class="mb-vibe"' + (prep.open ? ' data-mb-vibe-open="' + prep.open.id + '"' : '') + '><div class="mb-vibe-rounds">' + sections + '</div>' + intent + '</div>' : sectionIndex(input) + sections) + '</main><script type="application/json" id="mb-state">' + JSON.stringify(state).replaceAll('<', '\\u003c') + '</script><script type="application/json" id="mb-render">' + JSON.stringify(record).replaceAll('<', '\\u003c') + '</script></body></html>\n';

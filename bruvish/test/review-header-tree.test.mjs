@@ -8,6 +8,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { renderDocument } from '../lib/document.mjs';
 import { createDocument, createWindow } from '../test-helpers/mini-dom.mjs';
+import { computed } from '../test-helpers/cascade.mjs';
 
 const sha = text => createHash('sha256').update(text).digest('hex');
 const skeleton = html => html.replace(/<style>[\s\S]*?<\/style><script>[\s\S]*?<\/script>/, '<style/><script/>');
@@ -275,6 +276,7 @@ test('on a phone a branch opens the first part of its group, and the bar is a tw
     const css = styleOf(html);
     // Wide: a grid of the bar on the left, kept in view, and the page; the files page takes all the width that is left.
     assert.match(css, /@media\(min-width:821px\)\{main\[data-mb-nav=tree\]\{display:grid;grid-template-columns:236px minmax\(0,1fr\)/);
+    assert.equal(computed(css, document.querySelector('main'), 1280)['grid-template-columns'], '200px minmax(0,1fr)', 'artifact-tree.css, after it, narrows the bar to 200px');
     assert.match(css, /main\[data-mb-nav=tree\]>nav\.mb-tree\{[^}]*position:sticky/);
     // Phone: top items on the first row, the parts of the open group on a second row that scrolls sideways.
     assert.match(css, /@media\(max-width:820px\)\{[^@]*nav\.mb-tree \.mb-tree-group\{display:contents\}[^@]*nav\.mb-tree \.mb-tree-group:has\(a\[aria-current\]\)>\.mb-tree-children\{display:flex\}/);
