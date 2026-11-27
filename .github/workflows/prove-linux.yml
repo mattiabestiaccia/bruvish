@@ -1,0 +1,47 @@
+# Prove del fork su Linux: gli stessi controlli di `pnpm run check` (build, lint, formattazione,
+# tipi, tutte le prove, freschezza di skill e plugin), su ubuntu-latest.
+# Nessun segreto, permessi in sola lettura, nessuna pubblicazione né rilascio.
+# Eventi: push sul solo ramo predefinito (carry) e pull_request, così c'è una corsa per commit.
+#
+# I workflow ereditati restano come sono, ognuno con il suo motivo:
+# - ci.yml: la matrice ufficiale gira solo nel repository ufficiale (aggancio `workflow-ci`);
+# - guard-generated-files.yml e no-mistakes-required.yml: partono solo per le PR verso `main`,
+#   che nel fork è lo specchio ufficiale; le PR del fork vanno su `carry`;
+# - release-please.yml: pubblica su npm, resta spento (aggancio `workflow-release`).
+#
+# Resta fuori dal workflow ciò che dipende dal Mac: le prove nel browser vero (aprono Chrome
+# solo con LAVISH_AXI_BROWSER_E2E=1 o LAVISH_MB_TEST_CHROME, qui non impostate: si saltano da
+# sole), l'app Electron firmata e il servizio launchd, che non si possono provare su Linux
+# (vedi la sezione «Prove» di BRUVISH.md).
+name: Prove su Linux
+
+on:
+  push:
+    branches: [carry]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prove-linux-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: Prove su Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # La versione di pnpm viene da `packageManager` in package.json.
+      - uses: pnpm/action-setup@v6
+      # La versione di Node viene da `engines.node` in package.json.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
