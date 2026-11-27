@@ -4,10 +4,13 @@
 # Eventi: push sul solo ramo predefinito (carry) e pull_request, così c'è una corsa per commit.
 #
 # I workflow ereditati restano come sono, ognuno con il suo motivo:
-# - ci.yml: la matrice ufficiale gira solo nel repository ufficiale (aggancio `workflow-ci`);
+# - ci.yml: la matrice ufficiale gira solo nel repository ufficiale (aggancio `workflow-ci`,
+#   su `carry`);
 # - guard-generated-files.yml e no-mistakes-required.yml: partono solo per le PR verso `main`,
 #   che nel fork è lo specchio ufficiale; le PR del fork vanno su `carry`;
-# - release-please.yml: pubblica su npm, resta spento (aggancio `workflow-release`).
+# - release-please.yml: pubblica su npm, resta spento (aggancio `workflow-release`, su `carry`).
+# Su `main`, lo specchio ufficiale senza agganci, ci.yml e release-please.yml sono spenti dalle
+# impostazioni del repository (gh workflow disable), che valgono per ogni ramo.
 #
 # Resta fuori dal workflow ciò che dipende dal Mac: le prove nel browser vero (aprono Chrome
 # solo con LAVISH_AXI_BROWSER_E2E=1 o LAVISH_MB_TEST_CHROME, qui non impostate: si saltano da

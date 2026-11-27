@@ -175,7 +175,7 @@ Ogni punto toccato del codice ufficiale porta `BRUVISH:hook <id>`. L'elenco sta 
 | `workflow-release`   | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                                                                        |
 | `test-ci-exclusions` | `test/release-ci-exclusions.test.js`   | la prova «ogni workflow `pull_request` ignora i file di release-please» non conta `prove-linux.yml`, la CI del fork            |
 
-I workflow girano dal ramo dell'evento: `main` del fork è lo specchio ufficiale senza questi agganci. I due agganci tengono spenti la matrice ufficiale e il rilascio; `guard-generated-files.yml` e `no-mistakes-required.yml` partono solo per le PR verso `main`, mentre le PR del fork vanno su `carry`. L'unica CI del fork è `.github/workflows/prove-linux.yml`: gira su Linux, senza segreti e con permessi in sola lettura, a ogni push su `carry` e a ogni PR, e lancia `pnpm run check`. Non pubblica né rilascia niente.
+I workflow girano dal ramo dell'evento. Su `carry` gli agganci `workflow-ci` e `workflow-release` tengono spenti la matrice ufficiale e il rilascio. `main` del fork è lo specchio ufficiale senza questi agganci: lì `ci.yml` e `release-please.yml` sono spenti dalle impostazioni del repository (`gh workflow disable`, vale per ogni ramo; si riaccendono con `gh workflow enable`). `guard-generated-files.yml` e `no-mistakes-required.yml` partono solo per le PR verso `main`, mentre le PR del fork vanno su `carry`. L'unica CI del fork è `.github/workflows/prove-linux.yml`: gira su Linux, senza segreti e con permessi in sola lettura, a ogni push su `carry` e a ogni PR, e lancia `pnpm run check`. Non pubblica né rilascia niente.
 
 ## Prove
 
