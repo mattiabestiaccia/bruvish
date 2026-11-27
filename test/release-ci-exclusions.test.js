@@ -195,7 +195,8 @@ test("derives the node release-output set for this repository", () => {
 });
 
 test("every pull_request workflow ignores the full release-output set", () => {
-  const files = readdirSync(workflowsDir).filter((name) => name.endsWith(".yml"));
+  // BRUVISH:hook test-ci-exclusions - prove-linux.yml is the fork's own CI. release-please never runs in the fork, so no release PR exists for it to ignore, and a path filter could leave a PR without the run the gate waits for.
+  const files = readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") && name !== "prove-linux.yml");
   const prWorkflows = [];
 
   for (const name of files) {

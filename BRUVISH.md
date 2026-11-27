@@ -161,20 +161,21 @@ La radice degli strumenti, `~/tools`, è definita una volta sola in `app/protoco
 
 Ogni punto toccato del codice ufficiale porta `BRUVISH:hook <id>`. L'elenco sta in `bruvish/lib/hooks.mjs`: `bruvish/test/hooks.test.mjs` controlla che ognuno ci sia una volta sola e che non ce ne siano altri, e `update-upstream` lo ricontrolla dopo ogni merge. Durante un merge, un conflitto in uno di questi punti si risolve rimettendo l'aggancio, non riscrivendo l'innesto.
 
-| id                 | File                                   | Cosa fa                                                                                                                        |
-| ------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `server-import`    | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                                                               |
-| `server-routes`    | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js`, addon, `/mb/open`, `/mb/remote` e `/mb/metadata` prima delle route ufficiali |
-| `artifact-script`  | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                                                             |
-| `open-import`      | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                                                                 |
-| `open-present`     | `src/cli.js`                           | chiede al server link remoto e apertura; prefisso del `next_step`                                                              |
-| `open-discovery`   | `src/cli.js`                           | per `open`, la ricerca del server su loopback ritenta un `/health` lento invece di avviare un secondo server                   |
-| `build`            | `scripts/build.js`                     | lancia `scripts/bruvish-build.js`                                                                                              |
-| `prettier`         | `.prettierignore`                      | esclude i file portati byte per byte dallo strato precedente                                                                   |
-| `workflow-ci`      | `.github/workflows/ci.yml`             | la CI ufficiale gira solo nel repository ufficiale                                                                             |
-| `workflow-release` | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                                                                        |
+| id                   | File                                   | Cosa fa                                                                                                                        |
+| -------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `server-import`      | `src/server.js`                        | importa `bruvish/lib/server.mjs`                                                                                               |
+| `server-routes`      | `src/server.js`                        | registra catalogo, `/mb-info`, `/mb-artifact.js`, addon, `/mb/open`, `/mb/remote` e `/mb/metadata` prima delle route ufficiali |
+| `artifact-script`    | `src/server.js`                        | aggiunge `/mb-artifact.js` dopo lo script dell'SDK                                                                             |
+| `open-import`        | `src/cli.js`                           | importa `bruvish/lib/open.mjs`                                                                                                 |
+| `open-present`       | `src/cli.js`                           | chiede al server link remoto e apertura; prefisso del `next_step`                                                              |
+| `open-discovery`     | `src/cli.js`                           | per `open`, la ricerca del server su loopback ritenta un `/health` lento invece di avviare un secondo server                   |
+| `build`              | `scripts/build.js`                     | lancia `scripts/bruvish-build.js`                                                                                              |
+| `prettier`           | `.prettierignore`                      | esclude i file portati byte per byte dallo strato precedente                                                                   |
+| `workflow-ci`        | `.github/workflows/ci.yml`             | la CI ufficiale gira solo nel repository ufficiale                                                                             |
+| `workflow-release`   | `.github/workflows/release-please.yml` | il fork non rilascia né pubblica su npm                                                                                        |
+| `test-ci-exclusions` | `test/release-ci-exclusions.test.js`   | la prova «ogni workflow `pull_request` ignora i file di release-please» non conta `prove-linux.yml`, la CI del fork            |
 
-I workflow girano dal ramo dell'evento: `main` del fork è lo specchio ufficiale senza questi agganci, quindi il vero interruttore su GitHub resta Actions disattivato nelle impostazioni del fork.
+I workflow girano dal ramo dell'evento. Su `carry` gli agganci `workflow-ci` e `workflow-release` tengono spenti la matrice ufficiale e il rilascio. `main` del fork è lo specchio ufficiale senza questi agganci: lì `ci.yml` e `release-please.yml` sono spenti dalle impostazioni del repository (`gh workflow disable`, vale per ogni ramo; si riaccendono con `gh workflow enable`). `guard-generated-files.yml` e `no-mistakes-required.yml` partono solo per le PR verso `main`, mentre le PR del fork vanno su `carry`. L'unica CI del fork è `.github/workflows/prove-linux.yml`: gira su Linux, senza segreti e con permessi in sola lettura, a ogni push su `carry` e a ogni PR, e lancia `pnpm run check`. Non pubblica né rilascia niente.
 
 ## Prove
 
@@ -183,7 +184,7 @@ pnpm run check
 node --test bruvish/test/*.test.mjs app/test/*.test.mjs
 ```
 
-Il gate no-mistakes, nel passo lint, lancia i controlli di `pnpm run check` tranne `test/server-discovery.test.js` (`commands.prepare` e `commands.lint` in `.no-mistakes.yaml`).
+Il gate no-mistakes, nel passo lint, lancia i controlli di `pnpm run check` tranne `test/server-discovery.test.js` (`commands.prepare` e `commands.lint` in `.no-mistakes.yaml`). La CI su GitHub (`prove-linux.yml`) lancia `pnpm run check` intero, comprese quelle prove.
 
 Quel file è escluso perché le sue prove aprono server sull'IPv4 non loopback della macchina e li interrogano dallo stesso processo. Su una macchina che non raggiunge il proprio IP locale, 11 di quelle prove falliscono con «other side closed» o `ECONNRESET`: è l'ambiente, non il codice. In una sandbox degli agenti ne falliscono di più, perché la sandbox limita anche processi, segnali e DNS.
 

@@ -12,6 +12,7 @@ export const HOOKS = Object.freeze({
   ".prettierignore": ["prettier"],
   ".github/workflows/ci.yml": ["workflow-ci"],
   ".github/workflows/release-please.yml": ["workflow-release"],
+  "test/release-ci-exclusions.test.js": ["test-ci-exclusions"],
 });
 
 export function countHookMarker(source, id) {

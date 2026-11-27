@@ -126,6 +126,7 @@ test('a small conflict at a hook stops for resolution; --continue commits and ch
         resolved[9] = 'upstream rewrote line 10';
         resolved.splice(10, 0, '# BRUVISH:hook open-import');
         resolved.splice(21, 0, '# BRUVISH:hook open-present');
+        resolved.splice(32, 0, '# BRUVISH:hook open-discovery');
         writeLines(ws.fork, 'src/cli.js', resolved);
         git(ws.fork, ws.env, 'add', 'src/cli.js');
         result = update(ws, '--continue');
@@ -241,6 +242,7 @@ test('the agent-configuration trailer survives a conflict resolved with --contin
         resolved[9] = 'upstream rewrote line 10';
         resolved.splice(10, 0, '# BRUVISH:hook open-import');
         resolved.splice(21, 0, '# BRUVISH:hook open-present');
+        resolved.splice(32, 0, '# BRUVISH:hook open-discovery');
         writeLines(ws.fork, 'src/cli.js', resolved);
         git(ws.fork, ws.env, 'add', 'src/cli.js');
         result = update(ws, '--continue');

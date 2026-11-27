@@ -1,5 +1,5 @@
-# This fork runs no CI on GitHub, so the gate must not wait for checks.
-no_ci: true
+# La CI di questo fork è .github/workflows/prove-linux.yml: il gate aspetta i suoi controlli
+# sulla PR, quindi qui non c'è `no_ci`.
 
 # Il passo lint del gate lancia i controlli del progetto. Il gate legge questi comandi solo
 # dalla copia di questo file sul ramo predefinito (carry) e li esegue nella copia del run,
